@@ -74,6 +74,10 @@ Always check this list before writing any new script. If a workflow seems missin
 4. **Lua/BP boundary respected.** Every piece of mod state has one canonical owner. UI-reactive → BP. Domain/operational → Lua. Display values → BP holds, Lua pushes. See `.cursor/rules/mod-architecture.mdc` and `docs/architecture/state-contract.md` before touching either side.
 5. **Findings get logged before "done."** Every non-trivial debug, every new engine fact, every gotcha → `docs/learnings/<slug>.md`. Use the template. This is enforced by `.cursor/rules/learnings-discipline.mdc`.
 
+## Git workflow
+
+`main` stays green. Speculative or multi-file work goes on a branch (`feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `experiment/`). Before starting non-trivial work, propose a branch name and create it — don't silently commit to `main`. Conventional commit messages (`feat(chat): add channel switcher`). Never force-push `main`. Full policy in `.cursor/rules/git-workflow.mdc`.
+
 ## Vision — locked decisions and `[TBD]`s
 
 The locked-in shape: OSPlus evolves from "chat mod" to a profile/social/economy platform bound to the player's **Odyssey account** (the game's real identity, not Steam). Mod = thin client. Sidecar = bridge. Server = source of truth.

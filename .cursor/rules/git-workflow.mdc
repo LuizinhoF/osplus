@@ -1,0 +1,77 @@
+---
+description: Always-on policy — feature branches off main, conventional commits, never force-push main
+alwaysApply: true
+---
+
+# Git workflow
+
+OSPlus uses lightweight feature branches. `main` stays green ("could ship today"). Speculative work, multi-file changes, and anything that might be abandoned go on a branch.
+
+## Branch before non-trivial work
+
+Before starting any of these, create a branch:
+
+| Type | Branch prefix | Examples |
+|---|---|---|
+| New functionality | `feat/` | `feat/profile-system`, `feat/chat-channels` |
+| Bug fix touching code | `fix/` | `fix/chat-seed-gate`, `fix/sidecar-reconnect` |
+| Multi-file refactor (no behavior change) | `refactor/` | `refactor/lua-module-split` |
+| Large doc additions or restructures | `docs/` | `docs/vision-v1`, `docs/migrate-knowledgebase` |
+| Tooling, deps, build hygiene | `chore/` | `chore/git-workflow`, `chore/ue4ss-bump` |
+| Speculative / RE / "let's see if this works" | `experiment/` | `experiment/profile-store-sqlite` |
+
+Slug is short kebab-case describing the change.
+
+**Before authoring the branch:** propose the name to the user in chat. Don't silently `git switch -c`. The branch name is the first artifact of the work — getting it wrong sets the wrong frame for everything that follows.
+
+## Direct commits to main allowed for
+
+- Typo fixes in docs.
+- One-line config tweaks with no risk.
+- Truly trivial hotfix one-liners (rare; prefer a `fix/` branch even for these unless the change is one line and obviously correct).
+
+When in doubt, branch.
+
+## Commit messages — conventional commits
+
+Format: `<type>(<scope>): <subject>`
+
+| Type | Use for |
+|---|---|
+| `feat` | New functionality |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `refactor` | Code change with no behavior change |
+| `chore` | Tooling, deps, build hygiene |
+| `test` | Test additions / fixes |
+| `perf` | Performance improvement |
+| `revert` | Revert of a prior commit |
+
+Scope is optional but encouraged for shared subsystems: `feat(chat): ...`, `fix(relay): ...`, `chore(deploy): ...`.
+
+Subject: imperative present tense ("add", not "added"), no trailing period, ≤72 chars.
+
+Body: optional. Use it when the *why* isn't obvious from the diff. Reference learnings (`docs/learnings/<slug>.md`) when applicable.
+
+## Merge style
+
+- **Single-commit branch with linear history** → fast-forward (`git merge <branch>`). Clean, simple history.
+- **Multi-commit branch where the boundary matters** → `--no-ff` (`git merge --no-ff <branch>`). Preserves the branch boundary in `git log --graph`, makes the unit-of-work visible in history.
+- **Never** rebase or squash branches that have been pushed to a remote where someone else might have pulled them.
+
+After merging, delete the branch (`git branch -d <branch>`). `git branch` should reflect actual WIP, not historical clutter.
+
+## Never
+
+- Force-push `main` (or any shared branch).
+- Rewrite history that has been pushed.
+- Commit secrets, keys, `.env` files, `.cursor/mcp.json` (machine-specific paths), `*.code-workspace`. All gitignored — but double-check before staging.
+- Push, merge, create a PR, or rewrite history without explicit user approval. The agent proposes; the user disposes.
+
+## Practical notes
+
+**Windows / PowerShell.** PowerShell does not support bash heredocs (`<<'EOF'`). For multi-line commit messages, write the message to a temp file and use `git commit -F .commit-msg.tmp`, then delete the temp. Single-line commits are fine with `git commit -m "..."`.
+
+**The first thing to do on any new task** is `git status` + `git branch --show-current`. Confirm you're not about to add changes to the wrong branch.
+
+**Before committing**, run `git status` and `git diff --staged` and *read both*. The staging area is the last gate before history.
