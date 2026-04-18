@@ -1,6 +1,6 @@
 # OSPlus — Agent Briefing
 
-OSPlus is a mod platform for Omega Strikers. Today it ships an in-game chat (UE4SS Lua + cooked Blueprint widget) and a Node.js sidecar that bridges the game to a public WebSocket relay (`wss://play-osplus.duckdns.org`). The long-horizon vision is an Odyssey-account-bound profile/social/economy layer on top — see `docs/vision.md` once it lands.
+OSPlus is a mod platform for Omega Strikers. Today it ships an in-game chat (UE4SS Lua + cooked Blueprint widget) and a Node.js sidecar that bridges the game to a public WebSocket relay (`wss://play-osplus.duckdns.org`). The long-horizon vision is a SteamID-bound profile/social platform on top — locked architectural commitments in `docs/vision.md`.
 
 This file is the entry point for any AI coding agent working in this repo. Keep it under ~150 lines. If you need depth, link to a doc instead of inlining.
 
@@ -78,21 +78,18 @@ Always check this list before writing any new script. If a workflow seems missin
 
 `main` stays green. Speculative or multi-file work goes on a branch (`feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `experiment/`). Before starting non-trivial work, propose a branch name and create it — don't silently commit to `main`. Conventional commit messages (`feat(chat): add channel switcher`). Never force-push `main`. Full policy in `.cursor/rules/git-workflow.mdc`.
 
-## Vision — locked decisions and `[TBD]`s
+## Vision
 
-The locked-in shape: OSPlus evolves from "chat mod" to a profile/social/economy platform bound to the player's **Odyssey account** (the game's real identity, not Steam). Mod = thin client. Sidecar = bridge. Server = source of truth.
+Four locked architectural commitments drive what gets built and how:
 
-`[TBD]` decisions blocking `docs/vision.md`:
+1. **Identity** = claimed SteamID + game-derived display name.
+2. **Profile module** = REST API, SQLite, in-process with the relay (`server/profile/`), separable later.
+3. **Profile schema** starts identity-only and grows on demand — fields are added by the feature that needs them, in the same branch.
+4. **Ephemeral state** lives on the relay (not the client, not a separate service).
 
-- `[TBD]` Auth flow. Odyssey account binding mechanism (cookie? token? OAuth? SteamID-claimed link?).
-- `[TBD]` Profile schema v1. What persistent fields exist (display name, currency, unlocks, friends, stats)? What's earned vs purchased vs cosmetic?
-- `[TBD]` Currency model. One currency or two (earned + premium)? Caps? Earn rates?
-- `[TBD]` Social primitives. Friends list source of truth — ours or Odyssey's? DMs in scope for v1?
-- `[TBD]` Analytics scope. What gets logged for product decisions vs invasive?
-- `[TBD]` Persistence layer. SQLite on the relay VM? Postgres? Object store for blobs?
-- `[TBD]` Versioning / migration story. Mod can be older than server; server can be older than mod. Compat policy?
+Full rationale, what each lock rules out, and the remaining `[TBD]`s: `docs/vision.md`. **Read it before designing any feature that touches identity, profile, persistence, or shared session state.**
 
-Until these are answered, ship the *current* product (chat + relay) and design new features behind interfaces that don't lock in any of the above.
+If a feature seems to require *changing* a lock, stop and surface the conflict — locks change with conversation, not by drift.
 
 ## When in doubt
 
