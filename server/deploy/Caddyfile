@@ -1,0 +1,25 @@
+# OSPlus relay — public TLS endpoint
+#
+# Caddy v2 handles the WebSocket upgrade automatically (Upgrade: websocket
+# from client → Caddy proxies the upgrade transparently). No special
+# directive needed for ws/wss.
+#
+# Auto-TLS via Let's Encrypt is enabled by default for any non-IP host.
+# Caddy will fetch and renew the cert on first reach.
+
+play-osplus.duckdns.org {
+    # Compress text responses (mostly for /health).
+    encode gzip
+
+    # Proxy everything to the local Node relay. WS upgrade is handled
+    # automatically when the request carries Upgrade: websocket.
+    reverse_proxy 127.0.0.1:3000
+
+    log {
+        output file /var/log/caddy/play-osplus.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format console
+    }
+}

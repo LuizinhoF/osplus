@@ -1,0 +1,96 @@
+---
+description: Architecture conventions for the OSPlus UE4SS mod — Lua/BP boundary, state ownership, cooker settings
+globs:
+  - mod/**/*.lua
+  - ue-assets/**/*
+  - KNOWLEDGEBASE.md
+---
+
+# OSPlus Mod Architecture
+
+## Lua / BP Boundary Contract
+
+The mod runs across two execution contexts: Lua (UE4SS scripts) and Blueprint (cooked into `OSPlus.pak`). Every piece of state has **one canonical home**, decided by who consumes it. No mirroring.
+
+### Three-bucket state model
+
+| Bucket | Owner | Examples | Why |
+|---|---|---|---|
+| **UI-reactive state** | Blueprint | `IsTyping`, `IsExpanded`, current channel/tab, focus state, anything driving UMG bindings or BP event reactions | UMG bindings need BP variables; BP can't react to Lua-side flags |
+| **Domain / operational state** | Lua | message arrays, IPC queues, sidecar PID, room codes, timers, cached widget refs, periodic-task state | BP arrays-of-structs are clunky; BP can't `os.execute`, can't poll filesystem, can't run `LoopAsync` |
+| **Derived display values** | BP holds, Lua pushes | `ChatHistory` text content, currency display, unread badge count | BP renders, Lua decides what to render. One-way data flow. |
+
+### The contract API surface
+
+For any cross-context state, the boundary uses three verbs:
+
+1. **Lua → BP push** — Lua hands BP an already-formatted value to display. Function form: `widget:Set<Thing>(value)`. BP just stores + renders, no logic on the value.
+2. **Lua reads BP UI state** — Lua queries BP-owned flags before deciding what to do. Property form: `widget.IsTyping`, `widget.CurrentChannel`. BP is the source of truth.
+3. **BP fires events back to Lua** — BP writes to a `Pending<Thing>` property; Lua polls and clears it. Or: BP calls a Lua function exposed via UE4SS hook. Never both for the same event.
+
+### Designing a feature contract (do this BEFORE writing the feature)
+
+For each new feature, declare its boundary upfront in the feature's Lua module header:
+
+```lua
+-- ============================================================
+-- Feature: Profile
+-- BP-owned (UI-reactive):
+--   IsAuthenticated: bool
+--   IsMenuOpen: bool
+--   CurrentTab: enum {Stats, Cosmetics, Friends}
+-- Lua-owned (domain):
+--   profile model {id, currency, unlocks, friends}
+--   WebSocket sync state, pending mutations
+-- Lua → BP (push display):
+--   :SetProfileSummary(json)
+--   :SetCurrencyDisplay(coins, gems)
+-- BP → Lua (events):
+--   PendingMenuAction: string (BP writes, Lua polls + clears)
+-- ============================================================
+```
+
+If you find yourself writing a state variable that doesn't fit cleanly into one of these buckets, **stop and re-examine the design** — it usually means the wrong context is being asked to own the state.
+
+### Anti-patterns
+
+- **Mirrored state.** Same fact represented in both Lua and BP, kept in sync by hand. Always wrong. Pick one owner.
+- **Pulling logic into BP because state lives there.** If BP owns `IsTyping` for binding reactivity, that doesn't mean message-formatting logic should also be in BP. Keep logic in Lua, push the result.
+- **Pulling state into Lua because logic lives there.** If Lua does message formatting, that doesn't mean `IsTyping` should be Lua-side. Read it from BP every time you need it.
+- **Two writers with implicit ordering.** If both BP and Lua can change the same value with timing assumptions, you have a race. Either single-writer, or use a `Pending<X>` polling protocol.
+
+## Worked example: chat feature
+
+```
+WBP_ModChat (BP-owned):
+  IsTyping: bool                       ← Lua reads via M.isTyping()
+  PendingMessage: string               ← BP writes on submit, Lua polls + clears
+  ChatInput: UMG TextBox sub-widget    ← pure UMG, owned by BP
+
+WBP_ModChat (Lua-pushed display):
+  :SetHistory(text)                    ← Lua pushes formatted message history
+
+WBP_ModChat (orchestration calls):
+  :OpenInput()  / :CloseInput()        ← BP applies focus, anim, visibility
+                                          (Lua just triggers; BP owns the how)
+
+chat.lua (Lua-owned):
+  M.messages: list of {sender, text, time}
+  M.widget:   cached BP widget reference
+  M.currentRoom, M.inMatch, M.shownForMatch, timer state
+```
+
+See `docs/architecture/state-contract.md` for the full chat audit and the
+"designing a new feature" template.
+
+## Cooker Settings
+
+Always cook with `CanUseUnversionedPropertySerialization=False` in `[Core.System]` of `DefaultEngine.ini`. Without this, complex widgets (ScrollBox, etc.) crash on deserialization due to schema drift between the source-built UE 5.1.0 editor and Odyssey's custom 5.1.0 runtime fork.
+
+## UE Project
+
+- Source-built UE 5.1.0 at `F:\UE510\UnrealEngine-5.1.0-release\`
+- Project at `F:\Omegamod\OmegaStonkers 5.1\OmegaStonkers.uproject`
+- Use the 5.1.0-built UnrealPak for packaging
+- Cooked mod content lives at `Content/Mods/OSPlus/<Feature>/` (one folder per feature; see `docs/UE_PROJECT_MIGRATION.md`)
+- `ModActor` lives at the root of `Content/Mods/OSPlus/` and is loaded by BPModLoaderMod (do not rename or move — BPModLoaderMod hardcodes the path)

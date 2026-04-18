@@ -1,0 +1,43 @@
+---
+description: Always-on policy — log non-trivial findings to docs/learnings/ before declaring a task done
+alwaysApply: true
+---
+
+# Learnings discipline
+
+Every OSPlus session that produces a non-trivial finding must add a `docs/learnings/<slug>.md` entry **before declaring the task done**. This is the project's compounding mechanism — without it, the same problems get re-debugged across sessions.
+
+## When a learning is required
+
+Write one if **any** of these is true for the current task:
+
+- More than ~30 minutes of debugging happened (yours or the user's).
+- A new engine, game, or platform fact was discovered.
+- A new failure mode was found (crash, silent break, unexpected behavior, performance cliff).
+- A tool, harness, build step, or deployment step was added or significantly changed.
+- A previously-believed fact in `KNOWLEDGEBASE.md`, `AGENTS.md`, or another doc turned out to be wrong.
+
+When in doubt, write it. A 5-minute log saves hours later.
+
+## What to do
+
+1. Copy `docs/learnings/_TEMPLATE.md` to `docs/learnings/<short-kebab-slug>.md`. The slug is what someone will grep for in six months — pick accordingly.
+2. Fill in every field. No empty sections.
+3. If the learning invalidates anything in `KNOWLEDGEBASE.md`, `AGENTS.md`, `docs/architecture/`, or another doc, **update those docs too**. The learning is additive; fixing the stale source is separate and required.
+4. Add the entry to the index table in `docs/learnings/README.md` (newest first).
+5. If the lesson points to specific code, add a comment at the code site: `-- See docs/learnings/<slug>.md` (Lua) or `// See docs/learnings/<slug>.md` (JS/PS1).
+
+## What "done" means
+
+A task is not done until either:
+
+- A learning entry exists for it, **or**
+- You can articulate (and the user agrees) that none of the trigger conditions above apply.
+
+If the user moves on without acknowledging this, surface it: *"Before we move on, this work hit \[trigger\]. Worth a learning entry?"* Don't silently skip.
+
+## What this rule does NOT do
+
+- It does not require a learning for trivial edits (typo fixes, comment polish, config tweaks with no surprise).
+- It does not replace updating `KNOWLEDGEBASE.md` or `AGENTS.md` when the canonical source is wrong — the learning is the diary, those are the reference.
+- It does not block exploration. Write the learning at the *end*, when you know what the actual finding was.

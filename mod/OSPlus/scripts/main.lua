@@ -1,0 +1,180 @@
+--[[
+    OSPlus — Team Chat (feature 1 of N)
+    ===================================
+    In-match text chat between teammates via WebSocket relay.
+
+    Keybinds:
+      Enter    = Open chat input
+      Escape   = Cancel chat input
+]]
+
+local cfg    = require("config")
+local log    = require("log")
+local utils  = require("utils")
+-- DISABLED: ping system (dead code, kept for future re-enablement)
+-- local assets = require("assets")
+-- local pings  = require("pings")
+-- local wheel  = require("wheel")
+local ipc    = require("ipc")
+local chat   = require("chat")
+
+-- Wire cross-module callbacks
+-- DISABLED: ping callbacks
+-- pings.onPingFired   = function(pingType, posVec) ipc.writePingToOutbox(pingType, posVec) end
+-- ipc.spawnRemotePing = pings.spawn
+chat.onChatSent     = function(sender, text) ipc.writeChatToOutbox(sender, text) end
+ipc.onChatReceived  = function(sender, text) chat.addMessage(sender, text) end
+chat.onRoomChange   = function(room) ipc.writeRoomChange(room) end
+chat.onRoomLeave    = function() ipc.writeRoomLeave() end
+
+-- ============================================================================
+-- Input
+-- ============================================================================
+
+-- DISABLED: ping wheel keybind
+--[[
+RegisterKeyBind(cfg.WHEEL_KEY, function()
+    ExecuteInGameThread(function()
+        if not wheel.open then
+            assets.ensureLoaded()
+            wheel.open = true
+            wheel.selectedIndex = 1
+            if wheel.show() then
+                log.log("Wheel opened")
+            else
+                log.log("Wheel open failed, firing default ping")
+                wheel.open = false
+                wheel.fireSelected()
+            end
+        else
+            local pt = cfg.PING_TYPES[wheel.selectedIndex]
+            log.log("Wheel fire: " .. (pt and pt.name or "?"))
+            wheel.fireSelected()
+            wheel.hide()
+            wheel.open = false
+        end
+    end)
+end)
+]]
+
+RegisterKeyBind(cfg.CHAT_KEY, function()
+    ExecuteInGameThread(function()
+        if not chat.isTyping() then
+            chat.open()
+        end
+    end)
+end)
+
+RegisterKeyBind(cfg.CHAT_CANCEL_KEY, function()
+    ExecuteInGameThread(function()
+        if chat.isTyping() then
+            chat.close()
+        end
+    end)
+end)
+
+-- Hook: match state changes (covers match end without map transition)
+local hookOk, hookErr = pcall(function()
+    RegisterHook("/Script/Engine.GameState:OnRep_MatchState", function()
+        ExecuteInGameThread(function()
+            chat.onMatchStateChanged()
+        end)
+    end)
+end)
+if hookOk then
+    log.log("[HOOK] OnRep_MatchState registered")
+else
+    log.log("[HOOK] OnRep_MatchState failed: " .. tostring(hookErr))
+end
+
+-- ============================================================================
+-- Sidecar auto-launch
+-- ============================================================================
+
+local function launchSidecar()
+    -- Kill any leftover sidecar from a previous session
+    os.execute('taskkill /f /im OSPlus.exe >nul 2>&1')
+
+    local candidates = {
+        ".\\ue4ss\\Mods\\OSPlus\\sidecar",
+        ".\\Mods\\OSPlus\\sidecar",
+    }
+
+    for _, sidecarDir in ipairs(candidates) do
+        local sidecarExe = sidecarDir .. "\\OSPlus.exe"
+        local vbsLauncher = sidecarDir .. "\\launch_hidden.vbs"
+        local check = io.open(sidecarExe, "r")
+        if check then
+            check:close()
+            -- Prefer wscript+VBS shim so no console window appears.
+            -- The sidecar exe is built from node.exe (console subsystem), so
+            -- launching it directly always allocates a console. wscript.exe
+            -- runs a .vbs silently and the .vbs spawns the exe with window
+            -- state 0 (hidden), inheriting no console.
+            local vbsCheck = io.open(vbsLauncher, "r")
+            if vbsCheck then
+                vbsCheck:close()
+                os.execute('start "" wscript.exe "' .. vbsLauncher .. '" "OSPlus.exe"')
+                log.log("[SIDECAR] Launched (hidden) " .. sidecarExe)
+            else
+                -- Fallback: visible console launch if shim is missing.
+                os.execute('start "" /D "' .. sidecarDir .. '" "' .. sidecarExe .. '"')
+                log.log("[SIDECAR] Launched (visible, no vbs shim) " .. sidecarExe)
+            end
+            return
+        end
+    end
+
+    log.log("[SIDECAR] Exe not found in any known Mods path, skipping auto-launch")
+end
+
+-- ============================================================================
+-- Initialization
+-- ============================================================================
+
+log.ensureDir()
+
+local f = io.open(cfg.LOG_FILE, "w")
+if f then
+    f:write("=== OSPlus " .. cfg.VERSION .. " ===\n")
+    f:write("Started: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n\n")
+    f:close()
+end
+
+ipc.truncateInbox()
+ipc.writeHeartbeat()  -- prime heartbeat before sidecar starts polling
+launchSidecar()
+
+print("==============================================\n")
+print("[OSPlus] " .. cfg.VERSION .. "\n")
+print("[OSPlus] Keybinds:\n")
+print("[OSPlus]   Enter = Open chat\n")
+print("[OSPlus]   Esc   = Cancel chat\n")
+print("[OSPlus] IPC:    " .. cfg.IPC_DIR .. "\n")
+print("==============================================\n")
+
+RegisterLoadMapPostHook(function()
+    log.log("[EVENT] Map loaded")
+    chat.reset()
+    ipc.truncateInbox()
+    chat.onMapLoaded()
+end)
+
+-- Probe for the initial map (already loaded before mod starts)
+chat.onMapLoaded()
+
+-- Tick loop — lightweight, only chat + IPC
+local tickLoopStarted = false
+LoopAsync(30, function()
+    if not tickLoopStarted then
+        tickLoopStarted = true
+        log.log("[TICK] Tick loop running")
+    end
+
+    pcall(chat.tickMatchProbe)
+    pcall(chat.pollPending)
+    ipc.poll()
+    return false
+end)
+
+log.log("Ready! Press Enter in-match to chat.")

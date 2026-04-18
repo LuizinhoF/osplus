@@ -1,0 +1,52 @@
+---
+description: Always-on policy — use the existing OSPlus build/deploy/dev harnesses; do not reinvent
+alwaysApply: true
+---
+
+# OSPlus harnesses — use these, do not reinvent
+
+OSPlus has a complete set of build, deploy, and dev-loop scripts. Before writing any new automation, check whether one of these already does it. If a workflow seems missing, **ask before authoring** — there's almost always an existing script.
+
+This rule is the deterministic backstop for the same list in `AGENTS.md` → Toolchain. Both must stay in sync; when a script is added, changed, or removed, update both files.
+
+## Build & ship the mod
+
+| Script | Purpose | When to use |
+|---|---|---|
+| `tools/setup/bootstrap.ps1` | Dev environment bootstrap (repak, UAssetGUI, UE path checks) | First time on a new machine, or when a tool dependency is missing |
+| `ue-assets/package_logicmod.ps1` | Pack cooked OSPlus content → `OSPlus.pak` in the game's `LogicMods/` | After every `File → Cook Content for Windows` in the UE editor |
+| `build_dist.ps1` | Assemble `dist/OSPlus.zip` (Lua + sidecar SEA + pak + UE4SS bundle + installer) | Before shipping a new release |
+| `dist/install.bat` | End-user installer (auto-elevates, auto-detects game, migrates legacy) | Distributed inside the zip; not run from the dev repo |
+
+**Cooking itself is manual** in the UE editor (`File → Cook Content for Windows`). `/Game/Mods/OSPlus` must be in *Project Settings → Packaging → Additional Asset Directories to Cook* — otherwise the cook is empty. See `docs/learnings/ue-cook-additional-asset-dirs.md`.
+
+## Local dev loop
+
+| Script | Purpose | When to use |
+|---|---|---|
+| `deploy.ps1` | Fast Lua-only sync from `mod/OSPlus/scripts/` to the game install | Iterating on Lua between cook cycles. Does **not** update the pak. |
+
+## Relay (server)
+
+| Script | Purpose | When to use |
+|---|---|---|
+| `server/deploy/ship.ps1` | Push `server/` to the OCI VM and run install-relay.sh | Deploying a relay change |
+| `server/deploy/install-relay.sh` | Runs **on the VM** (called by ship.ps1). Installs Node.js + Caddy, lays down systemd units, enables auto-TLS | Never run directly from Windows |
+| `server/deploy/Caddyfile`, `server/deploy/osplus-relay.service` | Deployed configs | Edit, then re-ship |
+
+`osplus-relay.service` deliberately does **not** use `MemoryDenyWriteExecute=true` — it conflicts with V8's JIT. See `docs/learnings/oci-relay-deploy-gotchas.md` before re-hardening.
+
+## Reverse engineering / debug
+
+| Script | Purpose | Status |
+|---|---|---|
+| `parse_uasset.ps1` | Generic .uasset header parser | Useful but ad-hoc; not a stable harness |
+| `compare_uexp.ps1` | One-off binary diff for cooked outputs | Hardcoded paths; treat as scratch |
+| `tools/re/` | Emerging RE toolkit (snapshot, hook, dump) | Work in progress |
+
+## Behavior
+
+1. Before writing a new script: check this table. If something close exists, extend it instead of duplicating.
+2. If a workflow legitimately doesn't exist here, propose the script (name, purpose, where it lives) **before authoring**. Don't surprise the user with a new harness.
+3. When changing or adding a script, update **both** this file and the Toolchain section of `AGENTS.md` in the same change.
+4. When removing a script, delete from both, and add a learning entry if anyone else might still try to run it.

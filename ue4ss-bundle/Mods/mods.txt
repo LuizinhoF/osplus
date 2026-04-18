@@ -1,0 +1,10 @@
+ConsoleCommandsMod : 1
+ConsoleEnablerMod : 1
+BPModLoaderMod : 1
+BPML_GenericFunctions : 1
+OSPlus : 1
+
+
+
+; Built-in keybinds, do not move up!
+Keybinds : 1

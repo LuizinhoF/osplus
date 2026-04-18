@@ -1,0 +1,69 @@
+# ─── Build artifacts ─────────────────────────────────────────────────────────
+dist/OSPlus/
+dist/OSPlus.zip
+sidecar/bundle.js
+sidecar/sea-prep.blob
+sidecar/OSPlus.exe
+
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ─── Runtime data ────────────────────────────────────────────────────────────
+# IPC files written by the mod at runtime live in %LOCALAPPDATA%, not here,
+# but if someone redirects them locally, ignore.
+*.jsonl
+heartbeat.txt
+explorer_output.txt
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+UE4SS.log
+imgui.ini
+
+# ─── UE-side junk that may sneak in ──────────────────────────────────────────
+*.uasset.bak
+*.uexp.bak
+
+# ─── Editor / OS ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+# Local Cursor/VS Code workspace file — contains user-specific drive paths
+# (e.g. F:\SteamLibrary\...). Each contributor keeps their own.
+*.code-workspace
+
+# ─── Secrets ─────────────────────────────────────────────────────────────────
+.env
+.env.local
+*.pem
+*.key
+sidecar/config.local.json
+server/config.local.json
+
+# ─── Per-contributor Cursor MCP config (machine-specific paths) ──────────────
+# Template lives at .cursor/mcp.json.example — copy + edit locally.
+.cursor/mcp.json
+
+# ─── Scratch / experimental ──────────────────────────────────────────────────
+scratch/
+scratchpad.md
+*.scratch.*
+
+# ─── RE toolchain binaries (downloaded by tools/setup/bootstrap.ps1) ─────────
+tools/_bin/
+
+# ─── RE raw dumps (huge, regenerated per game patch) ─────────────────────────
+data/re/raw/
+# Track the indices though — they're small + agent-queryable
+!data/re/index/
+!data/re/index/**
+
+# ─── Allow-list overrides ────────────────────────────────────────────────────
+# Keep the dist source files (install.bat + README.txt) — they're inputs,
+# not outputs. The build script copies them INTO dist/OSPlus/.
+!dist/install.bat
+!dist/README.txt

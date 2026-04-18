@@ -1,0 +1,189 @@
+# Research: Agentic Documentation Stack for OSPlus (2026)
+
+| Field | Value |
+|---|---|
+| Date | 2026-04-04 |
+| Scope | How OSPlus structures always-loaded context, on-demand expertise, and behavioral rules so AI coding agents (Cursor, Codex, Copilot, etc.) work productively across sessions. |
+| Status | Decisions locked. Implementation in `AGENTS.md`, `.cursor/rules/`, `.cursor/skills/`. |
+| Re-evaluate when | Cursor's rule format changes meaningfully, AGENTS.md spec gets a v2, or a tool we use drops/adds support. |
+
+This doc exists so the structure of OSPlus's agent-facing files is **defensible**, not just "the way it is." If a future agent (or future me) wants to change it, they should be arguing against this doc, not against vibes.
+
+---
+
+## Question 1 — Where should always-loaded project context live?
+
+### Options considered
+
+1. `README.md` — human-facing, but tools may or may not load it.
+2. `.cursorrules` — Cursor-specific, legacy approach.
+3. `CLAUDE.md` — Claude Code's native format.
+4. `AGENTS.md` — open standard.
+5. Some combination.
+
+### What sources say
+
+- **`agentsmd.io`** (canonical spec page, fetched 2026-04-04): AGENTS.md is "a dedicated file in your project root that guides AI coding agents." Plain Markdown, no required schema. Compatible with **GitHub Copilot, Cursor, OpenAI Codex, Google Jules, Aider**. ([agentsmd.io](https://agentsmd.io/))
+- **`agentsmd.online` / vibecoding.app guide (2026)**: AGENTS.md emerged from collaboration between OpenAI, Google, Sourcegraph, Cursor, and Factory. Now stewarded by the Agentic AI Foundation under the Linux Foundation. Adopted by **60,000+ open-source repositories on GitHub**. **Featured in ThoughtWorks Technology Radar at "Trial" level (November 2025).**
+- **Notable limitation**: Claude Code does **not** natively read AGENTS.md — it uses `CLAUDE.md`. (Several 2026 sources confirm this; OSPlus does not currently use Claude Code, so not blocking.)
+- **Cursor docs** (cursor.sh/docs/rules): `.cursorrules` is the legacy approach; the recommended 2026 layout is `.cursor/rules/*.mdc` files with frontmatter for fine-grained attachment.
+
+### Decision
+
+**Single root-level `AGENTS.md` as the always-loaded project briefing.** Cross-tool (Cursor + Codex + Copilot + others) coverage with one file, native loading, no per-tool maintenance.
+
+### What this rules out
+
+- Maintaining `.cursorrules` AND `CLAUDE.md` AND `README.md`-as-instructions in parallel (drift inevitable).
+- Putting agent instructions in `README.md` (fights its human audience purpose).
+- Skipping AGENTS.md because "Cursor has rules" — rules don't auto-load on session start across tools the way AGENTS.md does, and they're Cursor-only.
+
+### Open caveat
+
+If we ever adopt Claude Code as a dev tool, we'll need a `CLAUDE.md` symlink or a duplicate. Not solving today.
+
+---
+
+## Question 2 — How should `.cursor/rules/` files be attached?
+
+### Three attachment mechanisms
+
+Per Cursor docs and 2026 community guides:
+
+| Mechanism | Trigger | Reliability | Context cost |
+|---|---|---|---|
+| `alwaysApply: true` | Every Cursor session | Deterministic | Always-on (use sparingly) |
+| `globs: [...]` | Auto-attaches when files matching pattern are touched | Deterministic *if globs are correct* | On-demand |
+| `description: "..."` | Model decides based on description match | Probabilistic | On-demand |
+
+### What sources say
+
+- **skillsplayground.com guide (2026)**: keep rules under 500 lines; split larger rules; use `@-mentions` for cross-references; check rules into git.
+- **localskills.sh blog (2026)**: most rules should be `alwaysApply: false` to avoid context bloat. Use `alwaysApply: true` only for "universal conventions that apply project-wide."
+- **Glob anti-patterns** (multiple sources):
+  - Too broad (`**/*`) → context pollution across all file types.
+  - Too narrow (`components/*.tsx`) → misses nested directories.
+  - Right shape: `mod/**/*.lua`, `**/*.{ts,tsx}` — recursive, file-type-scoped.
+
+### Decision (tiered policy for OSPlus)
+
+| Tier | Use `alwaysApply: true` for | Use `globs:` for | Use `description:` for |
+|---|---|---|---|
+| Examples | "OSPlus has these harnesses, don't reinvent." Learnings discipline. | Lua/BP boundary contract (auto-attach when touching `mod/**/*.lua`). Build pipeline notes (auto-attach to `build_dist.ps1` etc). | Rare workflows the model needs to opt into ("when authoring a new RE finding"). |
+| Why | Must-know on turn 1. Cheap. | Loads exactly when relevant, costs nothing otherwise. | Lower reliability — keep for genuinely optional context. |
+
+### What this rules out
+
+- A single mega-rule with `alwaysApply: true` containing all conventions (context bloat, hard to maintain, agent has to re-read everything).
+- Pure description-based rules for safety-critical guidance (description matching is probabilistic).
+- Wide globs like `**/*` (every file in the repo would attach the rule — wastes tokens and dilutes signal).
+
+---
+
+## Question 3 — When to use Cursor *skills* vs. *rules*?
+
+### Distinction
+
+- **Rule** (`.mdc` in `.cursor/rules/`): policy or behavior. *"When you do X, do it this way."* Auto-attached based on context.
+- **Skill** (`SKILL.md` in `.cursor/skills/<name>/`): expertise or knowledge. *"Here's how to be good at X."* Model-invoked based on description match.
+
+### Decision
+
+| Topic | Lives as | Why |
+|---|---|---|
+| "Don't reinvent OSPlus harnesses" | Rule (`alwaysApply: true`) | Behavior policy. Must apply on turn 1. |
+| "Lua/BP boundary state ownership" | Rule (glob-attached) | Behavior contract. Auto-fires when touching mod files. |
+| "How UE4SS Lua API works" | Skill | Reference expertise. Pulled in when actually needed. |
+| "How to design a tool-calling agent" | Skill | Reference expertise. |
+| "Findings-discipline (always log to docs/learnings/)" | Rule (`alwaysApply: true`) | Behavior policy. |
+
+If a piece of content is **what the agent should do**, it's a rule. If it's **what the agent needs to know to do something well**, it's a skill.
+
+### What this rules out
+
+- Putting reference material in `alwaysApply: true` rules (token waste; agent doesn't need UE4SS API reference unless writing UE4SS code).
+- Putting safety/policy guidance only in skills (skill invocation is probabilistic).
+
+---
+
+## Question 4 — How do we keep context alive across sessions?
+
+This is the failure mode: agent starts a fresh chat, doesn't know about `build_dist.ps1`, reinvents a worse version. Validated as a real concern (see workflow discussion 2026-04-04).
+
+### Layers of redundancy adopted
+
+1. **`AGENTS.md` "Toolchain" section** — every script and what it does, one line each, pointer to deep-dive doc/skill. Always loaded by any AGENTS.md-aware tool.
+2. **`harnesses.mdc` rule with `alwaysApply: true`** — short, deterministic backstop. Loaded by Cursor on every session. Single source of truth co-maintained with the AGENTS.md Toolchain section.
+3. **Glob-attached deep-dive rules** — when the agent actually touches `build_dist.ps1`, a richer rule loads with history/gotchas.
+4. **Skills for workflows the agent might need to *learn*, not just know exist** — `installer-packaging`, `sidecar-dev`, etc.
+5. **Cold-start validation** — periodically test that a fresh session reaches for the right tools when given common requests. If it doesn't, the docs failed and get fixed before the gap propagates.
+
+### What this rules out
+
+- Relying on a single mechanism (any one layer can fail; the redundancy is the point).
+- "We'll just remember to mention the tools" — discipline alone has a 100% failure rate over time.
+
+---
+
+## Adopted layout (concrete)
+
+```
+AGENTS.md                          ← always-loaded project briefing (target: <150 lines)
+.cursor/
+  rules/
+    harnesses.mdc                  ← alwaysApply: true, "use existing scripts"
+    learnings-discipline.mdc       ← alwaysApply: true, "log findings before done"
+    code-conventions.mdc           ← alwaysApply: true, project-wide style
+    mod-architecture.mdc           ← globs: mod/**/*.lua, ue-assets/**, KNOWLEDGEBASE.md
+    build-deploy.mdc               ← globs: build_dist.ps1, dist/**, sidecar/**
+    relay-deploy.mdc               ← globs: server/**
+  skills/
+    ue4ss-modding/SKILL.md         ← UE4SS Lua API expertise
+    ue-ui-umg-slate/SKILL.md       ← UMG/Slate expertise
+    ue-serialization-savegames/SKILL.md
+    feature-design/SKILL.md        ← (planned) how to add a new OSPlus feature
+    installer-packaging/SKILL.md   ← (planned) shipping a dist
+    sidecar-dev/SKILL.md           ← (planned) sidecar architecture
+docs/
+  vision.md                        ← north star (locked-in product decisions)
+  ARCHITECTURE.md                  ← system architecture (linked from AGENTS.md)
+  ROADMAP.md                       ← what's next, in order
+  research/
+    2026-agentic-stack.md          ← this file
+    <future research entries>
+  decisions/                       ← (planned) ADRs for irreversible architectural choices
+  learnings/                       ← findings discipline lands here
+    chat-seed-gate.md              ← (backfill)
+    oci-deployment-gotchas.md      ← (backfill)
+    ue-cooker-additional-dirs.md   ← (backfill)
+  architecture/
+    state-contract.md              ← Lua/BP boundary deep dive
+  ops/
+    deploy-relay.md                ← runbook
+  re/                              ← reverse-engineering notes (game internals)
+  UE_PROJECT_MIGRATION.md
+```
+
+## What we're committing to maintain
+
+Each of these is a recurring cost. We accept them deliberately:
+
+1. **`AGENTS.md` Toolchain section ↔ `harnesses.mdc` parity.** When a script is added/changed/removed, both files update. Two places, but they're both short and live next to the change.
+2. **`docs/learnings/` entries before "done."** Every non-trivial finding lands here. Enforced by `learnings-discipline.mdc` rule + the learnings template.
+3. **Cold-start validation after meaningful AGENTS.md or harnesses.mdc changes.** Three canonical scenarios: "rebuild the dist," "deploy a relay fix," "add a new OSPlus feature." Fresh chat must reach for the right tools.
+4. **Re-evaluate this research yearly** or when a triggering signal appears (see header).
+
+## Sources cited
+
+| # | Source | Type | Date checked |
+|---|---|---|---|
+| 1 | [agentsmd.io](https://agentsmd.io/) | Canonical spec page | 2026-04-04 |
+| 2 | agentsmd.online | Reference site | 2026-04-04 (via search summary) |
+| 3 | [vibecoding.app — AGENTS.md Guide 2026](https://vibecoding.app/blog/agents-md-guide) | Synthesis blog | 2026-04-04 (via search summary) |
+| 4 | [Cursor Rules docs](https://cursor.sh/docs/rules) | Tool documentation | 2026-04-04 (via search summary) |
+| 5 | [skillsplayground.com — Cursor Rules Guide 2026](https://skillsplayground.com/guides/cursor-rules/) | Synthesis blog | 2026-04-04 (via search summary) |
+| 6 | localskills.sh — Cursor Rules Guide 2026 | Synthesis blog | 2026-04-04 (via search summary) |
+| 7 | [SOTAAZ blog — CLAUDE.md vs .cursorrules vs AGENTS.md](https://blog.sotaaz.com/post/ai-coding-rules-guide-en) | Comparison article | 2026-04-04 (via search summary) |
+| 8 | [The Prompt Shelf — AGENTS.md vs CLAUDE.md (2026)](https://thepromptshelf.dev/blog/agents-md-vs-claude-md) | Comparison article | 2026-04-04 (via search summary) |
+
+Primary source for the AGENTS.md decision is #1 (canonical spec). Primary source for Cursor rules mechanics is #4 (tool docs). The blog sources are synthesis — used to confirm the canonical sources said what we think they said and that 2026 community practice matches.

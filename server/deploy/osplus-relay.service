@@ -1,0 +1,48 @@
+[Unit]
+Description=OSPlus chat/ping relay (WebSocket)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=osplus
+Group=osplus
+WorkingDirectory=/opt/osplus/relay
+ExecStart=/usr/bin/node /opt/osplus/relay/index.js
+Restart=on-failure
+RestartSec=5s
+
+# Environment — relay-specific config. Override with a drop-in if you
+# need a token: sudo systemctl edit osplus-relay
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOST=127.0.0.1
+Environment=TRUST_PROXY=1
+# Environment=RELAY_TOKEN=replace-me-and-restart
+
+# Logging — stdout/stderr land in journalctl -u osplus-relay
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=osplus-relay
+
+# Hardening — restrict what the process can touch even if compromised.
+# NOTE: MemoryDenyWriteExecute is intentionally OMITTED. Node's V8 JIT needs
+# to allocate W+X pages for compiled JavaScript; that directive crashes the
+# process immediately with SIGTRAP. Same applies to any other JIT runtime.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/osplus/relay
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

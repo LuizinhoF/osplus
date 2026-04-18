@@ -1,0 +1,3 @@
+[enabled]
+OmegaStrikersExplorer : 0
+OSPlus : 1
