@@ -88,18 +88,21 @@ Always check this list before writing any new script. If a workflow seems missin
 
 `main` stays green. Speculative or multi-file work goes on a branch (`feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `experiment/`). Before starting non-trivial work, propose a branch name and create it — don't silently commit to `main`. Conventional commit messages (`feat(chat): add channel switcher`). Never force-push `main`. Full policy in `.cursor/rules/git-workflow.mdc`.
 
-## Vision
+## Vision & roadmap
 
-Four locked architectural commitments drive what gets built and how:
+Two paired docs drive what gets built and how:
 
-1. **Identity** = claimed SteamID + game-derived display name.
-2. **Profile module** = REST API, SQLite, in-process with the relay (`server/profile/`), separable later.
-3. **Profile schema** starts identity-only and grows on demand — fields are added by the feature that needs them, in the same branch.
-4. **Ephemeral state** lives on the relay (not the client, not a separate service).
+- **`docs/vision.md`** — locked architectural commitments. Four locks today:
+  1. **Identity** = claimed SteamID + game-derived display name.
+  2. **Profile module** = REST API, SQLite, in-process with the relay (`server/profile/`), separable later.
+  3. **Profile schema** starts identity-only and grows on demand — fields are added by the feature that needs them, in the same branch.
+  4. **Ephemeral state** lives on the relay (not the client, not a separate service).
 
-Full rationale, what each lock rules out, and the remaining `[TBD]`s: `docs/vision.md`. **Read it before designing any feature that touches identity, profile, persistence, or shared session state.**
+  Full rationale, what each lock rules out, and the remaining `[TBD]`s live in the doc. **Read it before designing any feature that touches identity, profile, persistence, or shared session state.**
 
-If a feature seems to require *changing* a lock, stop and surface the conflict — locks change with conversation, not by drift.
+  If a feature seems to require *changing* a lock, stop and surface the conflict — locks change with conversation, not by drift.
+
+- **`docs/ROADMAP.md`** — features built on those locks. Now / Next / Later / Open questions / Won't do for v1. Order in "Next" is **not** a priority queue (engine reality we're still mapping may force re-sequencing). Read it before picking up new feature work to avoid duplicating something already deferred or already underway.
 
 ## When in doubt
 
