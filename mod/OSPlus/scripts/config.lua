@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "v15-chat-seed-gate"
+M.VERSION = "v22-name-resolver-fast-path"
 M.DEBUG = false
 
 M.LOG_DIR  = os.getenv("LOCALAPPDATA") .. "\\OSPlus"

@@ -14,9 +14,49 @@ M.inMatch = false
 M.currentRoom = nil
 M.roomDelayTicks = 0
 M.messages = {}
+-- Latest presence list from the relay. Cached so a freshly respawned widget
+-- can show the current member list immediately on reattach (see ensureWidget),
+-- without waiting for the next server-side membership change.
+M.presence = {}
 M.onChatSent = nil
 M.onRoomChange = nil
 M.onRoomLeave = nil
+
+-- ---------------------------------------------------------------------------
+-- Rich text formatting
+-- WBP_ModChat's ChatHistory and PresenceList are RichTextBlocks with a
+-- shared Text Style Set DataTable (DT_ChatRichTextStyles) that must define:
+--   Default       — message bodies (white)
+--   Sender        — sender labels in chat history (bold accent, full size)
+--   PresenceName  — names in the presence roster (lighter accent, smaller)
+-- The two accent styles share a hue but differ in weight/size so the eye
+-- can tell "this is the roster" apart from "this is who said the message".
+-- Stock UE 5.1 RichTextBlock does NOT support arbitrary <color value="...">;
+-- it only matches tag names against rows in that DataTable.
+-- See docs/learnings/ue-richtextblock-named-rows.md.
+--
+-- Layout note: chat history joins entries with "\n" (one message per line);
+-- presence joins entries with PRESENCE_SEPARATOR (one horizontal row, with
+-- RichTextBlock auto-wrap handling overflow when many players are present).
+-- ---------------------------------------------------------------------------
+
+-- Mid-dot (U+00B7) padded with regular spaces. Renders in the Default (white)
+-- style, so it visually recedes vs. the accent-styled names on either side.
+local PRESENCE_SEPARATOR = " \xC2\xB7 "
+
+local function escapeForRichText(s)
+    -- Prevent user-typed angle brackets from being parsed as tags. RichTextBlock
+    -- recognizes the standard XML entities for these.
+    return (s:gsub("<", "&lt;"):gsub(">", "&gt;"))
+end
+
+local function senderTag(name)
+    return "<Sender>[" .. escapeForRichText(name) .. "]</>"
+end
+
+local function presenceTag(name)
+    return "<PresenceName>" .. escapeForRichText(name) .. "</>"
+end
 
 -- ---------------------------------------------------------------------------
 -- Widget discovery (single instance, BP guards against duplicates)
@@ -42,18 +82,27 @@ local function ensureWidget()
         log.log("[CHAT] Found widget: " .. log.safeFullName(M.widget))
         pcall(function() M.widget:SetVisibility(cfg.VIS_COLLAPSED) end)
         M.visible = false
-        -- Sync the fresh widget's TextBlock to our current message list.
-        -- Without this, a new map's widget can display stale text from a
-        -- previous SetHistory call (or its BP default), since Lua's reset
-        -- clears M.messages but never touches the destroyed-then-respawned
-        -- widget. Calling rebuildHistory() here makes the widget always
-        -- reflect Lua's truth from the moment we get a reference to it.
+        -- Sync the fresh widget's RichTextBlock to our current message list
+        -- AND presence list. Without this, a new map's widget displays stale
+        -- text from a previous SetHistory call (or its BP default), since
+        -- Lua's reset clears M.messages but never touches the
+        -- destroyed-then-respawned widget. Calling these here makes the
+        -- widget always reflect Lua's truth from the moment we get a
+        -- reference to it.
         local lines = {}
         for _, msg in ipairs(M.messages) do
-            lines[#lines + 1] = "[" .. msg.sender .. "] " .. msg.text
+            lines[#lines + 1] = senderTag(msg.sender) .. " " .. escapeForRichText(msg.text)
         end
         log.try("SetHistory(initial)", function()
             M.widget:SetHistory(table.concat(lines, "\n"))
+        end)
+
+        local nameLines = {}
+        for _, name in ipairs(M.presence) do
+            nameLines[#nameLines + 1] = presenceTag(name)
+        end
+        log.try("SetPresence(initial)", function()
+            M.widget:SetPresence(table.concat(nameLines, PRESENCE_SEPARATOR))
         end)
         return true
     end
@@ -61,7 +110,10 @@ local function ensureWidget()
 end
 
 -- ---------------------------------------------------------------------------
--- History display (BP's SetHistory now handles ScrollToEnd)
+-- History display
+-- BP's SetHistory implements follow-tail scrolling: it captures wasAtEnd
+-- before SetText, then ScrollToEnd if (NOT IsTyping) OR wasAtEnd. Lua just
+-- pushes the formatted string and trusts the BP to scroll appropriately.
 -- ---------------------------------------------------------------------------
 
 local function widgetAlive()
@@ -86,11 +138,27 @@ local function rebuildHistory()
     if not widgetAlive() then return end
     local lines = {}
     for _, msg in ipairs(M.messages) do
-        lines[#lines + 1] = "[" .. msg.sender .. "] " .. msg.text
+        lines[#lines + 1] = senderTag(msg.sender) .. " " .. escapeForRichText(msg.text)
     end
     log.try("SetHistory", function()
         M.widget:SetHistory(table.concat(lines, "\n"))
     end)
+end
+
+local function rebuildPresence()
+    if not widgetAlive() then return end
+    local lines = {}
+    for _, name in ipairs(M.presence) do
+        lines[#lines + 1] = presenceTag(name)
+    end
+    log.try("SetPresence", function()
+        M.widget:SetPresence(table.concat(lines, PRESENCE_SEPARATOR))
+    end)
+end
+
+function M.setPresence(members)
+    M.presence = members or {}
+    rebuildPresence()
 end
 
 function M.addMessage(sender, text)
@@ -132,25 +200,144 @@ end
 
 -- ---------------------------------------------------------------------------
 -- Player name resolution
+--
+-- `PlayerState.PlayerNamePrivate` USUALLY holds the friendly display name
+-- ("Ispicas"), but during the brief window between map load and profile
+-- replication it can transiently hold the account ID instead — a 20-24 char
+-- lowercase hex string like "632680c154686dedd652". A naive cache catches
+-- that transient and locks the chat into showing the ID forever.
+--
+-- Strategy:
+--   1. If PlayerNamePrivate doesn't look like an account ID → it's the
+--      friendly name; cache and return.
+--   2. If it does look like an account ID → try the `PMPlayerPublicProfile`
+--      cache as a fallback. The local player's profile usually isn't in that
+--      cache (it's mostly populated by recently-seen opponents / friends),
+--      but it's cheap to check.
+--   3. If neither succeeds → return the ID *without* caching so the next
+--      call retries once the engine has finished populating the profile.
+--      Dump a one-shot diagnostic only when DEBUG is on, to avoid spamming
+--      the log on every match start in production.
+--
+-- See docs/learnings/playernameprivate-transient-account-id.md.
 -- ---------------------------------------------------------------------------
 
 local cachedPlayerName = nil
+local didProfileDiagnosticDump = false
+
+local function looksLikeAccountId(s)
+    -- Pure lowercase hex, 20+ chars. Real friendly names contain non-hex
+    -- characters (most usernames have at least one letter outside [a-f] or
+    -- a digit / symbol) or are shorter than 20 chars.
+    return type(s) == "string" and #s >= 20 and s:match("^[0-9a-f]+$") ~= nil
+end
+
+local function getLocalAccountId()
+    local id = nil
+    pcall(function()
+        local pc = utils.getPlayerController()
+        if pc and pc:IsValid() then
+            local ps = pc.PlayerState
+            if ps and ps:IsValid() then
+                id = ps.PlayerNamePrivate:ToString()
+            end
+        end
+    end)
+    if id == "" then return nil end
+    return id
+end
+
+local function readProfileField(struct, fieldName)
+    local ok, val = pcall(function() return struct[fieldName] end)
+    if not ok or val == nil then return nil end
+    -- FString fields are returned as Lua strings already; FName/FText come
+    -- through as objects with :ToString(). Try ToString first, fall back
+    -- to tostring().
+    local sok, s = pcall(function() return val:ToString() end)
+    if sok and s and s ~= "" and s ~= "None" then return s end
+    local s2 = tostring(val)
+    if s2 and s2 ~= "" and s2 ~= "None" then return s2 end
+    return nil
+end
+
+local function findFriendlyNameByAccountId(localId)
+    if not localId then return nil end
+    local ok, profiles = pcall(FindAllOf, "PMPlayerPublicProfile")
+    if not ok or not profiles then return nil end
+    for _, prof in ipairs(profiles) do
+        if prof:IsValid() then
+            local sok, struct = pcall(function() return prof.PlayerPublicProfile end)
+            if sok and struct then
+                local pid = readProfileField(struct, "PlayerId")
+                if pid == localId then
+                    for _, field in ipairs({ "Username", "DisplayName", "PlayerName" }) do
+                        local v = readProfileField(struct, field)
+                        if v then return v, field end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function dumpProfileDiagnostics(localId)
+    if didProfileDiagnosticDump then return end
+    didProfileDiagnosticDump = true
+    log.log("[CHAT] === Player profile diagnostic (one-shot) ===")
+    log.log("[CHAT] localId (PlayerState.PlayerNamePrivate): " .. tostring(localId))
+    local ok, profiles = pcall(FindAllOf, "PMPlayerPublicProfile")
+    if not ok or not profiles then
+        log.log("[CHAT] PMPlayerPublicProfile: FindAllOf returned nothing")
+        return
+    end
+    log.log("[CHAT] PMPlayerPublicProfile instance count: " .. #profiles)
+    local probeFields = { "PlayerId", "Username", "DisplayName", "PlayerName", "Name", "AccountId" }
+    for i, prof in ipairs(profiles) do
+        if prof:IsValid() then
+            local sok, struct = pcall(function() return prof.PlayerPublicProfile end)
+            if sok and struct then
+                local parts = {}
+                for _, f in ipairs(probeFields) do
+                    local v = readProfileField(struct, f)
+                    if v then parts[#parts + 1] = f .. "=" .. v end
+                end
+                log.log("[CHAT]   [" .. i .. "] " .. (parts[1] and table.concat(parts, ", ") or "(no probe fields populated)"))
+            else
+                log.log("[CHAT]   [" .. i .. "] PlayerPublicProfile struct unreadable")
+            end
+        end
+    end
+end
 
 local function resolvePlayerName()
     if cachedPlayerName then return cachedPlayerName end
-    local ok, name = pcall(function()
-        local pc = utils.getPlayerController()
-        if not pc or not pc:IsValid() then return nil end
-        local ps = pc.PlayerState
-        if not ps or not ps:IsValid() then return nil end
-        return ps.PlayerNamePrivate:ToString()
-    end)
-    if ok and name and name ~= "" then
-        cachedPlayerName = name
-        log.log("[CHAT] Resolved player name: " .. name)
-        return name
+    local localId = getLocalAccountId()
+    if not localId then return nil end
+
+    -- Fast path: PlayerNamePrivate already holds the friendly name.
+    if not looksLikeAccountId(localId) then
+        cachedPlayerName = localId
+        log.log("[CHAT] Resolved player name: " .. localId)
+        return localId
     end
-    return nil
+
+    -- Slow path: PlayerNamePrivate is currently the account ID. Try the
+    -- profile cache (usually a miss for the local player but cheap to check).
+    local friendly, sourceField = findFriendlyNameByAccountId(localId)
+    if friendly then
+        cachedPlayerName = friendly
+        log.log("[CHAT] Resolved player name: " .. friendly
+            .. " (PMPlayerPublicProfile." .. sourceField .. ", accountId=" .. localId .. ")")
+        return friendly
+    end
+
+    -- Profile not loaded yet. Return the ID *without* caching so the next
+    -- call retries once replication catches up. Dump diagnostics in DEBUG
+    -- only — in production this fires on every match start where the user's
+    -- profile isn't in the local PMPlayerPublicProfile cache, which is noisy.
+    if cfg.DEBUG then dumpProfileDiagnostics(localId) end
+    return localId
 end
 
 -- ---------------------------------------------------------------------------
@@ -258,9 +445,10 @@ local function tryJoinRoom()
     end
     if code == M.currentRoom then return end
     M.currentRoom = code
-    log.log("[CHAT] Joining room: " .. code)
+    local username = resolvePlayerName() or cfg.CHAT_PLAYER_NAME
+    log.log("[CHAT] Joining room: " .. code .. " as " .. username)
     if M.onRoomChange then
-        pcall(function() M.onRoomChange(code) end)
+        pcall(function() M.onRoomChange(code, username) end)
     end
 end
 
@@ -268,6 +456,10 @@ local function leaveRoom()
     if not M.currentRoom then return end
     log.log("[CHAT] Leaving room: " .. M.currentRoom)
     M.currentRoom = nil
+    -- Presence is room-scoped; drop the cached list so a new room (or rejoin)
+    -- doesn't briefly show stale members from the previous room.
+    M.presence = {}
+    rebuildPresence()
     if M.onRoomLeave then
         pcall(M.onRoomLeave)
     end
@@ -444,7 +636,9 @@ function M.reset()
     matchProbeTimer = 0
     matchExitTimer = 0
     M.messages = {}
+    M.presence = {}
     cachedPlayerName = nil
+    didProfileDiagnosticDump = false
 end
 
 return M

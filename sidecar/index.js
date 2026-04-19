@@ -3,6 +3,30 @@ const path = require("path");
 const WebSocket = require("ws");
 
 // ---------------------------------------------------------------------------
+// Persistent log
+// Sidecar runs hidden via wscript.exe shim; stdout goes nowhere. Mirror every
+// console.log/error to %LOCALAPPDATA%\OSPlus\sidecar.log so we can diagnose
+// after the fact (zombie WS state, IPC drops, etc.) without re-launching the
+// process visibly. Truncated on each start so the file doesn't grow unbounded.
+// ---------------------------------------------------------------------------
+const SIDECAR_LOG = path.join(process.env.LOCALAPPDATA || ".", "OSPlus", "sidecar.log");
+try {
+  fs.mkdirSync(path.dirname(SIDECAR_LOG), { recursive: true });
+  fs.writeFileSync(SIDECAR_LOG, "");
+} catch { /* best-effort; if logging fails the sidecar still runs */ }
+function tee(stream, args) {
+  const line = `[${new Date().toISOString()}] ` + args.map(a => typeof a === "string" ? a : JSON.stringify(a)).join(" ") + "\n";
+  try { fs.appendFileSync(SIDECAR_LOG, line); } catch { /* swallow */ }
+  stream.write(line);
+}
+const _origLog = console.log.bind(console);
+const _origErr = console.error.bind(console);
+console.log = (...a) => tee(process.stdout, a);
+console.error = (...a) => tee(process.stderr, a);
+process.on("uncaughtException", (e) => { tee(process.stderr, ["[FATAL] uncaughtException:", e && e.stack ? e.stack : String(e)]); });
+process.on("unhandledRejection", (e) => { tee(process.stderr, ["[FATAL] unhandledRejection:", e && e.stack ? e.stack : String(e)]); });
+
+// ---------------------------------------------------------------------------
 // Config — config.json next to the exe, then CLI arg, then env var, then default
 // ---------------------------------------------------------------------------
 
@@ -40,6 +64,17 @@ const RECONNECT_DELAY_MS = 3000;
 const HEARTBEAT_CHECK_MS = 5000;   // poll heartbeat every 5s
 const HEARTBEAT_TIMEOUT_MS = 20000; // exit if no heartbeat in 20s
 const HEARTBEAT_GRACE_MS = 30000;  // grace period at startup before enforcing
+
+// WS keep-alive — distinct from the file-based game heartbeat above.
+// We sit behind Caddy. When the upstream Node relay restarts, Caddy doesn't
+// always tear down the client-facing socket — it can hold a "zombie" upgrade
+// for minutes while ws.send() succeeds locally but no frame ever reaches the
+// new relay. Periodic protocol-level pings detect that state: if no pong
+// returns within WS_PONG_TIMEOUT_MS, we terminate the socket and let the
+// existing reconnect path bring up a fresh one.
+// See docs/learnings/sidecar-ws-keepalive.md.
+const WS_PING_INTERVAL_MS = 15000;
+const WS_PONG_TIMEOUT_MS  = 10000;
 
 // ---------------------------------------------------------------------------
 // Ensure IPC directory and files exist
@@ -107,6 +142,10 @@ function appendToInbox(jsonStr) {
 let ws = null;
 let connected = false;
 let currentRoom = null;
+// Latest username Lua told us about. Cached so reconnects can re-join with
+// the right identity without a fresh room_change. Lua resolves it from the
+// PlayerState; sidecar never invents one.
+let currentUsername = null;
 
 function joinRoom(room) {
   if (!connected || !ws || ws.readyState !== WebSocket.OPEN) return;
@@ -116,8 +155,8 @@ function joinRoom(room) {
     console.log(`[WS] Leaving room: ${currentRoom}`);
   }
   currentRoom = room;
-  ws.send(JSON.stringify({ type: "join", room }));
-  console.log(`[WS] Joining room: ${room}`);
+  ws.send(JSON.stringify({ type: "join", room, username: currentUsername }));
+  console.log(`[WS] Joining room: ${room} as ${currentUsername || "(no username)"}`);
 }
 
 function leaveCurrentRoom() {
@@ -128,6 +167,27 @@ function leaveCurrentRoom() {
   currentRoom = null;
 }
 
+let pingTimer = null;
+let pongTimeoutTimer = null;
+
+function stopKeepalive() {
+  if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+  if (pongTimeoutTimer) { clearTimeout(pongTimeoutTimer); pongTimeoutTimer = null; }
+}
+
+function startKeepalive(socket) {
+  stopKeepalive();
+  pingTimer = setInterval(() => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    try { socket.ping(); } catch { return; }
+    if (pongTimeoutTimer) clearTimeout(pongTimeoutTimer);
+    pongTimeoutTimer = setTimeout(() => {
+      console.log(`[WS] No pong within ${WS_PONG_TIMEOUT_MS}ms, terminating zombie connection`);
+      try { socket.terminate(); } catch { /* close handler will reconnect */ }
+    }, WS_PONG_TIMEOUT_MS);
+  }, WS_PING_INTERVAL_MS);
+}
+
 function connect() {
   console.log(`[WS] Connecting to ${RELAY_URL} ...`);
   ws = new WebSocket(RELAY_URL);
@@ -135,10 +195,15 @@ function connect() {
   ws.on("open", () => {
     connected = true;
     console.log(`[WS] Connected (no room yet, waiting for match)`);
+    startKeepalive(ws);
     if (currentRoom) {
-      ws.send(JSON.stringify({ type: "join", room: currentRoom }));
-      console.log(`[WS] Re-joining room: ${currentRoom}`);
+      ws.send(JSON.stringify({ type: "join", room: currentRoom, username: currentUsername }));
+      console.log(`[WS] Re-joining room: ${currentRoom} as ${currentUsername || "(no username)"}`);
     }
+  });
+
+  ws.on("pong", () => {
+    if (pongTimeoutTimer) { clearTimeout(pongTimeoutTimer); pongTimeoutTimer = null; }
   });
 
   ws.on("message", (raw) => {
@@ -169,6 +234,7 @@ function connect() {
 
   ws.on("close", () => {
     connected = false;
+    stopKeepalive();
     console.log(`[WS] Disconnected, reconnecting in ${RECONNECT_DELAY_MS}ms...`);
     setTimeout(connect, RECONNECT_DELAY_MS);
   });
@@ -196,6 +262,9 @@ fs.watchFile(OUTBOX, { interval: 50 }, () => {
     }
 
     if (msg.type === "room_change" && msg.room) {
+      if (typeof msg.username === "string" && msg.username.length > 0) {
+        currentUsername = msg.username;
+      }
       joinRoom(msg.room);
       continue;
     }

@@ -186,17 +186,19 @@ Audited 2026-04-04 against `mod/OSPlus/scripts/chat.lua`.
 | `M.currentRoom` | domain | WebSocket room code. |
 | `M.roomDelayTicks`, `roomRetries`, `matchProbeTimer`, `matchExitTimer` | operational | Timer state. |
 | `M.messages` | domain | Array of `{sender, text, time}`. Painful in BP. |
-| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. |
+| `M.presence` | domain | Array of usernames in the current room (relay-pushed). Cached so widget reattach can re-render without waiting for the next server broadcast. |
+| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username)` since v16. |
 | `cachedPlayerName` | domain | Player identity cache. |
 
 **BP-owned (correct per contract):**
 
 | Property | Bucket | Notes |
 |---|---|---|
-| `IsTyping` | UI-reactive | Drives Send button, click-out-close, animations. |
+| `IsTyping` | UI-reactive | Drives Send button, click-out-close, animations. Also gates `SetHistory`'s follow-tail ScrollToEnd in v16. |
 | `PendingMessage` | event channel | BP writes on submit, Lua polls and clears (Pattern A). |
 | `ChatInput` | UMG | TextBox sub-widget. Pure UMG. |
-| `ChatHistory.Text` (implied) | derived display | Lua pushes via `:SetHistory()`. |
+| `ChatHistory.Text` (implied) | derived display | Lua pushes via `:SetHistory()`. RichTextBlock in v16; tags must match rows in `DT_ChatRichTextStyles` (`Default`, `Sender`). |
+| `PresenceList.Text` (implied) | derived display | Lua pushes via `:SetPresence()`. RichTextBlock sharing the same Text Style Set as `ChatHistory`. |
 
 ### Findings
 
@@ -227,11 +229,15 @@ Lua sets visibility to `HitTestInvisible` / `SelfHitTestInvisible` / `Collapsed`
 
 **Recommendation:** defer until the next feature actually needs a new visibility state. At that point, refactor to single-writer (BP owns visibility, Lua signals state via setters).
 
-#### Finding 3 (trivial): `cachedPlayerName` invalidation
+#### Finding 3 (partially addressed): `cachedPlayerName` invalidation
 
-`cachedPlayerName` is set once and never invalidated except in `M.reset()`. If `PlayerNamePrivate` changes mid-session (alt-account login, in-game rename) Lua won't pick it up.
+`cachedPlayerName` is set in `resolvePlayerName()` and cleared only in `M.reset()`.
 
-**Risk:** very low. Player name changes are rare.
+As of v22 (`v22-name-resolver-fast-path`), the resolver refuses to cache values that look like an account ID (lowercase hex, ≥20 chars), so the previously-observed failure mode of locking the chat into showing the local player's account ID — surfaced when `PlayerState.PlayerNamePrivate` is read before the player profile finishes replicating — is fixed. See `docs/learnings/playernameprivate-transient-account-id.md`.
+
+The remaining theoretical hole: if `PlayerNamePrivate` *changes* mid-session (alt-account swap, in-game rename) the cache won't notice.
+
+**Risk:** very low. Player name changes mid-session are rare.
 
 **Recommendation:** none for now. Note for posterity.
 

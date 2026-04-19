@@ -22,10 +22,11 @@ local chat   = require("chat")
 -- DISABLED: ping callbacks
 -- pings.onPingFired   = function(pingType, posVec) ipc.writePingToOutbox(pingType, posVec) end
 -- ipc.spawnRemotePing = pings.spawn
-chat.onChatSent     = function(sender, text) ipc.writeChatToOutbox(sender, text) end
-ipc.onChatReceived  = function(sender, text) chat.addMessage(sender, text) end
-chat.onRoomChange   = function(room) ipc.writeRoomChange(room) end
-chat.onRoomLeave    = function() ipc.writeRoomLeave() end
+chat.onChatSent       = function(sender, text) ipc.writeChatToOutbox(sender, text) end
+ipc.onChatReceived    = function(sender, text) chat.addMessage(sender, text) end
+chat.onRoomChange     = function(room, username) ipc.writeRoomChange(room, username) end
+chat.onRoomLeave      = function() ipc.writeRoomLeave() end
+ipc.onPresenceReceived = function(members) chat.setPresence(members) end
 
 -- ============================================================================
 -- Input

@@ -10,7 +10,8 @@ M.tickCounter = 0
 M.heartbeatCounter = 0
 -- DISABLED: ping callbacks
 -- M.spawnRemotePing = nil
-M.onChatReceived  = nil  -- set by main.lua to chat.addMessage
+M.onChatReceived     = nil  -- set by main.lua to chat.addMessage
+M.onPresenceReceived = nil  -- set by main.lua to chat.setPresence
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -63,11 +64,12 @@ function M.writePingToOutbox(pingType, posVec)
 end
 ]]
 
-function M.writeRoomChange(roomCode)
+function M.writeRoomChange(roomCode, username)
     local msg = json.encode({
-        type = "room_change",
-        room = roomCode,
-        ts   = os.time(),
+        type     = "room_change",
+        room     = roomCode,
+        username = username,
+        ts       = os.time(),
     })
     local f = io.open(cfg.OUTBOX_FILE, "a")
     if f then
@@ -121,6 +123,19 @@ function M.readInbox()
             log.log("[IPC] Remote chat: " .. tostring(msg.sender) .. ": " .. tostring(msg.text))
             if M.onChatReceived then
                 M.onChatReceived(msg.sender, msg.text)
+            end
+        elseif msg and msg.type == "presence" and type(msg.members) == "string" then
+            -- Wire format: members is "\n"-joined string (json.lua is
+            -- flat-objects-only so we can't ship a JSON array). Split into
+            -- a table here so chat.setPresence sees a clean list and never
+            -- has to know about the wire shape.
+            local list = {}
+            for name in msg.members:gmatch("[^\n]+") do
+                list[#list + 1] = name
+            end
+            log.log("[IPC] Presence update: " .. tostring(#list) .. " member(s)")
+            if M.onPresenceReceived then
+                M.onPresenceReceived(list)
             end
         end
     end
