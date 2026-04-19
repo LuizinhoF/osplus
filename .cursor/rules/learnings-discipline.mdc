@@ -7,6 +7,8 @@ alwaysApply: true
 
 Every OSPlus session that produces a non-trivial finding must add a `docs/learnings/<slug>.md` entry **before declaring the task done**. This is the project's compounding mechanism — without it, the same problems get re-debugged across sessions.
 
+For bug-driven findings specifically, follow the `bug-investigate` skill — it covers the prior-art lookup, reproduction, falsification, and fix steps that *produce* a learning worth writing. The rule below covers the writing discipline; the skill covers the process that feeds it.
+
 ## When a learning is required
 
 Write one if **any** of these is true for the current task:
