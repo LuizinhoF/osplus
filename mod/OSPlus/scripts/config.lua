@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "v22-name-resolver-fast-path"
+M.VERSION = "v23-defer-room-join-on-name"
 M.DEBUG = false
 
 M.LOG_DIR  = os.getenv("LOCALAPPDATA") .. "\\OSPlus"

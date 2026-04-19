@@ -391,8 +391,8 @@ end
 -- ---------------------------------------------------------------------------
 
 local ROOM_SETTLE_TICKS = 30  -- ~1 second at 30ms/tick (just enough for GS to replicate)
-local ROOM_RETRY_TICKS  = 30  -- retry interval if team not available yet
-local ROOM_MAX_RETRIES  = 10  -- give up after ~10 seconds
+local ROOM_RETRY_TICKS  = 30  -- retry interval if team / friendly name not available yet
+local ROOM_MAX_RETRIES  = 20  -- give up after ~20 seconds (need to outlast profile replication)
 local roomRetries       = 0
 
 local function seedToCode(seed)
@@ -433,19 +433,43 @@ end
 
 local function tryJoinRoom()
     local code = M.deriveRoomCode()
+    -- Resolve the name on every attempt — v22 resolvePlayerName() only caches
+    -- friendly-shaped values, so cachedPlayerName being set is our signal that
+    -- we have something safe to put in ws._username on the relay side.
+    --
+    -- Why this gate matters: the relay caches `ws._username` from the JOIN
+    -- frame and uses it for every subsequent presence broadcast. If we join
+    -- before profile replication finishes (3-10s window after match start),
+    -- we'd send the transient account ID and the presence list would show
+    -- the ID for the rest of the connection — even after later sends resolve
+    -- to the friendly name correctly. See
+    -- docs/learnings/playernameprivate-transient-account-id.md.
+    resolvePlayerName()
+    local missing = nil
     if not code then
+        missing = "team"
+    elseif not cachedPlayerName then
+        missing = "friendly name"
+    end
+    if missing and roomRetries < ROOM_MAX_RETRIES then
         roomRetries = roomRetries + 1
-        if roomRetries <= ROOM_MAX_RETRIES then
-            log.log("[CHAT] Team not available yet, retry " .. roomRetries .. "/" .. ROOM_MAX_RETRIES)
-            M.roomDelayTicks = ROOM_RETRY_TICKS
-        else
-            log.log("[CHAT] Could not derive room after " .. ROOM_MAX_RETRIES .. " retries")
-        end
+        log.log("[CHAT] " .. missing .. " not available yet, retry " .. roomRetries .. "/" .. ROOM_MAX_RETRIES)
+        M.roomDelayTicks = ROOM_RETRY_TICKS
+        return
+    end
+    if not code then
+        log.log("[CHAT] Could not derive room after " .. ROOM_MAX_RETRIES .. " retries; giving up")
         return
     end
     if code == M.currentRoom then return end
+    if missing then
+        -- Friendly name never resolved within the budget. Fall back so chat
+        -- still works locally; presence list will show whatever PlayerNamePrivate
+        -- holds (account ID) or "Me" if it's empty too.
+        log.log("[CHAT] Friendly name never resolved within " .. ROOM_MAX_RETRIES .. " retries; joining with fallback")
+    end
     M.currentRoom = code
-    local username = resolvePlayerName() or cfg.CHAT_PLAYER_NAME
+    local username = cachedPlayerName or getLocalAccountId() or cfg.CHAT_PLAYER_NAME
     log.log("[CHAT] Joining room: " .. code .. " as " .. username)
     if M.onRoomChange then
         pcall(function() M.onRoomChange(code, username) end)

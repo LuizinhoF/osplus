@@ -11,6 +11,8 @@
 
 Chat sender labels and presence list entries displayed a 20-character lowercase hex string (e.g. `632680c154686dedd652`) instead of the friendly username (e.g. `Ispicas`). Initially assumed to be a practice-mode artifact; reproduced in matchmaking too. The same player name resolver code returned the friendly name on a fresh launch and the account ID on a different launch — same field, different value.
 
+A subtler manifestation of the same race surfaced after the first round of fixes: the chat history showed the friendly name (because a per-call resolver retrieves it at message-send time, after replication has finished) while the presence list still showed the account ID (because the relay caches `ws._username` from the JOIN frame and uses it for every subsequent presence broadcast — the JOIN happens earlier, ~3s after match start, while replication is still in flight). Two views of "the local player's name" disagreed, depending on which side cached the early value.
+
 ## Root cause
 
 `PlayerState.PlayerNamePrivate` on Omega Strikers' `APMPlayerState` (or whatever subclass replicates it) holds **two different things at different times**:
@@ -30,10 +32,9 @@ So the `PMPlayerPublicProfile` lookup is a defensive fallback — kept because i
 
 ## Fix
 
-Two changes in `mod/OSPlus/scripts/chat.lua` `resolvePlayerName()`:
+Three changes in `mod/OSPlus/scripts/chat.lua`. Each addresses a different layer of the race; all three are needed.
 
-1. **Don't cache values that look like account IDs.** Heuristic: pure lowercase hex, ≥20 chars. If `PlayerNamePrivate` looks like an ID, return it without caching, so the next call (which happens on the next chat send, presence update, or match start) gets a fresh look at the field. By the time the user has actually typed and sent a message, replication has invariably finished.
-2. **Cache the friendly name as soon as it appears.** Once `PlayerNamePrivate` returns something that doesn't match the account-ID pattern, treat it as authoritative and cache.
+**1. `resolvePlayerName()` — don't cache values that look like account IDs.** Heuristic: pure lowercase hex, ≥20 chars. If `PlayerNamePrivate` looks like an ID, return it without caching, so the next call (which happens on the next chat send, presence update, or match start) gets a fresh look at the field. By the time the user has actually typed and sent a message, replication has invariably finished.
 
 ```lua
 local function looksLikeAccountId(s)
@@ -45,16 +46,37 @@ local function resolvePlayerName()
     local localId = getLocalAccountId()
     if not localId then return nil end
     if not looksLikeAccountId(localId) then
-        cachedPlayerName = localId  -- already friendly
+        cachedPlayerName = localId  -- already friendly, lock it in
         return localId
     end
     -- ... slow-path PMPlayerPublicProfile lookup, then return localId without caching ...
 end
 ```
 
-Bumped `M.VERSION` to `v22-name-resolver-fast-path` in `mod/OSPlus/scripts/config.lua`.
+This alone fixes the chat-history sender label (resolver re-runs at send time and gets the friendly name).
 
-The diagnostic dump (109 lines on a real lobby) is now gated behind `cfg.DEBUG`. It was useful while debugging this learning; in production it would fire on every match start where the local profile isn't in the `PMPlayerPublicProfile` cache — which is "almost every match start" and pure noise.
+**2. `tryJoinRoom()` — defer the relay JOIN until the friendly name is cached.** This is the second-order fix. The relay caches `ws._username` from the JOIN frame and uses it for every subsequent presence broadcast — so even if our per-call resolver becomes correct later, anything that the relay has already cached is wrong forever for that connection. The fix is to refuse to JOIN until `cachedPlayerName` is set:
+
+```lua
+local function tryJoinRoom()
+    local code = M.deriveRoomCode()
+    resolvePlayerName()  -- populate cache if friendly name is ready
+    local missing = (not code and "team") or (not cachedPlayerName and "friendly name") or nil
+    if missing and roomRetries < ROOM_MAX_RETRIES then
+        roomRetries = roomRetries + 1
+        log.log("[CHAT] " .. missing .. " not available yet, retry " .. roomRetries .. "/" .. ROOM_MAX_RETRIES)
+        M.roomDelayTicks = ROOM_RETRY_TICKS
+        return
+    end
+    -- ... fallthrough joins with cachedPlayerName or last-resort fallback ...
+end
+```
+
+`ROOM_MAX_RETRIES` was bumped from 10 (~10s) to 20 (~20s) so the budget outlasts profile replication in slower cases.
+
+**3. Diagnostic dump gated to `cfg.DEBUG`.** The 109-line `PMPlayerPublicProfile` dump was useful for figuring out where the friendly name actually lives, but in production it fires on every match start where the local profile isn't in the cache (which is almost every match start, since the local player isn't a `PMPlayerPublicProfile` entry — see next section). Now opt-in only.
+
+Bumped `M.VERSION` to `v22-name-resolver-fast-path`, then `v23-defer-room-join-on-name` after fix #2 was added.
 
 ## Lesson
 
