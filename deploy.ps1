@@ -3,7 +3,11 @@ $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\tools\_lib.ps1"
 
 $SRC  = "$PSScriptRoot\mod\OSPlus\scripts"
-$DEST = "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\ue4ss\Mods\OSPlus\Scripts"
+# UE4SS in this install is rooted directly at Binaries\Win64\Mods (not the older
+# Binaries\Win64\ue4ss\Mods layout). If you migrate to a different UE4SS build
+# that uses the nested layout again, update this path. The cooked .pak target
+# is unrelated and lives under Content\Paks\LogicMods\OSPlus.pak.
+$DEST = "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\Mods\OSPlus\Scripts"
 
 if (-not (Test-Path $DEST)) {
     Write-Fail "Game-side mod folder does not exist:"
