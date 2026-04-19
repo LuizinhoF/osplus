@@ -14,7 +14,17 @@ This file is the entry point for any AI coding agent working in this repo. Keep 
 6. `docs/ops/deploy-relay.md` — runbook for the OCI relay VM.
 7. `docs/learnings/` — every non-trivial finding from past work. Skim before solving any problem that smells familiar.
 
-For deeper expertise on demand: `.cursor/skills/` (UE4SS Lua, UMG/Slate, UE serialization) auto-activate when relevant.
+For deeper expertise on demand: `.cursor/skills/` auto-activate when relevant.
+
+## Workflow skills — invoke at the right moment
+
+Three workflow skills live in `.cursor/skills/`. They're not auto-attached — they activate when the conversation matches their description. Knowing they exist matters; reading them when the trigger fires matters more.
+
+- **`feature-design`** — fires on "add X" / "implement X" requests for non-trivial features. Surfaces design axes and trade-offs *before* code is written. Stops for sign-off. Direct fix for the failure mode where agents pick the cheapest implementation without surfacing alternative defensible answers.
+- **`bug-investigate`** — fires on bug reports / unexpected behavior. Searches `docs/learnings/` for prior art FIRST, reproduces minimally, falsifies hypotheses, fixes, then writes the learning. Closes the loop with `learnings-discipline.mdc`.
+- **`release-checklist`** — fires on "ship a build" / "cut a release". Pre-flight → build chain → spot-check → smoke test → distribution → recorded run. Distribution step is currently Drive-direct-link and explicitly flagged as volatile.
+
+If you're about to do work that matches one of these triggers and you haven't read the skill, you're skipping a step.
 
 ## Repository map
 
