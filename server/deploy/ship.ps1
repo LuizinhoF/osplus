@@ -5,7 +5,7 @@
 #   .\server\deploy\ship.ps1
 #
 # Optional overrides:
-#   .\server\deploy\ship.ps1 -Host 1.2.3.4 -KeyPath ~/.ssh/other.key
+#   .\server\deploy\ship.ps1 -VmHost 1.2.3.4 -KeyPath ~/.ssh/other.key
 #
 
 [CmdletBinding()]
@@ -17,6 +17,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+. "$PSScriptRoot\..\..\tools\_lib.ps1"
 
 # Resolve the local server/ directory based on this script's location.
 $serverDir = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -37,13 +39,13 @@ $sshArgs = @(
 )
 
 # 1. Reset remote staging dir.
-Write-Host "[ship] preparing remote staging dir"
-& ssh @sshArgs "rm -rf $RemoteStaging && mkdir -p $RemoteStaging/server"
-if ($LASTEXITCODE -ne 0) { throw "remote prep failed" }
+Write-Step "Preparing remote staging dir"
+Invoke-External "remote prep" { & ssh @sshArgs "rm -rf $RemoteStaging && mkdir -p $RemoteStaging/server" }
 
 # 2. Copy what install-relay.sh expects (index.js, package*.json, deploy/*).
-#    We deliberately avoid copying node_modules — install-relay.sh re-runs npm install on the VM.
-Write-Host "[ship] uploading code"
+#    We deliberately avoid copying node_modules — install-relay.sh re-runs
+#    npm install on the VM.
+Write-Step "Uploading code"
 $filesToShip = @(
     "$serverDir\index.js",
     "$serverDir\package.json",
@@ -51,28 +53,32 @@ $filesToShip = @(
 ) | Where-Object { Test-Path $_ }
 
 foreach ($f in $filesToShip) {
-    & scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" $f "${User}@${VmHost}:$RemoteStaging/server/"
-    if ($LASTEXITCODE -ne 0) { throw "scp failed for $f" }
+    Invoke-External "scp $f" {
+        & scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" $f "${User}@${VmHost}:$RemoteStaging/server/"
+    }
 }
 
 # 3. Copy the deploy/ subfolder.
-Write-Host "[ship] uploading deploy/"
-& scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" -r "$serverDir\deploy" "${User}@${VmHost}:$RemoteStaging/server/"
-if ($LASTEXITCODE -ne 0) { throw "scp deploy/ failed" }
+Write-Step "Uploading deploy/"
+Invoke-External "scp deploy/" {
+    & scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" -r "$serverDir\deploy" "${User}@${VmHost}:$RemoteStaging/server/"
+}
 
-# 3b. Normalize line endings on remote side. Files written from Windows often
-#     end up with CRLF; bash chokes on the trailing \r in shell scripts and
-#     systemd is happier without them in unit files. dos2unix would be ideal
-#     but isn't installed by default on Oracle's Ubuntu image, so use sed.
-Write-Host "[ship] normalizing line endings (CRLF -> LF) on remote"
-& ssh @sshArgs "find $RemoteStaging/server -type f \( -name '*.sh' -o -name '*.service' -o -name 'Caddyfile' -o -name '*.js' -o -name '*.json' \) -exec sed -i 's/\r`$//' {} +"
-if ($LASTEXITCODE -ne 0) { throw "line-ending normalization failed" }
+# 3b. Normalize line endings on the remote side. Even with .gitattributes
+#     enforcing LF on *.sh / *.service / Caddyfile, files can still end up
+#     with CRLF if they were edited outside Git's normalization (e.g.
+#     Notepad save). dos2unix would be ideal but isn't installed by default
+#     on Oracle's Ubuntu image, so use sed. Belt + suspenders with
+#     .gitattributes; see docs/learnings/oci-relay-deploy-gotchas.md.
+Write-Step "Normalizing line endings (CRLF -> LF) on remote"
+Invoke-External "line-ending normalization" {
+    & ssh @sshArgs "find $RemoteStaging/server -type f \( -name '*.sh' -o -name '*.service' -o -name 'Caddyfile' -o -name '*.js' -o -name '*.json' \) -exec sed -i 's/\r`$//' {} +"
+}
 
 # 4. Run the installer.
-Write-Host "[ship] running install-relay.sh on VM"
-& ssh @sshArgs "sudo bash $RemoteStaging/server/deploy/install-relay.sh"
-if ($LASTEXITCODE -ne 0) { throw "install-relay.sh failed" }
+Write-Step "Running install-relay.sh on VM"
+Invoke-External "install-relay.sh" { & ssh @sshArgs "sudo bash $RemoteStaging/server/deploy/install-relay.sh" }
 
 Write-Host ""
-Write-Host "[ship] done."
+Write-Ok "Done."
 Write-Host "[ship] public health: https://play-osplus.duckdns.org/health"

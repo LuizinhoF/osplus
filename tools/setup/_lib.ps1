@@ -1,13 +1,14 @@
-# Shared helpers for setup scripts.
-# Dot-source this from other scripts: . "$PSScriptRoot\_lib.ps1"
+# tools/setup/_lib.ps1 — bootstrap-specific helpers (GitHub releases,
+# archive expansion). Dot-source this from setup scripts:
+#
+#   . "$PSScriptRoot\_lib.ps1"
+#
+# Pulls in the universal logging + Invoke-External helpers from tools/_lib.ps1.
+
+. "$PSScriptRoot\..\_lib.ps1"
 
 $script:WORKSPACE_ROOT = Resolve-Path "$PSScriptRoot\..\.."
 $script:BIN_DIR        = Join-Path $WORKSPACE_ROOT 'tools\_bin'
-
-function Write-Step([string]$msg)    { Write-Host "==> $msg" -ForegroundColor Cyan }
-function Write-Ok([string]$msg)      { Write-Host "    [ok] $msg" -ForegroundColor Green }
-function Write-Warn2([string]$msg)   { Write-Host "    [!] $msg" -ForegroundColor Yellow }
-function Write-Fail([string]$msg)    { Write-Host "    [fail] $msg" -ForegroundColor Red }
 
 # Get-LatestRelease: query GitHub releases API, return the parsed release object.
 # Stops with a clear error if rate-limited or repo not found.

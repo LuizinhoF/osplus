@@ -1,5 +1,7 @@
 $ErrorActionPreference = "Stop"
 
+. "$PSScriptRoot\..\tools\_lib.ps1"
+
 $UNREALPAK      = "F:\UE510\UnrealEngine-5.1.0-release\Engine\Binaries\Win64\UnrealPak.exe"
 $COOKED_DIR     = "F:\Omegamod\OmegaStonkers 5.1\Saved\Cooked\Windows\OmegaStonkers\Content\Mods\OSPlus"
 $COOKED_LEGACY  = "F:\Omegamod\OmegaStonkers 5.1\Saved\Cooked\Windows\OmegaStonkers\Content\Mods\OmegaStrikersMod"
@@ -7,29 +9,30 @@ $LOGICMODS_DIR  = "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\
 $OUTPUT_PAK     = "$LOGICMODS_DIR\OSPlus.pak"
 $RESPONSE_FILE  = "F:\Omegamod\OmegaStonkers 5.1\Saved\pak_logicmod_response.txt"
 
-if (-not (Test-Path $UNREALPAK)) { Write-Error "UnrealPak not found: $UNREALPAK"; exit 1 }
+if (-not (Test-Path $UNREALPAK)) {
+    Write-Fail "UnrealPak not found: $UNREALPAK"
+    exit 1
+}
 if (-not (Test-Path $COOKED_DIR)) {
     if (Test-Path $COOKED_LEGACY) {
-        Write-Error @"
-Cooked content not found at the new path:
-    $COOKED_DIR
+        Write-Fail "Cooked content not found at the new path"
+        Write-Host @"
+    Expected: $COOKED_DIR
+    Found legacy:    $COOKED_LEGACY
 
-But found legacy cooked content at:
-    $COOKED_LEGACY
-
-You probably need to do the UE Editor migration (rename Content/Mods/OmegaStrikersMod -> OSPlus,
-then re-cook). See: docs/UE_PROJECT_MIGRATION.md
-"@
+    You probably need to do the UE Editor migration (rename
+    Content/Mods/OmegaStrikersMod -> OSPlus, then re-cook).
+    See: docs/UE_PROJECT_MIGRATION.md
+"@                  -ForegroundColor Yellow
         exit 1
     }
-    Write-Error "Cooked content not found: $COOKED_DIR (cook the project first)"
+    Write-Fail "Cooked content not found: $COOKED_DIR (cook the project first)"
     exit 1
 }
 
-Write-Host "=== Packaging LogicMod (ModActor + Chat Widget) ===" -ForegroundColor Cyan
-Write-Host "Cooked dir : $COOKED_DIR"
-Write-Host "Output pak : $OUTPUT_PAK"
-Write-Host ""
+Write-Step "Packaging LogicMod (ModActor + Chat Widget)"
+Write-Host "    Cooked dir : $COOKED_DIR"
+Write-Host "    Output pak : $OUTPUT_PAK"
 
 $lines = @()
 $files = Get-ChildItem -Path $COOKED_DIR -Recurse -File
@@ -40,29 +43,32 @@ foreach ($f in $files) {
     $lines += "`"$($f.FullName)`" `"$mountPath`""
 }
 
-if ($lines.Count -eq 0) { Write-Error "No files to package"; exit 1 }
+if ($lines.Count -eq 0) {
+    Write-Fail "No files to package"
+    exit 1
+}
 
-Write-Host "Found $($lines.Count) files:" -ForegroundColor Green
-foreach ($l in $lines) { Write-Host "  $l" }
-Write-Host ""
+Write-Ok "Found $($lines.Count) files"
+foreach ($l in $lines) { Write-Host "    $l" -ForegroundColor DarkGray }
 
+# UnrealPak's response file is read as ASCII; writing UTF-8 with BOM (PS5
+# default) puts a `ï»¿` at the front of the first line and UnrealPak rejects
+# the whole file. Always force ascii encoding here.
 $lines | Out-File -FilePath $RESPONSE_FILE -Encoding ascii
 
 if (Test-Path $OUTPUT_PAK) {
     Remove-Item $OUTPUT_PAK -Force
-    Write-Host "Removed old pak"
+    Write-Host "    Removed old pak" -ForegroundColor DarkGray
 }
 
-Write-Host "Running UnrealPak..." -ForegroundColor Yellow
+Write-Step "Running UnrealPak"
 & $UNREALPAK $OUTPUT_PAK "-Create=$RESPONSE_FILE"
 
 if ($LASTEXITCODE -eq 0 -and (Test-Path $OUTPUT_PAK)) {
     $pakSize = (Get-Item $OUTPUT_PAK).Length
-    Write-Host ""
-    Write-Host "=== SUCCESS ===" -ForegroundColor Green
-    Write-Host "Pak: $OUTPUT_PAK ($pakSize bytes)"
-    Write-Host "Assets mount at /Game/Mods/OSPlus/" -ForegroundColor Cyan
+    Write-Ok "Pak: $OUTPUT_PAK ($pakSize bytes)"
+    Write-Host "    Assets mount at /Game/Mods/OSPlus/" -ForegroundColor Cyan
 } else {
-    Write-Error "UnrealPak failed (exit code: $LASTEXITCODE)"
+    Write-Fail "UnrealPak failed (exit code: $LASTEXITCODE)"
     exit 1
 }

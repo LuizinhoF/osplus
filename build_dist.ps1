@@ -1,5 +1,7 @@
 $ErrorActionPreference = "Stop"
 
+. "$PSScriptRoot\tools\_lib.ps1"
+
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Building OSPlus Distribution Package  " -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
@@ -23,11 +25,12 @@ $PAK_SRC     = $PAK_NEW
 # 1. Clean dist folder
 # ---------------------------------------------------------------------------
 
+Write-Step "[1/7] Cleaning dist folder"
 try {
     if (Test-Path $DIST) { Remove-Item $DIST -Recurse -Force -ErrorAction Stop }
-    Write-Host "[1/7] Cleaned dist folder" -ForegroundColor Green
+    Write-Ok "Dist folder cleaned"
 } catch {
-    Write-Host "[1/7] Could not fully clean dist folder, overwriting in place" -ForegroundColor Yellow
+    Write-Warn2 "Could not fully clean, overwriting in place"
 }
 New-Item -Path "$DIST\mod\scripts"  -ItemType Directory -Force | Out-Null
 New-Item -Path "$DIST\mod\sidecar"  -ItemType Directory -Force | Out-Null
@@ -36,17 +39,21 @@ New-Item -Path "$DIST\mod\sidecar"  -ItemType Directory -Force | Out-Null
 # 2. Copy Lua scripts
 # ---------------------------------------------------------------------------
 
+Write-Step "[2/7] Copying Lua scripts"
 Copy-Item "$SCRIPTS_SRC\*.lua" "$DIST\mod\scripts\" -Force
 $luaCount = (Get-ChildItem "$DIST\mod\scripts\*.lua").Count
-Write-Host "[2/7] Copied $luaCount Lua scripts" -ForegroundColor Green
+Write-Ok "Copied $luaCount Lua scripts"
 
 # ---------------------------------------------------------------------------
 # 3. Build sidecar exe
 # ---------------------------------------------------------------------------
 
-Write-Host "[3/7] Building sidecar exe..." -ForegroundColor Yellow
+Write-Step "[3/7] Building sidecar exe"
 
 Push-Location $SIDECAR_SRC
+# npm/esbuild/postject emit informational lines on stderr that PS treats as
+# errors when $ErrorActionPreference = Stop. Switch to Continue around the
+# tool calls; restore on the way out via finally.
 $prevPref = $ErrorActionPreference
 $ErrorActionPreference = "Continue"
 try {
@@ -64,7 +71,7 @@ try {
     & npx postject OSPlus.exe NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 --overwrite 2>&1 | Write-Host
     if (-not (Test-Path "OSPlus.exe")) { throw "postject failed" }
 
-    Write-Host "       Sidecar exe built successfully" -ForegroundColor Green
+    Write-Ok "Sidecar exe built"
 } finally {
     $ErrorActionPreference = $prevPref
     Pop-Location
@@ -79,17 +86,18 @@ Copy-Item "$SIDECAR_SRC\launch_hidden.vbs"   "$DIST\mod\sidecar\" -Force
 $configJson = @{ relay_url = "wss://play-osplus.duckdns.org" } | ConvertTo-Json
 [System.IO.File]::WriteAllText("$DIST\mod\sidecar\config.json", $configJson)
 
-Write-Host "       Copied exe + launcher + config.json" -ForegroundColor Green
+Write-Ok "Copied exe + launcher + config.json"
 
 # ---------------------------------------------------------------------------
 # 4. Copy pak file (rename to OSPlus.pak in dist regardless of source name)
 # ---------------------------------------------------------------------------
 
+Write-Step "[4/7] Copying pak"
 if (Test-Path $PAK_SRC) {
     Copy-Item $PAK_SRC "$DIST\mod\OSPlus.pak" -Force
-    Write-Host "[4/7] Copied pak (OSPlus.pak)" -ForegroundColor Green
+    Write-Ok "Copied OSPlus.pak"
 } else {
-    Write-Host "[4/7] ERROR: OSPlus.pak not found at:" -ForegroundColor Red
+    Write-Fail "OSPlus.pak not found at:"
     Write-Host "         $PAK_NEW" -ForegroundColor Red
     if (Test-Path $PAK_LEGACY) {
         Write-Host ""                                                                              -ForegroundColor Yellow
@@ -110,12 +118,13 @@ if (Test-Path $PAK_SRC) {
 # 5. Copy bundled UE4SS (flat layout — DLLs + Mods folder)
 # ---------------------------------------------------------------------------
 
+Write-Step "[5/7] Copying UE4SS bundle"
 if (Test-Path $UE4SS_SRC) {
     Copy-Item "$UE4SS_SRC" "$DIST\ue4ss-files" -Recurse -Force
     $ue4ssSize = [math]::Round((Get-ChildItem "$DIST\ue4ss-files" -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 2)
-    Write-Host "[5/7] Copied UE4SS bundle ($ue4ssSize MB)" -ForegroundColor Green
+    Write-Ok "Copied UE4SS bundle ($ue4ssSize MB)"
 } else {
-    Write-Host "[5/7] ERROR: UE4SS bundle not found at $UE4SS_SRC" -ForegroundColor Red
+    Write-Fail "UE4SS bundle not found at $UE4SS_SRC"
     throw "Missing ue4ss-bundle/ — run setup first"
 }
 
@@ -123,18 +132,20 @@ if (Test-Path $UE4SS_SRC) {
 # 6. Copy install.bat + README.txt
 # ---------------------------------------------------------------------------
 
+Write-Step "[6/7] Copying installer + README"
 Copy-Item "$ROOT\dist\install.bat" "$DIST\" -Force
 Copy-Item "$ROOT\dist\README.txt"  "$DIST\" -Force
-Write-Host "[6/7] Copied install.bat + README.txt" -ForegroundColor Green
+Write-Ok "Copied install.bat + README.txt"
 
 # ---------------------------------------------------------------------------
 # 7. Zip everything
 # ---------------------------------------------------------------------------
 
+Write-Step "[7/7] Zipping dist"
 if (Test-Path $ZIP_OUT) { Remove-Item $ZIP_OUT -Force }
 Compress-Archive -Path "$DIST\*" -DestinationPath $ZIP_OUT -CompressionLevel Optimal
 $zipSize = [math]::Round((Get-Item $ZIP_OUT).Length / 1MB, 2)
-Write-Host "[7/7] Created $ZIP_OUT ($zipSize MB)" -ForegroundColor Green
+Write-Ok "Created $ZIP_OUT ($zipSize MB)"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
