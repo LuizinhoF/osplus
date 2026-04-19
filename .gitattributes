@@ -5,6 +5,7 @@
 # === Force LF on anything that runs on Linux ================================
 # Shell scripts, systemd units, Caddy configs, and similar must always be LF.
 # Otherwise bash dies on the \r and systemd refuses to parse the unit.
+# See docs/learnings/oci-relay-deploy-gotchas.md for the full failure-mode story.
 *.sh             text eol=lf
 *.bash           text eol=lf
 *.service        text eol=lf
@@ -25,6 +26,10 @@ Dockerfile       text eol=lf
 *.yml            text eol=lf
 *.md             text eol=lf
 
+# Lua — UE4SS reads them on Windows but consistency with the rest of the
+# tree (and Linux-side tooling) is cheaper than letting them drift to CRLF.
+*.lua            text eol=lf
+
 # === Windows-native files keep CRLF =========================================
 # These run on Windows and tools may expect CRLF.
 *.bat            text eol=crlf
@@ -43,9 +48,19 @@ Dockerfile       text eol=lf
 *.uasset         binary
 *.uexp           binary
 *.ubulk          binary
+*.umap           binary
+*.utoc           binary
+*.ucas           binary
 *.zip            binary
+*.7z             binary
 *.exe            binary
 *.dll            binary
+*.lib            binary
 *.so             binary
 *.bin            binary
 *.blob           binary
+*.ttf            binary
+*.otf            binary
+*.mp3            binary
+*.wav            binary
+*.ogg            binary
