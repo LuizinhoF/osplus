@@ -1,0 +1,137 @@
+---
+description: Node.js code conventions for OSPlus (sidecar/, server/, anything Node) — CommonJS, wire-boundary validation, minimal deps, lifecycle, logging.
+globs:
+  - sidecar/**/*.js
+  - sidecar/**/*.mjs
+  - server/**/*.js
+  - server/**/*.mjs
+---
+
+# OSPlus Node conventions
+
+For cross-cutting (logging format, wire naming, error response shape, comment policy), see `code-conventions.mdc`.
+
+## Module system — CommonJS
+
+OSPlus's Node code is **CommonJS** (`require` / `module.exports`). No ESM, no mixing.
+
+Reasons:
+
+- The sidecar ships as a **Single Executable Application** (SEA) bundled with `esbuild` + `postject`. The build pipeline (`build_dist.ps1` step 3) is mature with CJS; ESM would require a config rework.
+- No top-level-await need today.
+- Code is small enough that `require` ergonomics aren't a friction point.
+
+**Sunset trigger:** revisit when (a) we genuinely need an ESM-only dependency (e.g. modern `node-fetch`, some DB drivers), or (b) the SEA build moves to a form that's more ESM-friendly. Don't migrate "because ESM is newer" — there's no payoff.
+
+## Minimum dependencies — earn each one
+
+`server/index.js` uses only `http` (built-in) + `ws`. `sidecar/index.js` uses only `fs`, `path` (built-in) + `ws`. The full sidecar SEA is built with `esbuild` + `postject` — both dev-only, neither ships in the binary.
+
+Every new runtime dependency is:
+
+- A supply-chain risk (npm trojan-horse history is real).
+- A maintenance burden (CVE notifications, breaking changes).
+- Bundle bloat in the sidecar SEA (each MB is a slower install for end-users).
+
+**Rule:** no new runtime dep without an explicit conversation. State the alternative ("this is 30 lines of Node built-ins") and the reason it isn't enough. Dev deps (build tools, test runners) are lower-friction but still earn their existence.
+
+## Wire boundary validation (server side)
+
+The relay accepts arbitrary input from public WebSocket connections. Every inbound message is validated **at the boundary** before any handler logic runs. The pattern in `server/index.js`:
+
+```js
+const VALID_TYPES = new Set(["join", "leave", "ping", "chat"]);
+const ROOM_CODE_RE = /^[A-Z2-9]{4}$/;
+const MAX_CHAT_LENGTH = 500;
+
+ws.on("message", (raw) => {
+  // 1. Rate limit (window + count).
+  // 2. Parse JSON (try/catch; reply with error on bad JSON, do not throw).
+  let msg;
+  try { msg = JSON.parse(raw); }
+  catch { ws.send(JSON.stringify({ type: "error", error: "invalid JSON" })); return; }
+
+  // 3. Type allowlist.
+  if (!msg || typeof msg.type !== "string" || !VALID_TYPES.has(msg.type)) {
+    ws.send(JSON.stringify({ type: "error", error: "invalid type" })); return;
+  }
+
+  // 4. Per-type field validation (regex on identifiers, sanitize free text).
+  switch (msg.type) {
+    case "join": {
+      if (!ROOM_CODE_RE.test(String(msg.room).toUpperCase())) { /* ... */ }
+      // ...
+    }
+    case "chat": {
+      msg.text = sanitizeChatText(msg.text);   // strips control chars + length-caps
+      if (!msg.text) return;                   // drop silently if it sanitized to empty
+      // ...
+    }
+  }
+});
+```
+
+Layers, in order: rate-limit → JSON parse → type allowlist → per-type field validation → handler logic.
+
+**Sanitizer caveat.** `sanitizeChatText` today only strips ASCII control chars and caps length. It does NOT defend against Unicode RTL overrides, zero-width joiners, homoglyph attacks, etc. That's acceptable for v1's threat model (small private mod) but is not a complete sanitizer — don't claim it is, and revisit if abuse becomes real.
+
+## Wire-boundary error handling — log + drop, never throw
+
+Bad input from a remote (malformed JSON, wrong type, validation failure) should be logged, optionally replied to with an `{ type: "error", error: "..." }`, and dropped. **Never throw out of a wire handler** — an uncaught exception in `ws.on("message")` can crash the server, which is what the attacker wanted.
+
+For the sidecar (talks to one trusted relay), the same applies in reverse: parse failures from relay messages get logged and dropped, never thrown.
+
+## Lifecycle
+
+Any long-running Node process in OSPlus must:
+
+1. Handle `SIGTERM` and `SIGINT` and shut down cleanly. Pattern from `server/index.js`:
+
+   ```js
+   function shutdown(sig) {
+     log(`[SHUTDOWN] ${sig} received, closing ${wss.clients.size} client(s)`);
+     for (const ws of wss.clients) ws.close(1001, "server shutting down");
+     httpServer.close(() => { log(`[SHUTDOWN] HTTP closed, exiting`); process.exit(0); });
+     setTimeout(() => { log("[SHUTDOWN] hard exit"); process.exit(1); }, 5000);
+   }
+   process.on("SIGTERM", () => shutdown("SIGTERM"));
+   process.on("SIGINT",  () => shutdown("SIGINT"));
+   ```
+
+2. Have a watchdog if its lifetime depends on another process. The sidecar's heartbeat watchdog (exits when the game stops touching `heartbeat.txt`) is the model — see `sidecar/index.js`.
+
+3. Log enough context on startup that someone running `journalctl -u osplus-relay` (or watching the sidecar console) can verify configuration without source-diving. Echo the resolved config: bind address, auth-on/off, file paths, watchdog timeouts.
+
+## Logging
+
+`console.log("[CATEGORY] message")` for normal events. `console.error("[ERR] ...")` for failures. No logger library — see "minimum dependencies" above. Sunset trigger: structured/queryable logs needed (alerting, off-VM aggregation, query-by-field).
+
+**Per-surface timestamp policy:**
+
+- `server/` — ISO timestamp prefix on every line (helps when reading `journalctl -u osplus-relay --since`, where the journal's own timestamps and a tailed log can interleave). Pattern in `server/index.js`:
+
+  ```js
+  function log(msg) { console.log(`${new Date().toISOString()} ${msg}`); }
+  ```
+
+- `sidecar/` — no timestamp. Sidecar logs go to a console window that the user reads in real time during gameplay; timestamps are noise.
+
+## File header docblocks
+
+Modules whose behavior isn't obvious from the filename get a header docblock that covers: purpose, deployment context, security posture, persistence semantics, anything a future agent needs to know before reading line 1. `server/index.js`'s header is the model — copy that style for any new top-level module.
+
+## Naming
+
+| Kind | Convention | Examples |
+|---|---|---|
+| Variables, functions | `camelCase` | `loadConfig`, `currentRoom`, `appendToInbox` |
+| Module-level constants | `UPPER_SNAKE_CASE` | `MAX_PAYLOAD_BYTES`, `RECONNECT_DELAY_MS` |
+| Wire field identifiers | short camelCase / lowercase | `type`, `room`, `text`, `sender`, `ts` |
+| Wire event types | per `code-conventions.mdc` boundary table | `join`, `joined`, `room_change` |
+
+## What is NOT in scope of this rule
+
+- **Build pipeline** (esbuild, postject, SEA) — see `harnesses.mdc` for `build_dist.ps1`.
+- **Deployment / systemd / Caddy** — see `docs/ops/deploy-relay.md`.
+- **Wire format / protocol naming** — see `code-conventions.mdc`.
+- **The third-party `ws` package internals** — vendored, treat as a stable API.

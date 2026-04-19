@@ -1,0 +1,90 @@
+---
+description: Cross-cutting code conventions for OSPlus — comments, logging format, wire-protocol naming, error response shape. Language-specific rules attach via globs.
+alwaysApply: true
+---
+
+# OSPlus code conventions (cross-cutting)
+
+These apply across Lua, JavaScript, and PowerShell. Language-specific extensions live in `lua-conventions.mdc`, `node-conventions.mdc`, and `powershell-conventions.mdc` and auto-attach by file glob.
+
+## Comments — WHY, not WHAT
+
+The code shows the WHAT. Comments earn their existence by explaining WHY. Specifically:
+
+- **Engine / platform quirks.** "UE 5.1 SetText(\"\") reverts at the Slate level for empty strings, so we clear with a space."
+- **Boundary or contract.** "BP owns IsTyping; Lua reads it via M.isTyping(). Don't write IsTyping from Lua."
+- **Replication / timing.** "AssignedTeam may be nil for the first second after match start; retry with backoff."
+- **Security / safety.** "Sanitize before broadcasting — strip control chars and cap at 500 chars."
+- **Invariants.** "M.widget may go nil between any two calls; always re-validate before use."
+
+Anti-patterns (don't ship these):
+
+```lua
+-- Increment counter
+counter = counter + 1
+-- Return result
+return result
+```
+
+If a comment paraphrases the line below it, delete the comment. If a comment explains a non-obvious decision and you'd hate to debug this in 6 months without it, keep it.
+
+When the WHY references a documented finding, link it: `-- See docs/learnings/chat-match-detection-via-seed.md`.
+
+## Logging — `[CATEGORY] message`
+
+Every log line worth writing carries a bracketed prefix that identifies the *subsystem* it came from, not the source file. Examples in current code: `[CHAT]`, `[IPC]`, `[HOOK]`, `[WS]`, `[ROOM]`, `[CONN]`, `[CONFIG]`, `[HEARTBEAT]`, `[SHIP]`.
+
+Severity is encoded *as part of the category prefix*, not via separate log levels:
+
+| Style | Use for |
+|---|---|
+| `[CHAT] message` | Normal operational event. |
+| `[ERR] something failed: ...` or `[CHAT] FAIL: ...` | Failure. |
+| `[!] watch this` or `[LIMIT] rate exceeded` | Warning / threshold-tripped. |
+| `[CHAT] [DEBUG] verbose` (gated by `cfg.DEBUG` / similar) | Debug-only spew. |
+
+Reasoning: at this scale, separate log-level systems are over-engineering. `grep [CHAT]` and `grep ERR` work today and stay simple. The day we ship structured/queryable logs, the migration is mechanical because the categories already exist.
+
+**Per-surface timestamp policy** (deliberately different per consumer; see each language rule for specifics):
+
+| Surface | Console | File / journal |
+|---|---|---|
+| Lua mod | no timestamp | `[HH:MM:SS]` prefix |
+| Sidecar | no timestamp (game console reads in real time) | n/a (no file log) |
+| Relay (server) | ISO timestamp prefix (systemd journal stores raw stdout) | n/a (journal handles rotation) |
+
+## Wire-protocol naming — boundary-translated, not language-bled
+
+OSPlus has three message boundaries with three distinct conventions. They're inconsistent on purpose: each one matches the conventions of the *consumer*, not the producer.
+
+| Boundary | Direction | Convention | Examples |
+|---|---|---|---|
+| Lua → sidecar (file IPC) | command + state-change events | snake_case for multi-word events; single-word for forward-through | `room_change`, `room_leave`, `chat`, `ping` |
+| Sidecar → relay (WS) | imperative commands | single-word imperative | `join`, `leave`, `chat`, `ping` |
+| Relay → sidecar (WS) | past-tense events / errors | single-word past tense + `error` | `joined`, `left`, `error` |
+| Field identifiers everywhere | n/a | short camelCase / lowercase | `type`, `room`, `text`, `sender`, `ts`, `key` |
+
+When you add a new message: pick the convention of the boundary it crosses, don't extend a producer's preferred style across the wire.
+
+When in doubt: grep the existing handlers (`server/index.js` `VALID_TYPES`, `sidecar/index.js` switch on `msg.type`, `mod/OSPlus/scripts/ipc.lua`) and match.
+
+## Error response shape (relay → client)
+
+Errors over the wire from the relay use:
+
+```json
+{ "type": "error", "error": "<short human-readable reason>" }
+```
+
+`error` is a free-form string today. Programmatic discrimination requires string-matching, which is fine at v1 scale (one client, two error cases) but is a known limitation. When a second client genuinely needs to branch on error class, add a stable `code` field — don't overload the existing `error` string.
+
+## "No fabrication" applies to comments and logs too
+
+Don't comment what you don't know. Don't log a category you haven't verified the message comes from. If you're guessing why a thing is the way it is, write `// TODO: confirm — current theory is X` rather than asserting.
+
+## What is NOT in scope of this rule
+
+- **Indentation, line length, brace style, quote style.** Formatter territory. Don't litigate.
+- **File / module organization.** See per-language rules.
+- **Naming inside a single function.** Variable-naming is taste; only cross-boundary names are codified above.
+- **Test conventions.** No test infrastructure exists yet; will be added when it does.
