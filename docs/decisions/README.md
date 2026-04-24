@@ -56,11 +56,11 @@ None of these are being written *in this folder-creation commit* — they're sub
 
 ## Index
 
-Newest first. Empty until the first ADR lands.
+Newest first.
 
 | # | Status | Title | Date |
 |---|---|---|---|
-| _(none yet)_ | | | |
+| [0001](0001-identity-model.md) | `proposed` | Bind OSPlus profiles to the Odyssey (Prometheus) account ID | 2026-04-24 |
 
 ## Related
 

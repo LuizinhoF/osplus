@@ -270,7 +270,7 @@ The `OSPlusProbes` README said the log lives at `Binaries\Win64\ue4ss\UE4SS.log`
 
 ### Recommended Stage 5 path (revised post-Pass-3)
 
-- **Identity binding:** `full feature` path. Resolution path is now characterized end-to-end (`PMPlayerModel:GetCachedMeResponseV1` → `MeResponseV1` (extends `PlayerPublicProfile`) → `PlayerId`). One Pass-4 in-game probe validates the UE4SS calling-convention placeholder shape, then `identity.lua` extends to surface the Prometheus ID alongside the existing SteamID + display-name reads. Trust posture and primary-key choice land in `0001-identity-model`.
+- **Identity binding:** `full feature` path. Resolution path is now characterized end-to-end (`PMPlayerModel:GetCachedMeResponseV1` → `MeResponseV1` (extends `PlayerPublicProfile`) → `PlayerId`). Two Pass-4 prerequisites before code lands: (1) validate the UE4SS calling-convention placeholder shape with one in-game probe, (2) **delegate-binding spike (1–2 hours)** to confirm UE4SS Lua's API for subscribing to `MeRequestV1Completed__DelegateSignature` — output goes to `docs/learnings/` so the pattern is reusable for capture-side and achievement-side features. Then `identity.lua` extends to subscribe to the delegate (with a one-shot cache pre-check at subscribe time as the warm-cache fast-path) and surface the Prometheus ID alongside the existing SteamID + display-name reads. Trust posture, primary-key choice, and event-driven-vs-polling resolution path all land in `0001-identity-model`.
 - **Raw capture pipeline:** `thin slice` (upgraded from "spike first"). The capture surface is now known: `FindAllOf("PMPlayerMatchSummary")` during a match yields the per-player counters. Thin slice = (1) read all summaries at end-of-match, (2) write each as one row to wherever `0002-profile-storage` lands them, (3) prove round-trip end-to-end with one match's worth of redirect counts. The per-summary → per-player mapping question (Pass-4) is the only thing that could turn this back into a spike.
 - **Storage:** still waits for `0002-profile-storage` ADR. Pass-3 findings now feed concrete inputs: schema rows can be designed against `PlayerPublicProfile` for profile data and against the `EPMEndOfGameStat` enum (capped at 9 ints per player per match) for capture data. Cardinality bounded; cheapest write strategy is now answerable.
 
@@ -317,6 +317,7 @@ The `OSPlusProbes` README said the log lives at `Binaries\Win64\ue4ss\UE4SS.log`
 - ~~*[Pass 3]* Where does the redirect signal actually live?~~ — **Resolved in Pass 3 findings.** `PMPlayerMatchSummary:RedirectRock`, plus per-event `PMRockCharacter:LastRedirectKnockBack`.
 - ~~*[Pass 3]* What is the 111 `PMPlayerPublicProfile` instances pool?~~ — **Resolved.** It's the *remote*-player profile cache (UObject wrapper around `PlayerPublicProfile` struct + `IsOnline` flag); the local player isn't in it. Local player goes through `PMPlayerModel:GetCachedMeResponseV1` instead.
 - *[Pass 4]* Validate UE4SS calling-convention for output-param placeholders on `GetCachedMeResponseV1` — `(false, nil)` vs `(false, {})` vs no args; build-dependent. Single in-game probe call.
+- *[Pass 4]* **Delegate-binding spike (1–2 hours).** Confirm UE4SS Lua's API for binding to a `*__DelegateSignature` (binding mechanism, callback signature shape, unsubscribe support). Required for `0001-identity-model`'s R-B implementation; output lands in `docs/learnings/` (proposed `ue4ss-lua-delegate-binding.md`) as reusable substrate for future event-driven feature work.
 - *[Pass 4]* How does a `PMPlayerMatchSummary` instance map back to its player? (Held by `PMPlayerState`? An array on `PMGameState`? Keyed by `PlayerId`?) Required before designing the storage schema's player-FK shape.
 - *[Pass 4]* Where do the missing 5 EOG stats (Goals / Assists / Saves / KOs) live? Most likely on `PMPlayerState` C++ parent; needs a property dump of that class.
 - *[Pass 3 / deferred]* Does A2's local-stable finding hold in a matchmade public game, or is it solo-custom-only?
@@ -324,7 +325,7 @@ The `OSPlusProbes` README said the log lives at `Binaries\Win64\ue4ss\UE4SS.log`
 - *[Stage 4]* Where does raw capture data physically live? Answered by `0002-profile-storage`.
 - *[Stage 4]* What debug visibility, if any, ships with the MVP so "capture is working" is provable without grepping the relay DB?
 - *[Stage 4]* Does `identity.lua` get extended to surface the Prometheus ID, or is that a separate feature? (Now *when* not *whether* — the binding-key decision forces the extension.)
-- ~~*[Stage 4]* Which identifier is the profile row's primary binding key — SteamID or Prometheus ID?~~ **Decided in Pass 2 findings:** Prometheus ID is primary, SteamID is secondary cross-reference.
+- ~~*[Stage 4]* Which identifier is the profile row's primary binding key — SteamID or Prometheus ID?~~ **Decided in Pass 2 findings:** Prometheus ID is primary, SteamID is secondary cross-reference. Formalized in `docs/decisions/0001-identity-model.md`.
 
 **Explicit Brief ↔ Roadmap tension recorded here so it isn't lost:**
 
