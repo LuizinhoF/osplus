@@ -398,6 +398,36 @@ cd sidecar && node index.js ws://localhost:3000 ROOMCODE
 
 Other arena maps likely exist under `/Game/Prometheus/Maps/GameMap/` but have not been catalogued yet.
 
+### Backend Ecosystem — Odyssey's "Prometheus" API
+
+**Naming note.** "Prometheus" refers to *two* things in the Omega Strikers universe, and both are Odyssey-chosen:
+
+1. **The UE client module** (`Prometheus` — see Engine & Modules above). Game-side UObjects are prefixed `PM*` (`PMIdentitySubsystem`, `PMPlayerPublicProfile`, `PMPlayerModel`, etc.) and gameplay content lives under `/Game/Prometheus/...`.
+2. **Odyssey's game backend API** — a separate JWT-authenticated HTTP API the client talks to. The community named it "Prometheus" because schema/ID naming from the client module leaks into the API's responses (e.g. every player's canonical ID hex string is the same value exposed as `PMPlayerPublicProfile.PlayerId` — same namespace).
+
+Both meanings are active. In community tooling, "Prometheus" almost always means the backend API.
+
+**The backend API is not publicly documented by Odyssey.** Every Omega Strikers tracker in existence — [stats.omegastrikers.gg](https://stats.omegastrikers.gg/), [clarioncorp.net](https://clarioncorp.net/), [strikr.gg](https://strikr.gg/), [omegastrikers.stlr.cx](https://omegastrikers.stlr.cx/) — taps this same API via reverse-engineered endpoints. One community author (Strikr-GG) signed an NDA with Odyssey after reverse-engineering it. The broader community posture is "grey zone, not endorsed, not prosecuted."
+
+**Auth:** JWT pair (`ODYSSEY_TOKEN` + `ODYSSEY_REFRESH_TOKEN`, per the Strikr-GG README). Tokens obtainable via:
+- Live capture with Fiddler Classic while the game runs.
+- Steam Ticket → Odyssey auth handshake (per Clarion docs; full guide not yet published as of 2026-04).
+
+**What the API exposes** (per [Clarion's v2 `/players/<id>`](https://docs.clarioncorp.net/clarion-api/v2/players), which proxies Prometheus):
+- Player metadata: 24-char hex Prometheus ID, username, region, cosmetic loadout IDs (logo, nameplate, emoticon, title), currentXp, online/offline status.
+- Per-character aggregates (by `character` × `role` × `gamemode`): `games`, `wins`, `losses`, `mvp`, `knockouts`, `assists`, `saves`, `scores`.
+- Rating per season: `rating`, `rank`, `wins`, `losses`, `games`, `masteryLevel`.
+- Mastery totals: `currentLevel`, `currentLevelXp`, `totalXp`, `xpToNextLevel`.
+- Per-match metadata (map, score, duration, timestamp, per-team rank delta) — drillable via a per-match endpoint.
+
+**What the API does NOT expose — the OSPlus capture gap:**
+- **Redirects** — no `redirects` field in any tracker's per-character or per-match response shape.
+- Per-match event sequences (when goals scored, saves per match, action-by-action breakdown).
+- In-match transient state (positions, action timing, duration-of-possession).
+- Anything that happens during a match but isn't persisted to the backend.
+
+**See also:** `docs/learnings/os-prometheus-api-ecosystem.md` (discovery diary).
+
 ### Game Lifecycle & Phase Detection
 
 The game progresses through distinct phases. Each phase has a unique combination of classes that can be queried from Lua:
@@ -712,12 +742,26 @@ The chat system requires switching between game and UI input modes:
 - [ ] Can we read other players' PlayerStates? (F4 dump only found 1 PlayerState_Game_C per phase — might need FindAllOf)
 
 ### Player Identity Reference
-- **Display name in match**: `FindFirstOf("PlayerState_Game_C").PlayerNamePrivate:ToString()` → display name string
+
+**Three identifier namespaces — distinguish them:**
+
+| Identifier | Shape | Stable? | Source | Who uses it |
+|---|---|---|---|---|
+| **SteamID** | 17-digit decimal (e.g. `76561198022185004`) | Yes, cross-session, cross-platform | `PMIdentitySubsystem:GetSteamId()` | Steam; OSPlus profile binding today |
+| **Prometheus ID** | 24-char hex / MongoDB ObjectID (e.g. `6333a58673a37dc7cb11a7a7`) | Yes (assumed) | Game backend; appears as `PMPlayerPublicProfile.PlayerId` | Odyssey's backend API and every OS tracker as the canonical player key |
+| **Display name** | Friendly, mutable string (e.g. `Ispicas`) | No — user-mutable | `PlayerState.PlayerNamePrivate` (after replication) | Human UI |
+
+Three separate namespaces. A Prometheus ID cannot be derived from a SteamID (or vice versa) without the game backend. **If OSPlus ever wants to join its own captures against tracker-ecosystem aggregate stats, it needs the Prometheus ID** — every tracker keys off Prometheus, not Steam.
+
+**Caveat: `PlayerState.PlayerNamePrivate` has three observed modes** — see `docs/learnings/playernameprivate-transient-account-id.md` and `docs/learnings/playernameprivate-machine-name-out-of-match.md`. During the replication window it carries the Prometheus ID as a hex string (the "account-ID" mode in those learnings); after replication it holds the display name; some out-of-match contexts briefly return the local Windows machine name.
+
+**Individual reads:**
+- **Display name in match**: `FindFirstOf("PlayerState_Game_C").PlayerNamePrivate:ToString()` → display name string (after replication; see caveats above)
 - **SteamID**: `FindFirstOf("PMIdentitySubsystem"):GetSteamId()` → `76561198022185004`
-- **Identity state**: `FindFirstOf("PMIdentitySubsystem"):GetIdentityState()` → `2` (Authenticated)
-- **PMPlayerPublicProfile**: 104 cached profiles of OTHER players. Local player is NOT in this cache. Struct field `Username` contains display names, `PlayerId` contains Prometheus IDs.
-- **PMPlayerModel**: Has `GetCachedPlayerPublicProfile`, `GetCachedMeResponseV1`, `GetDisplayNameV1` UFunctions but all require 2 params (out-param pattern) and the correct UScriptStruct types — not trivially callable from Lua.
-- **Practice mode caveat**: `PlayerNamePrivate` returns a hex-encoded ID (not display name) in practice mode. Only returns the real display name in custom/real games.
+- **Identity state**: `FindFirstOf("PMIdentitySubsystem"):GetIdentityState()` → `2` (Authenticated — enum semantics inferred from name, not confirmed by enum-dump)
+- **PMPlayerPublicProfile**: `FindAllOf("PMPlayerPublicProfile")` returns ~100+ cached profiles of OTHER players (observed: 104 and 109 in two separate dumps). Each has `Username` (display name) and `PlayerId` (Prometheus ID). **The local player is NOT in this cache.**
+- **PMPlayerModel**: Has `GetCachedPlayerPublicProfile`, `GetCachedMeResponseV1`, `GetDisplayNameV1` UFunctions but all require 2 params (out-param pattern) and the correct UScriptStruct types — **not trivially callable from Lua.** This is likely the cleanest path to the local Prometheus ID if the signature can be unlocked.
+- **Practice mode caveat**: `PlayerNamePrivate` returns a hex Prometheus ID rather than the display name in practice mode. Only returns the display name in custom / real games.
 
 ### ScrollBox Crash — Root Cause & Resolution (SOLVED)
 
