@@ -1,0 +1,129 @@
+---
+description: PowerShell code conventions for OSPlus build/deploy/setup scripts — error handling, helpers, encoding, line-ending discipline, hardcoded path policy.
+globs:
+  - "**/*.ps1"
+  - "**/*.psm1"
+---
+
+# OSPlus PowerShell conventions
+
+OSPlus's PowerShell is **procedural automation only** — build, deploy, setup, packaging. Windows-only; no long-running PS services.
+
+For cross-cutting (logging format, comment policy), see `code-conventions.mdc`.
+
+## `$ErrorActionPreference = "Stop"` at the top
+
+Every non-trivial script (more than ~10 lines) starts with:
+
+```powershell
+$ErrorActionPreference = "Stop"
+```
+
+PS's default `Continue` silently swallows errors from PS-native cmdlets. `Stop` makes them throw. **Without this, "successful" runs can leave half-built artifacts.**
+
+Exception: when calling external tools that emit informational lines on stderr (npm, esbuild, postject), save+restore:
+
+```powershell
+$prevPref = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+try {
+    & npm install --silent 2>&1 | Where-Object { $_ -notmatch "^npm warn" }
+} finally {
+    $ErrorActionPreference = $prevPref
+}
+```
+
+## `$LASTEXITCODE` — the external-command footgun
+
+**`$ErrorActionPreference = "Stop"` does NOT trip on `$LASTEXITCODE` from external commands.** A `& git push` that fails with exit 1 silently continues unless you check.
+
+Use `Invoke-External` from `tools/_lib.ps1`:
+
+```powershell
+. "$PSScriptRoot\tools\_lib.ps1"
+
+Invoke-External "scp uploading deploy/" {
+    & scp -i $key -r ./deploy "$user@$host:/tmp/"
+}
+```
+
+Or the explicit check:
+
+```powershell
+& <command> ...
+if ($LASTEXITCODE -ne 0) { throw "<label> failed (exit code: $LASTEXITCODE)" }
+```
+
+Never call an external command without one of these patterns. The label in the throw message is what makes failures diagnosable two months later.
+
+## Use `tools/_lib.ps1` helpers, don't reinvent
+
+Shared logging helpers in `tools/_lib.ps1`:
+
+| Helper | Visual | Use for |
+|---|---|---|
+| `Write-Step "msg"` | `==> msg` (cyan) | Major phase header. Each section of a multi-step script gets one. |
+| `Write-Ok "msg"` | `    [ok] msg` (green) | Success / completion of a step. |
+| `Write-Warn2 "msg"` | `    [!] msg` (yellow) | Non-fatal warning. |
+| `Write-Fail "msg"` | `    [fail] msg` (red) | Failure. Caller decides whether to `throw` or `exit 1`. |
+
+(`Write-Warn2` avoids colliding with PS's built-in `Write-Warning`, which respects `$WarningPreference` and has different semantics.)
+
+Bootstrap-specific helpers (`Get-LatestRelease`, `Find-ReleaseAsset`, `Download-Release`, `Expand-To`) live in `tools/setup/_lib.ps1`, which dot-sources `tools/_lib.ps1`.
+
+**Dot-source paths from common locations:**
+
+| Script location | Dot-source line |
+|---|---|
+| Project root (`build_dist.ps1`, `deploy.ps1`) | `. "$PSScriptRoot\tools\_lib.ps1"` |
+| One-level subfolder (`ue-assets/`) | `. "$PSScriptRoot\..\tools\_lib.ps1"` |
+| Two-level subfolder (`server/deploy/`) | `. "$PSScriptRoot\..\..\tools\_lib.ps1"` |
+| `tools/setup/` | `. "$PSScriptRoot\_lib.ps1"` (gets both libs transitively) |
+
+ASCII banners and per-line context info (e.g. printing the SSH key path so the user can verify it) can stay as raw `Write-Host` — the helpers are for *step status*, not all output.
+
+## Encoding — be explicit, always
+
+PS's default text encoding is historically a moving target (PS5: UTF-16-LE-with-BOM; PS7: UTF-8 no BOM). **Never trust the default for files consumed by other tools.**
+
+- Tool input files (UnrealPak response files, sed scripts, anything Unix tools read):
+  ```powershell
+  $lines | Out-File -FilePath $f -Encoding ascii
+  ```
+- Clean UTF-8 without BOM (config files, JSON consumed by Node):
+  ```powershell
+  [System.IO.File]::WriteAllText($path, $content)
+  ```
+- Human-read text: `Out-File -Encoding utf8` is fine.
+
+Classic failure mode: `$lines | Out-File $response_file` writes UTF-16, UnrealPak rejects the whole file with a cryptic error, you spend an hour wondering why.
+
+## Line endings — `.gitattributes` first, sed second
+
+Files consumed on Linux (`*.sh`, `*.service`, `Caddyfile`) must be LF. The repo's `.gitattributes` enforces this on commit/checkout. Files edited with non-Git-aware tools (e.g. Notepad) can still drift to CRLF.
+
+Belt-and-suspenders: scripts that ship files to Linux also normalize on the remote. Pattern from `server/deploy/ship.ps1`:
+
+```powershell
+Invoke-External "line-ending normalization" {
+    & ssh @sshArgs "find $RemoteStaging/server -type f \( -name '*.sh' -o -name '*.service' -o -name 'Caddyfile' \) -exec sed -i 's/\r`$//' {} +"
+}
+```
+
+(Backtick-escaped `` `$ `` so PS doesn't interpolate the `$` before sending to bash.)
+
+See `docs/learnings/oci-relay-deploy-gotchas.md` for the full failure-mode story.
+
+## Hardcoded `F:\` paths — known scope debt, not a pattern to copy
+
+Production scripts (`build_dist.ps1`, `package_logicmod.ps1`, `package_pak.ps1`, `deploy.ps1`) hardcode `F:\Omegamod\OmegaStonkers 5.1\`, `F:\UE510\`, `F:\SteamLibrary\...`. Technically wrong (non-portable), pragmatically acceptable today: one developer, one machine, one toolchain.
+
+**Rules:**
+
+1. If you add a new hardcoded `F:\` path: fail loudly with an actionable error if it doesn't exist (`Write-Fail "X not found at $path; expected after step Y"`). Don't let the user discover the bad path 5 minutes into a build.
+2. Don't propagate the pattern to *new* tooling that has any chance of being run by anyone else. For those, use a config file or env vars from the start.
+3. When a second developer joins, parameterize as a dedicated `chore/` branch — not in-line during another change.
+
+## CmdletBinding for parameterized scripts
+
+Scripts that take parameters use `[CmdletBinding()]` + `param()` — gives `-Verbose`, `-Debug`, `-ErrorAction` for free, and makes `Get-Help script.ps1` work. Trivial scripts with no parameters don't need it.

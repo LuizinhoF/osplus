@@ -1,113 +1,91 @@
 # OSPlus — Agent Briefing
 
-OSPlus is a mod platform for Omega Strikers. Today it ships an in-game chat (UE4SS Lua + cooked Blueprint widget) and a Node.js sidecar that bridges the game to a public WebSocket relay (`wss://play-osplus.duckdns.org`). The long-horizon vision is a SteamID-bound profile/social platform on top — locked architectural commitments in `docs/vision.md`.
+OSPlus is a community-maintained mod layer for Omega Strikers. The product-level answer to "what is OSPlus and who is it for" lives in [`docs/product.md`](./docs/product.md); architectural choices are deliberated in [`docs/decisions/`](./docs/decisions/). Today the codebase ships an in-game chat (UE4SS Lua + cooked Blueprint widget) bridged via a Node.js sidecar to a public WebSocket relay (`wss://play-osplus.duckdns.org`) — chat is infrastructure that paid forward the sidecar+relay+pak pipeline, not the product itself.
 
-This file is the entry point for any AI coding agent working in this repo. Keep it under ~150 lines. If you need depth, link to a doc instead of inlining.
+Entry point for any AI coding agent in this repo. If you need depth, link to a doc; don't inline.
 
-## Pre-work reading (in this order)
+## Pre-work reading (in order)
 
-1. This file — toolchain, layout, principles.
-2. `docs/research/2026-agentic-stack.md` — why the agentic file structure looks the way it does. Read once per onboarding, then trust it.
-3. `KNOWLEDGEBASE.md` — engine facts, game internals, hard-won Lua patterns. Long; treat as reference, not narrative.
-4. `docs/architecture/state-contract.md` — the Lua/BP boundary contract for the mod. Mandatory before touching `mod/**/*.lua` or BP feature design.
-5. `docs/UE_PROJECT_MIGRATION.md` — the OmegaStrikersMod → OSPlus rename, current cooked-content paths.
-6. `docs/ops/deploy-relay.md` — runbook for the OCI relay VM.
-7. `docs/learnings/` — every non-trivial finding from past work. Skim before solving any problem that smells familiar.
+1. This file.
+2. [`docs/product.md`](./docs/product.md) — product definition. Audience, problem, wedge, anti-goals, hard constraints. Read at the start of every session.
+3. `docs/research/2026-agentic-stack.md` — why the agentic file structure looks the way it does.
+4. `KNOWLEDGEBASE.md` — engine + game internals reference. Long; use as a reference, not a narrative.
+5. `docs/architecture/state-contract.md` — Lua/BP boundary contract. Mandatory before touching `mod/**/*.lua` or designing a feature.
+6. `docs/UE_PROJECT_MIGRATION.md` — cooked-content paths after the OmegaStrikersMod → OSPlus rename.
+7. `docs/ops/deploy-relay.md` — runbook for the OCI relay VM.
+8. `docs/learnings/` — skim before solving anything that smells familiar.
+9. `docs/decisions/` — scan for relevant ADRs before making any architectural choice.
 
-For deeper expertise on demand: `.cursor/skills/` auto-activate when relevant.
+## Workflow skills
 
-## Workflow skills — invoke at the right moment
+Three skills in `.cursor/skills/` auto-activate by description match. If your current work matches a trigger and you haven't read the skill, you're skipping a step.
 
-Three workflow skills live in `.cursor/skills/`. They're not auto-attached — they activate when the conversation matches their description. Knowing they exist matters; reading them when the trigger fires matters more.
+- **`feature-design`** — "add X" / "implement X" for non-trivial features. Surfaces design axes before code is written. Stops for sign-off.
+- **`bug-investigate`** — bugs / unexpected behavior. Prior-art lookup → reproduce → falsify → fix → write learning.
+- **`release-checklist`** — ship a build / cut a release. Pre-flight → build chain → spot-check → smoke test → distribution → recorded run.
 
-- **`feature-design`** — fires on "add X" / "implement X" requests for non-trivial features. Surfaces design axes and trade-offs *before* code is written. Stops for sign-off. Direct fix for the failure mode where agents pick the cheapest implementation without surfacing alternative defensible answers.
-- **`bug-investigate`** — fires on bug reports / unexpected behavior. Searches `docs/learnings/` for prior art FIRST, reproduces minimally, falsifies hypotheses, fixes, then writes the learning. Closes the loop with `learnings-discipline.mdc`.
-- **`release-checklist`** — fires on "ship a build" / "cut a release". Pre-flight → build chain → spot-check → smoke test → distribution → recorded run. Distribution step is currently Drive-direct-link and explicitly flagged as volatile.
+## External paths (non-discoverable)
 
-If you're about to do work that matches one of these triggers and you haven't read the skill, you're skipping a step.
+- Game install: `F:\SteamLibrary\steamapps\common\OmegaStrikers\`
+- UE editor project: `F:\Omegamod\OmegaStonkers 5.1\`
+- Source-built UE 5.1.0: `F:\UE510\UnrealEngine-5.1.0-release\`
 
-## Repository map
+In-repo structure is discoverable via `ls`. `KNOWLEDGEBASE.md` (root) is the engine/game-internals reference.
 
-```
-mod/OSPlus/scripts/   Lua source for the in-game mod (UE4SS). Authoritative source.
-ue-assets/            Cooking helpers and the .pak builder.
-sidecar/              Node.js process the user runs locally; bridges file IPC ↔ relay WS.
-server/               Node.js relay (deployed to OCI) + deploy scripts + Caddy config.
-dist/                 Output of build_dist.ps1: end-user installer (install.bat + .pak + UE4SS).
-tools/setup/          Dev-environment bootstrap (repak, UAssetGUI, etc).
-tools/re/             Reverse-engineering helpers (work in progress).
-docs/                 All durable knowledge. See structure below.
-.cursor/rules/        Behavior policies. Auto-loaded by Cursor.
-.cursor/skills/       On-demand expertise. Model invokes by description.
-KNOWLEDGEBASE.md      Engine + game internals reference (to be split into docs/ later).
-```
+## Toolchain — use these, don't reinvent
 
-Game install lives outside the repo at `F:\SteamLibrary\steamapps\common\OmegaStrikers\`. The UE editor project lives at `F:\Omegamod\OmegaStonkers 5.1\` and is built against a source build of UE 5.1.0 at `F:\UE510\UnrealEngine-5.1.0-release\`.
-
-## Toolchain — use these, do not reinvent
-
-Always check this list before writing any new script. If a workflow seems missing, ask before authoring — there's likely an existing script doing it.
+Always check this before writing any script. If a workflow seems missing, ask before authoring.
 
 ### Build & ship the mod
-- `tools/setup/bootstrap.ps1` — first-time dev env setup (downloads repak, UAssetGUI, verifies UE paths). Idempotent.
-- **Cooking is manual in the UE Editor**: `File → Cook Content for Windows`. `/Game/Mods/OSPlus` must be in *Project Settings → Packaging → Additional Asset Directories to Cook*, otherwise the cook is empty.
-- `ue-assets/package_logicmod.ps1` — packs cooked OSPlus content into `OSPlus.pak`, drops it in `LogicMods/`. Run after every cook.
-- `build_dist.ps1` — assembles `dist/OSPlus.zip` (Lua + sidecar SEA + pak + UE4SS bundle + installer + README). Refuses to build without `OSPlus.pak`.
-- `dist/install.bat` — end-user installer. Auto-elevates, auto-detects game path, migrates legacy installs, strips MotW. Distributed inside the zip.
+- `tools/setup/bootstrap.ps1` — first-time dev env setup. Idempotent.
+- **Cooking is manual in the UE Editor**: `File → Cook Content for Windows`. `/Game/Mods/OSPlus` must be in *Project Settings → Packaging → Additional Asset Directories to Cook* or the cook is empty.
+- `ue-assets/package_logicmod.ps1` — packs cooked content into `OSPlus.pak` in `LogicMods/`. Run after every cook.
+- `build_dist.ps1` — assembles `dist/OSPlus.zip`. Refuses to build without `OSPlus.pak`.
+- `dist/install.bat` — end-user installer. Distributed inside the zip.
 
 ### Local dev loop
-- `deploy.ps1` — fast Lua-only sync from `mod/OSPlus/scripts/` to the game install. Use this between cook cycles when iterating on Lua. Does NOT update the pak.
+- `deploy.ps1` — fast Lua-only sync to the game install. Does NOT update the pak.
 
 ### Relay (server)
-- `server/deploy/ship.ps1` — push `server/` to the OCI VM, run `install-relay.sh`, restart services. Default host: `136.248.104.200`, key at `~/.ssh/osplus_oci.key`.
-- `server/deploy/install-relay.sh` — runs on the VM. Installs Node.js + Caddy, lays down systemd units, enables auto-TLS for `play-osplus.duckdns.org`. Called by `ship.ps1`, never run directly from Windows.
-- `server/deploy/Caddyfile` and `server/deploy/osplus-relay.service` — the deployed config. `osplus-relay.service` does **not** use `MemoryDenyWriteExecute=true` because Node.js V8 JIT needs writable+executable pages.
+- `server/deploy/ship.ps1` — push `server/` to OCI VM, run `install-relay.sh`, restart services. Host: `136.248.104.200`.
+- `server/deploy/install-relay.sh` — runs on the VM (called by `ship.ps1`). Installs Node.js + Caddy, lays down systemd units, enables auto-TLS for `play-osplus.duckdns.org`.
+- `osplus-relay.service` does **not** use `MemoryDenyWriteExecute=true` — V8 JIT needs writable+executable pages.
 
 ### Reverse engineering / debug
-- `parse_uasset.ps1` — generic .uasset header parser. Useful but ad-hoc; not a stable harness.
-- `compare_uexp.ps1` — one-off binary diff for cooked outputs. Hardcoded paths; treat as scratch.
-- `tools/re/` — emerging reverse-engineering toolkit (snapshot, hook, dump). Still being built out.
+- `parse_uasset.ps1`, `compare_uexp.ps1` — ad-hoc scratch helpers. Hardcoded paths.
+- `tools/re/` — emerging RE toolkit (in progress).
 
 ## Engine constraints (the ones that bite)
 
-- Unreal Engine **5.1.0** runtime. Cook with the source-built 5.1.0 editor (not 5.1.1 from Epic launcher) — schema mismatches will silently corrupt complex widgets.
-- `DefaultEngine.ini` MUST have `CanUseUnversionedPropertySerialization=False` under `[Core.System]`. Without it, ScrollBox and other complex widgets crash on deserialization. See `KNOWLEDGEBASE.md` for the full RCA.
+- Unreal Engine **5.1.0** runtime. Cook with the source-built 5.1.0 editor (not 5.1.1 from Epic launcher) — schema mismatches silently corrupt complex widgets.
+- `DefaultEngine.ini` MUST have `CanUseUnversionedPropertySerialization=False` under `[Core.System]`. Without it, ScrollBox and other complex widgets crash on deserialization.
 - DX11 / SM5 only. No Lumen, no virtual shadow maps, no mesh distance fields.
-- BPModLoaderMod hardcodes `ModActor` at `/Game/Mods/<ModName>/ModActor`. Do not rename or move it.
-- UE4SS Lua has no networking — use sidecar + file IPC. See `KNOWLEDGEBASE.md` "Network Relay Architecture."
+- BPModLoaderMod hardcodes `ModActor` at `/Game/Mods/<ModName>/ModActor`. Do not rename or move.
+- UE4SS Lua has no networking — use sidecar + file IPC.
 
 ## Core principles
 
-1. **Don't reinvent harnesses.** The Toolchain section above is exhaustive for active scripts. If you think you need a new one, propose it first.
-2. **Author vision is canon.** OSPlus is a *platform*, not a one-off mod. Designs that make sense for "this feature" but break "the platform" are wrong. Surface the conflict instead of papering over it.
-3. **No fabrication.** If you don't know something — a UFunction signature, a BP property, an OCI command, an engine version — say so and probe (Lua dumps, `KNOWLEDGEBASE.md`, `docs/`, web search). Inventing plausible-looking detail is the worst possible failure mode in this codebase because it compounds.
-4. **Lua/BP boundary respected.** Every piece of mod state has one canonical owner. UI-reactive → BP. Domain/operational → Lua. Display values → BP holds, Lua pushes. See `.cursor/rules/mod-architecture.mdc` and `docs/architecture/state-contract.md` before touching either side.
-5. **Findings get logged before "done."** Every non-trivial debug, every new engine fact, every gotcha → `docs/learnings/<slug>.md`. Use the template. This is enforced by `.cursor/rules/learnings-discipline.mdc`.
+1. **Product definition is canon.** `docs/product.md` defines what OSPlus is and who it's for. Accepted ADRs in `docs/decisions/` define how it's built. Surface "this feature vs. the product / an ADR" conflicts instead of papering over them.
+2. **No fabrication.** If you don't know a UFunction signature, a BP property, an OCI command — say so and probe (Lua dumps, `KNOWLEDGEBASE.md`, web search). Inventing plausible detail compounds into silent breakage. Applies to comments and log messages too.
+3. **Lua/BP boundary respected.** UI-reactive → BP. Domain/operational → Lua. Display values → BP holds, Lua pushes. See `.cursor/rules/mod-architecture.mdc`.
+
+"Don't reinvent harnesses" is enforced by `.cursor/rules/harnesses.mdc`. "Log findings before done" by `.cursor/rules/learnings-discipline.mdc`. Both `alwaysApply`.
 
 ## Git workflow
 
-`main` stays green. Speculative or multi-file work goes on a branch (`feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `experiment/`). Before starting non-trivial work, propose a branch name and create it — don't silently commit to `main`. Conventional commit messages (`feat(chat): add channel switcher`). Never force-push `main`. Full policy in `.cursor/rules/git-workflow.mdc`.
+`main` stays green. Non-trivial work goes on a branch (`feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `experiment/`). Propose the branch name before creating it. Conventional commits (`feat(chat): add channel switcher`). Never force-push `main`. Full policy in `.cursor/rules/git-workflow.mdc`.
 
-## Vision & roadmap
+## Product, decisions, and roadmap
 
-Two paired docs drive what gets built and how:
+- **[`docs/product.md`](./docs/product.md)** — the north star. Audience, problem, wedge, anti-goals, success criteria, hard constraints. Everything else in the project is downstream of this doc. Read at session start; read before designing a feature; read before arguing for a new direction.
+- **[`docs/decisions/`](./docs/decisions/)** — architectural decisions. ADRs carry options-considered + rationale. Three areas (identity model, profile storage, ephemeral state) are flagged as first-priority ADR work per the README — feature work touching those areas forces the ADR first. Enforced by `.cursor/rules/decision-discipline.mdc`.
+- **[`docs/ROADMAP.md`](./docs/ROADMAP.md)** — Now / Next / Later / Won't-do, filtered through the product lens. "Next" is not a priority queue. Read before picking up new work.
 
-- **`docs/vision.md`** — locked architectural commitments. Four locks today:
-  1. **Identity** = claimed SteamID + game-derived display name.
-  2. **Profile module** = REST API, SQLite, in-process with the relay (`server/profile/`), separable later.
-  3. **Profile schema** starts identity-only and grows on demand — fields are added by the feature that needs them, in the same branch.
-  4. **Ephemeral state** lives on the relay (not the client, not a separate service).
-
-  Full rationale, what each lock rules out, and the remaining `[TBD]`s live in the doc. **Read it before designing any feature that touches identity, profile, persistence, or shared session state.**
-
-  If a feature seems to require *changing* a lock, stop and surface the conflict — locks change with conversation, not by drift.
-
-- **`docs/ROADMAP.md`** — features built on those locks. Now / Next / Later / Open questions / Won't do for v1. Order in "Next" is **not** a priority queue (engine reality we're still mapping may force re-sequencing). Read it before picking up new feature work to avoid duplicating something already deferred or already underway.
+The prior `docs/vision.md` — which encoded four "v1 locks" without recorded alternatives — has been archived to [`docs/decisions/_archive/vision-v1-superseded.md`](./docs/decisions/_archive/vision-v1-superseded.md) with a header explaining why. Do not treat the choices in that archive as current commitments; the ADR queue in `docs/decisions/README.md` supersedes them.
 
 ## When in doubt
 
-- Engine question → `KNOWLEDGEBASE.md` first, `docs/architecture/` second, `.cursor/skills/ue4ss-modding/` third.
-- Build/deploy question → Toolchain section above, then `docs/ops/`.
+- Engine question → `KNOWLEDGEBASE.md` → `docs/architecture/` → `.cursor/skills/ue4ss-modding/`.
+- Build/deploy → Toolchain above → `docs/ops/`.
 - Past gotcha → `docs/learnings/`.
-- Why is this structured this way? → `docs/research/`.
-- Anything about Cursor itself (rules, skills, this file) → `docs/research/2026-agentic-stack.md`.
+- Why the agentic structure is this way → `docs/research/`.

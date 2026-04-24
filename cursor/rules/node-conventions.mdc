@@ -1,0 +1,85 @@
+---
+description: Node.js code conventions for OSPlus (sidecar/, server/) — CommonJS, wire-boundary validation, minimal deps, lifecycle.
+globs:
+  - sidecar/**/*.js
+  - sidecar/**/*.mjs
+  - server/**/*.js
+  - server/**/*.mjs
+---
+
+# OSPlus Node conventions
+
+For cross-cutting (logging format, wire naming, error response shape, comment policy), see `code-conventions.mdc`.
+
+## Module system — CommonJS
+
+OSPlus's Node code is **CommonJS** (`require` / `module.exports`). No ESM, no mixing.
+
+- The sidecar ships as a **Single Executable Application** (SEA) bundled with `esbuild` + `postject`. The pipeline in `build_dist.ps1` step 3 is mature with CJS; ESM would require a config rework for no payoff.
+- No top-level-await need today. Code is small enough that `require` isn't a friction point.
+
+**Sunset trigger:** revisit when (a) we need an ESM-only dependency (e.g. modern `node-fetch`), or (b) the SEA build moves to a form that's more ESM-friendly.
+
+## Minimum dependencies — earn each one
+
+`server/index.js` uses only `http` (built-in) + `ws`. `sidecar/index.js` uses only `fs`, `path` (built-in) + `ws`. The SEA is built with `esbuild` + `postject` — both dev-only.
+
+Every new runtime dep is a supply-chain risk, a maintenance burden, and bundle bloat. **No new runtime dep without an explicit conversation.** State the alternative ("this is 30 lines of Node built-ins") and why it isn't enough. Dev deps are lower-friction but still earn their existence.
+
+## Wire boundary validation (server side)
+
+The relay accepts arbitrary input from public WebSocket connections. Every inbound message is validated **at the boundary** before any handler logic runs. The pattern in `server/index.js`:
+
+```js
+const VALID_TYPES = new Set(["join", "leave", "ping", "chat"]);
+const ROOM_CODE_RE = /^[A-Z2-9]{4}$/;
+const MAX_CHAT_LENGTH = 500;
+
+ws.on("message", (raw) => {
+  // 1. Rate limit (window + count).
+  // 2. Parse JSON (try/catch; reply with error on bad JSON, do not throw).
+  let msg;
+  try { msg = JSON.parse(raw); }
+  catch { ws.send(JSON.stringify({ type: "error", error: "invalid JSON" })); return; }
+
+  // 3. Type allowlist.
+  if (!msg || typeof msg.type !== "string" || !VALID_TYPES.has(msg.type)) {
+    ws.send(JSON.stringify({ type: "error", error: "invalid type" })); return;
+  }
+
+  // 4. Per-type field validation (regex on identifiers, sanitize free text).
+  switch (msg.type) {
+    case "join": {
+      if (!ROOM_CODE_RE.test(String(msg.room).toUpperCase())) { /* ... */ }
+      // ...
+    }
+    case "chat": {
+      msg.text = sanitizeChatText(msg.text);   // strips control chars + length-caps
+      if (!msg.text) return;                   // drop silently if it sanitized to empty
+      // ...
+    }
+  }
+});
+```
+
+Layers in order: rate-limit → JSON parse → type allowlist → per-type field validation → handler logic.
+
+**Sanitizer caveat.** `sanitizeChatText` today only strips ASCII control chars and caps length. It does NOT defend against Unicode RTL overrides, zero-width joiners, or homoglyph attacks. Acceptable for v1's threat model (small private mod), but don't claim it is complete.
+
+## Wire-boundary error handling — log + drop, never throw
+
+Bad input from a remote (malformed JSON, wrong type, validation failure) should be logged, optionally replied to with `{ type: "error", error: "..." }`, and dropped. **Never throw out of a wire handler** — an uncaught exception in `ws.on("message")` can crash the server, which is what the attacker wanted. Same applies to the sidecar parsing relay messages: log and drop, never throw.
+
+## Lifecycle
+
+Any long-running Node process must:
+
+1. **Handle `SIGTERM` and `SIGINT`.** Shut down cleanly: log, close client connections with a reason code, close the HTTP server, and schedule a hard-exit timeout (e.g. 5s) so a stuck `close()` doesn't wedge the process. See `server/index.js` `shutdown()` for the canonical pattern; copy it for new long-running processes.
+
+2. **Have a watchdog if lifetime depends on another process.** The sidecar's heartbeat watchdog (exits when the game stops touching `heartbeat.txt`) is the model — see `sidecar/index.js`.
+
+3. **Log resolved config on startup.** Echo bind address, auth-on/off, file paths, watchdog timeouts so someone reading `journalctl -u osplus-relay` or the sidecar console can verify configuration without source-diving.
+
+## File header docblocks
+
+Top-level modules whose behavior isn't obvious from the filename get a header covering: purpose, deployment context, security posture, persistence semantics — anything a future agent needs before line 1. `server/index.js`'s header is the model.

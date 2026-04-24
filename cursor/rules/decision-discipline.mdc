@@ -1,0 +1,72 @@
+---
+description: Always-on policy — architectural decisions need an ADR with options-considered before they're treated as locked
+alwaysApply: true
+---
+
+# Decision discipline
+
+OSPlus uses **Architectural Decision Records (ADRs)** to keep architectural choices from silently becoming unexamined locks. Any decision that would cost real work to reverse earns an ADR — one with real options, not a post-hoc rationalization. This rule is the backstop for that discipline.
+
+Companion to `learnings-discipline.mdc`: learnings record *findings* after the fact; ADRs record *decisions* before they harden. Both compound.
+
+The meta-problem this rule solves: `docs/decisions/_archive/vision-v1-superseded.md` was written as "v1 locks" with no record of alternatives considered. Once written, those choices became rigid — not because they were right, but because no one had named what else was on the table. ADRs prevent re-making that mistake.
+
+## When an ADR is required
+
+Write one **before** treating any of these as decided:
+
+- A choice that, if changed later, would force a rewrite across multiple subsystems.
+- A choice another agent would reasonably call "a lock" — identity model, persistence location, state ownership, wire protocol, trust boundary, API contract shape.
+- A choice that commits operational cost (new infra component, new service to monitor, new dependency).
+- A choice that forecloses future options (e.g. "no moderation layer now" blocks moderation-dependent features until this ADR is re-opened).
+- A **revision** of a prior decision. Superseding an existing ADR is itself an ADR — not a quiet rewrite.
+
+When in doubt, write one. A template copy + honest options list costs ~30 minutes and saves multi-day untangling later.
+
+## When an ADR is NOT required
+
+- **Policy, not architecture.** Working practices (e.g. "schema grows on demand") are not ADR material.
+- **Implementation details that preserve contracts.** Picking a library, reorganizing files, renaming internal functions.
+- **Trivial or forced choices.** If there's genuinely only one way, it's not a decision.
+
+A one-option ADR is not an ADR. If you can't name two real alternatives with honest pros and cons, this isn't the right document — write a short note in code or in the relevant doc instead.
+
+## What to do
+
+1. Copy `docs/decisions/_TEMPLATE.md` → `docs/decisions/NNNN-<kebab-slug>.md` (next 4-digit number, newest first). The slug is what someone will grep for in six months.
+2. Fill in every section. **Minimum two real options** with honest pros/cons/cost-to-change.
+3. Mark `Status: proposed` while open for discussion. Move to `accepted` only after sign-off.
+4. Add an index row in `docs/decisions/README.md` (newest first).
+5. If the ADR supersedes a prior one: mark the prior ADR `Status: superseded` and fill its `Superseded by` field.
+6. If the ADR invalidates claims in `AGENTS.md`, `docs/product.md`, `KNOWLEDGEBASE.md`, or any other doc, **update those docs in the same branch.** The ADR is additive; fixing the stale source is separate and required.
+7. If the ADR points to specific code sites, add a code comment: `-- See docs/decisions/NNNN-slug.md` (Lua) / `// See docs/decisions/NNNN-slug.md` (JS/PS1).
+
+## What "done" means
+
+A task that makes an architectural decision is not done until either:
+
+- An ADR exists for it with at least two honestly-considered options, **or**
+- You can articulate (and the user agrees) that none of the trigger conditions above apply.
+
+If a feature branch starts committing to an architectural direction without an ADR, the correct response is to **stop and surface the conflict**:
+
+> "This touches X, which isn't covered by an existing ADR and fits the trigger. Want me to draft an ADR first, or do you agree the scope doesn't require one?"
+
+Do not silently pick a direction because "it's the obvious choice." The whole point is to test that assumption.
+
+## How this interacts with feature-design
+
+The `feature-design` skill has an early checkpoint: "does this feature force an architectural decision?" If yes, the skill pauses feature design and drafts the ADR first. The ADR gets sign-off, *then* feature design resumes using the decided direction.
+
+If you start feature-design and realize mid-way that the work hits this rule's trigger, stop. Draft the ADR. Then come back.
+
+## First-priority queue (context, not enforcement)
+
+Three areas from the archived `vision.md` are already flagged as ADR-needed: **identity model**, **profile storage architecture**, **ephemeral state ownership**. See `docs/decisions/README.md` → "First-priority deliberation queue" for the rationale. Any feature work touching these areas **must** force the ADR; don't build on top of the archived "locks" without going through deliberation first.
+
+## What this rule does NOT do
+
+- It does not require an ADR for every code change. Most work is inside existing decisions, not making new ones.
+- It does not replace `learnings-discipline.mdc`. Findings are a separate discipline with a separate folder.
+- It does not block exploration or prototyping. Explore freely; the ADR is required when a direction gets committed to, not when it's first imagined.
+- It does not make ADRs a substitute for thinking. A well-formatted ADR with weak alternatives is worse than no ADR — it's a rubber stamp. "At least two real options" is a load-bearing requirement.

@@ -1,0 +1,128 @@
+---
+description: Lua code conventions for OSPlus UE4SS scripts — module shape, pcall + ref-drop discipline, tick loop, cross-module callbacks.
+globs:
+  - mod/**/*.lua
+---
+
+# OSPlus Lua conventions
+
+For the Lua/BP boundary contract, see `mod-architecture.mdc`. For cross-cutting logging format, wire naming, and error shape, see `code-conventions.mdc`.
+
+## Module shape
+
+Every module under `mod/OSPlus/scripts/`:
+
+```lua
+local cfg   = require("config")
+local log   = require("log")
+local utils = require("utils")
+
+local M = {}
+
+M.someFlag = false
+M.cachedThing = nil
+
+-- ---------------------------------------------------------------------------
+-- Section name (private helpers)
+-- ---------------------------------------------------------------------------
+
+local function helper()
+    -- ...
+end
+
+-- ---------------------------------------------------------------------------
+-- Public API
+-- ---------------------------------------------------------------------------
+
+function M.doThing()
+    -- ...
+end
+
+return M
+```
+
+- Imports at the top. Module path is bare (`require("config")`) — UE4SS resolves through `package.path`.
+- One file = one module table named `M`. Public functions on `M.fn`, private as `local function`.
+- No globals. If something feels like it wants to be global, it's module state on `M`.
+
+## `pcall` + ref-drop discipline (the C++ AV trap)
+
+`pcall` catches Lua-level errors but **does not catch C++ access violations** when the engine has freed a UObject. This is the #1 source of native crashes in OSPlus. Two patterns are required, not one.
+
+### Pattern 1 — Wrap every UE call in `pcall`
+
+Every `Find*`, property access through a UObject ref, method invocation, and `IsValid()` check goes through `pcall`. This catches Lua-side weirdness (returns that don't match the bridge's promise, properties that don't exist on this concrete subclass, etc.).
+
+```lua
+local function findChatWidget()
+    local ok, w = pcall(FindFirstOf, "WBP_ModChat_C")
+    if ok and w then
+        local valid, isV = pcall(function() return w:IsValid() end)
+        if valid and isV then return w end
+    end
+    return nil
+end
+```
+
+For labeled call-and-log, use `log.try(label, fn)`.
+
+### Pattern 2 — Drop refs at known invalidation points
+
+`pcall` does **not** save you from accessing a UObject the engine has freed (map transition, BPModLoader respawn, GC). The only safe move is to drop the reference *before* it goes stale.
+
+Canonical case is `chat.lua:reset()`:
+
+```lua
+function M.reset()
+    -- The previous map's widget is being destroyed by the engine right now.
+    -- Touching it (SetVisibility, CloseInput, anything) can crash natively
+    -- because pcall does NOT catch C++ access violations on freed UObjects.
+    -- Just drop our reference; ensureWidget() will find a fresh widget
+    -- on the new map after BPModLoader respawns ModActor.
+    M.widget = nil
+    -- ... reset other state ...
+end
+```
+
+`RegisterLoadMapPostHook` calls each module's `reset()` uniformly.
+
+**Rule of thumb:** if you cache a UObject ref across frames, you also need an invalidation point that drops it. No exceptions.
+
+## Cross-module callbacks
+
+Modules expose event hooks as `M.onSomething = nil` slots. `main.lua` wires them. Don't import modules sideways:
+
+```lua
+-- chat.lua
+M.onChatSent = nil  -- main.lua plugs this in
+
+function M.pollPending()
+    -- ...
+    if M.onChatSent then
+        pcall(function() M.onChatSent(sender, str) end)
+    end
+end
+```
+
+```lua
+-- main.lua
+chat.onChatSent = function(sender, text) ipc.writeChatToOutbox(sender, text) end
+```
+
+Callback invocations are themselves `pcall`-wrapped so a misbehaving subscriber can't take down the producer.
+
+## Tick loop discipline
+
+The mod runs a single `LoopAsync(30, ...)` tick in `main.lua` that calls into modules' `M.tick*` / `M.poll*` functions. Module tick handlers must:
+
+1. Be cheap. Most ticks should do nothing or a single counter decrement.
+2. Be `pcall`-safe (the loop wraps each call, but the handler shouldn't *rely* on that).
+3. Never block. No I/O blocking, no `os.execute` of long-running things, no while-true loops.
+
+Don't add a second `LoopAsync` for a module-private timer. Use a tick counter inside the existing handler.
+
+## Logging
+
+`log.log("[CATEGORY] message")` writes to both the in-game console (no timestamp) and `cfg.LOG_FILE` (`[HH:MM:SS]` prefix). Categories and severity prefixes are defined in `code-conventions.mdc`. Use `print(...)` only for the boot banner in `main.lua`.
+
+For labeled try-with-log: `log.try("OpenInput", function() M.widget:OpenInput() end)`.

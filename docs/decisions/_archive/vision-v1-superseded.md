@@ -1,3 +1,19 @@
+# OSPlus — Vision (v1) — SUPERSEDED
+
+> **This document is archived.** It has been superseded by [`docs/product.md`](../../product.md) (product definition) and [`docs/decisions/`](../) (ADR-based architectural deliberation).
+>
+> **Why archived (2026-04-23).** This document locked four architectural commitments without deliberation — written directly into a doc titled "v1 — locked" with no record of alternatives considered. That made premature choices rigid, which made feature work fight the rules instead of learning from them.
+>
+> The meta-problem the archive solves: the decisions below were reasonable for a solo/friend-group project and are not all appropriate for the now-stated public-OS-community ambition. Rather than silently mutate them, the whole document is retired and the decisions that still matter are being re-examined as ADRs where options actually get compared honestly.
+>
+> **Do not treat the "locks" below as current architectural commitments.** Three of them (identity, profile storage, ephemeral state) are flagged in [`docs/product.md`](../../product.md) as first-priority ADR work and will be re-decided there. The fourth (schema grows on demand) has been preserved as a policy, not an architectural lock.
+>
+> **Why preserved rather than deleted.** A future agent proposing one of these same "locks" should be able to find this doc and see that it was tried — with this rationale — and retired for a specific reason. The archive is a hedge against re-making the same decisions with the same blind spots.
+>
+> **Original content follows unmodified below this line.**
+
+---
+
 # OSPlus — Vision (v1)
 
 This document locks the **architectural commitments** that future features build on. It is intentionally narrow: only the decisions that, if changed later, would force a rewrite of multiple unrelated subsystems.

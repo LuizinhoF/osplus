@@ -21,7 +21,7 @@ Skip this skill (just implement) when:
 
 - The change is mechanical (rename, move, refactor with no behavior change).
 - The change is one-line / one-call obvious (e.g. add a missing log line, fix a typo).
-- The vision lock and existing patterns leave essentially no degrees of freedom.
+- An accepted ADR + existing patterns leave essentially no degrees of freedom.
 
 If you're unsure whether to use it, use it. The cost of designing first is small; the cost of building the wrong thing is large.
 
@@ -45,16 +45,19 @@ If you can't write these three lines without paraphrasing the user back to thems
 
 Read, in this order, only what's relevant:
 
-1. **`AGENTS.md` Vision section** + **`docs/vision.md`** — does any locked commitment apply? Identity, profile module, schema policy, ephemeral state ownership all carry implications for chat / presence / UX features.
-2. **`docs/learnings/`** — `grep` for any symptom or system this feature touches. Past fixes constrain future designs.
-3. **The files that will be touched.** If the feature is in chat: `mod/OSPlus/scripts/chat.lua`, `sidecar/index.js` chat handling, `server/index.js` chat handling, `ue-assets/.../WBP_ModChat`. If it's profile/presence: those plus wherever the feature lives.
-4. **The relevant code-conventions rules** auto-load by glob — let them. Don't re-read them defensively.
+1. **`docs/product.md`** — does the feature serve the audience, the problem, the wedge? Does it violate an anti-goal? If yes to "violate," stop here and surface the conflict — don't quietly redefine the product via a feature.
+2. **`docs/decisions/`** — scan for accepted ADRs that apply to the feature's domain (identity, persistence, state ownership, wire protocol, trust boundaries). An accepted ADR is a decided axis — don't re-litigate it in Phase 3.
+3. **`AGENTS.md` Product/decisions/roadmap section** — for framing and pointers; it routes, it doesn't re-state.
+4. **`docs/learnings/`** — `grep` for any symptom or system this feature touches. Past fixes constrain future designs.
+5. **The files that will be touched.** If the feature is in chat: `mod/OSPlus/scripts/chat.lua`, `sidecar/index.js` chat handling, `server/index.js` chat handling, `ue-assets/.../WBP_ModChat`. If it's profile/presence: those plus wherever the feature lives.
+6. **The relevant code-conventions rules** auto-load by glob — let them. Don't re-read them defensively.
 
 Produce a short anchor:
 
 ```
 ANCHOR
-  Vision locks that apply: <name them, or "none directly applicable">
+  Product fit: <which part of the wedge / long-horizon shape does this serve; any anti-goal tension>
+  ADRs that apply: <list accepted ADRs with numbers, or "none directly applicable">
   Learnings that constrain: <relative paths, or "none">
   Files/modules that will change: <list>
   Files/modules that will NOT change but matter: <list — boundaries to respect>
@@ -62,9 +65,35 @@ ANCHOR
 
 ---
 
+## Phase 2.5: ADR checkpoint — STOP if this feature forces an architectural decision
+
+Before surfacing any design axes, ask explicitly: **does this feature force a decision in any area currently open for ADR deliberation?**
+
+The queue you are checking against lives in `docs/decisions/README.md` → "First-priority deliberation queue." At time of writing that queue is:
+
+- Identity model
+- Profile storage architecture
+- Ephemeral state ownership
+
+Also check: would building this feature naturally commit to a new architectural direction (new persistence boundary, new wire protocol shape, new trust model) that isn't covered by an existing accepted ADR?
+
+If **either** is true:
+
+1. **Stop feature design.** Do not continue to Phase 3.
+2. Surface the conflict explicitly:
+
+   > "This feature forces a decision on `<area>`, which doesn't have an accepted ADR yet. I should draft the ADR (using `docs/decisions/_TEMPLATE.md`) with at least two real options before continuing feature design. Is that OK, or do you want to treat the existing direction as decided?"
+
+3. If the user says "draft the ADR," switch to ADR drafting mode. Produce the ADR (`docs/decisions/NNNN-<slug>.md`), get sign-off, *then* return to Phase 3 of this skill using the decided direction.
+4. If the user says "treat it as decided," record the decision being waived in the Phase 2 anchor and proceed — but only if the user explicitly acknowledges. Silent waiving is the exact failure mode `decision-discipline.mdc` exists to prevent.
+
+**Why this checkpoint exists here.** The `feature-design` skill was the natural place for the prior `vision.md` locks to bleed into feature work without challenge. The ADR system requires an active gate where features hit architectural implications, and this is that gate. Skipping it is the failure mode.
+
+---
+
 ## Phase 3: Surface design axes
 
-This is the load-bearing phase. For every choice the implementation will commit to, write it down explicitly. A "choice" is anything where the answer isn't forced by vision, conventions, or physics.
+This is the load-bearing phase. For every choice the implementation will commit to, write it down explicitly. A "choice" is anything where the answer isn't forced by the product definition, an accepted ADR, code conventions, or physics.
 
 For each axis:
 
@@ -75,7 +104,7 @@ AXIS: <short name — e.g. "Color source", "Presence broadcast cadence">
     (a) <concrete option> — pros: <...> · cons: <...> · cost: <implementation effort + ongoing cost>
     (b) <concrete option> — pros: <...> · cons: <...> · cost: <...>
     (c) <concrete option, if any> — ...
-  Verdict source: <vision-decided | code-conventions-decided | agent's call | NEEDS USER INPUT>
+  Verdict source: <product-decided | ADR-decided | code-conventions-decided | agent's call | NEEDS USER INPUT>
   Why: <1 sentence justifying the verdict source>
   Recommendation (if agent's call): <which option + 1 sentence why>
 ```
@@ -158,7 +187,7 @@ FEATURE DESIGN: <feature name>
 1. **Stop before code.** This skill produces a document, not a diff. The user signs off, *then* the parent agent implements. No exceptions, no "I'll just sketch it real quick."
 2. **Concrete options only.** "Add a database" is not an option. "Add SQLite table `X(col1, col2)` with index on `col1`" is.
 3. **Surface, don't decide-for-the-user.** When an axis carries genuine UX or platform commitment (anything that touches what users see, what gets persisted, what other features become possible), default to NEEDS USER INPUT even if you have an opinion.
-4. **Vision is canon.** If a vision lock applies, the verdict is "vision-decided" — don't re-litigate. If you think a lock should change, surface that as an open question, don't quietly assume it.
+4. **Product and accepted ADRs are canon.** If `docs/product.md` decides an axis (e.g. "no monetization"), the verdict is "product-decided" — don't re-litigate. If an accepted ADR decides an axis, the verdict is "ADR-decided." If you think a product-level or ADR-level decision should change, surface it as an open question, don't quietly assume it — and for architectural decisions, note that changing them requires a superseding ADR, not a feature-design-level override.
 5. **Future-sight is a real axis.** Every design pass should ask: "what's the obvious feature on top of this, and does this design make that easier or harder?" Surface the answer in an axis or in OPEN QUESTIONS. (This is the direct fix for the Phase 1e cold-start failure mode.)
 6. **Two-axis designs are suspicious.** A feature with only two design choices probably has three you missed. Look harder before submitting.
 7. **The user's pushback is signal.** When the user rejects a proposal or rescopes it, that means the design pass missed something — note what was missed for next time, don't just adjust and resubmit.

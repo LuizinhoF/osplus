@@ -27,6 +27,7 @@ Add new entries here, newest first.
 
 | Date | Slug | Area | One-line summary |
 |---|---|---|---|
+| 2026-04-23 | [product-architecture-coupling-via-premature-locks](product-architecture-coupling-via-premature-locks.md) | docs | Collapsing product definition and architectural deliberation into one "v1 locks" doc causes architectural choices to acquire product authority they don't deserve; split into `docs/product.md` + `docs/decisions/` (ADR-based). |
 | 2026-04-19 | [playernameprivate-transient-account-id](playernameprivate-transient-account-id.md) | mod | `PlayerState.PlayerNamePrivate` can be transiently account-ID shaped; defer relay join until a friendly name is resolved/cached. |
 | 2026-04-19 | [relay-room-code-regex-vs-derived-codes](relay-room-code-regex-vs-derived-codes.md) | relay | Relay regex `/^[A-Z2-9]{4}$/` rejected every mod-derived 10-char `<seed>T<team>` code; local rendering hid the failure. |
 | 2026-04-19 | [sidecar-ws-keepalive](sidecar-ws-keepalive.md) | sidecar | Caddy reverse_proxy holds a zombie client WS open after the upstream restarts; sidecar must heartbeat to detect it. |

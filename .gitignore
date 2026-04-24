@@ -45,8 +45,10 @@ sidecar/config.local.json
 server/config.local.json
 
 # ─── Per-contributor Cursor MCP config (machine-specific paths) ──────────────
-# Template lives at .cursor/mcp.json.example — copy + edit locally.
-.cursor/mcp.json
+# Template lives at cursor/mcp.json.example — copy + edit locally.
+# Folder is `cursor/` (not `.cursor/`) to keep it out of Cursor's auto-context
+# pollution path while still working as a project-local config root.
+cursor/mcp.json
 
 # ─── Scratch / experimental ──────────────────────────────────────────────────
 scratch/

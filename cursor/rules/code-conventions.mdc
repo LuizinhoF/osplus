@@ -1,0 +1,58 @@
+---
+description: Cross-cutting code conventions for OSPlus — comments, logging format, wire-protocol naming, error response shape. Language-specific rules attach via globs.
+alwaysApply: true
+---
+
+# OSPlus code conventions (cross-cutting)
+
+Applies across Lua, JavaScript, and PowerShell. Language-specific extensions live in `lua-conventions.mdc`, `node-conventions.mdc`, and `powershell-conventions.mdc` (glob-attached).
+
+## Comments explain WHY
+
+Code shows the WHAT. Comments earn their existence by explaining engine/platform quirks, contracts, timing, safety, or invariants — things the next reader can't infer from the line below. If a comment paraphrases the code, delete it.
+
+When the WHY references a documented finding, link it: `-- See docs/learnings/chat-match-detection-via-seed.md`.
+
+## Logging — `[CATEGORY] message`
+
+Every log line carries a bracketed prefix for the *subsystem*, not the file. In current use: `[CHAT]`, `[IPC]`, `[HOOK]`, `[WS]`, `[ROOM]`, `[CONN]`, `[CONFIG]`, `[HEARTBEAT]`, `[SHIP]`.
+
+Severity is part of the category prefix, not a separate log-level system:
+
+| Style | Use for |
+|---|---|
+| `[CHAT] message` | Normal operational event |
+| `[ERR] something failed: ...` or `[CHAT] FAIL: ...` | Failure |
+| `[!] watch this` or `[LIMIT] rate exceeded` | Warning / threshold-tripped |
+| `[CHAT] [DEBUG] verbose` (gated by `cfg.DEBUG`) | Debug-only spew |
+
+At this scale, separate log-level systems are over-engineering. `grep [CHAT]` and `grep ERR` work today. When structured logs arrive, the migration is mechanical because the categories already exist.
+
+**Per-surface timestamp policy** (deliberately different per consumer):
+
+| Surface | Console | File / journal |
+|---|---|---|
+| Lua mod | no timestamp | `[HH:MM:SS]` prefix |
+| Sidecar | no timestamp (game console reads in real time) | n/a (no file log) |
+| Relay | ISO timestamp prefix (journal stores raw stdout) | n/a (journal handles rotation) |
+
+## Wire-protocol naming — boundary-translated, not language-bled
+
+Three message boundaries, three conventions. Inconsistent on purpose: each matches the conventions of the *consumer*, not the producer.
+
+| Boundary | Direction | Convention | Examples |
+|---|---|---|---|
+| Lua → sidecar (file IPC) | command + state-change events | snake_case for multi-word; single-word for forward-through | `room_change`, `room_leave`, `chat`, `ping` |
+| Sidecar → relay (WS) | imperative commands | single-word imperative | `join`, `leave`, `chat`, `ping` |
+| Relay → sidecar (WS) | past-tense events / errors | single-word past tense + `error` | `joined`, `left`, `error` |
+| Field identifiers everywhere | n/a | short camelCase / lowercase | `type`, `room`, `text`, `sender`, `ts`, `key` |
+
+When adding a message: pick the convention of the boundary it crosses. When in doubt, grep existing handlers (`server/index.js` `VALID_TYPES`, `sidecar/index.js` switch on `msg.type`, `mod/OSPlus/scripts/ipc.lua`) and match.
+
+## Error response shape (relay → client)
+
+```json
+{ "type": "error", "error": "<short human-readable reason>" }
+```
+
+`error` is free-form today. Programmatic discrimination requires string-matching — acceptable at v1 (one client, two error cases). When a second client needs to branch on error class, add a stable `code` field instead of overloading the `error` string.
