@@ -58,10 +58,16 @@
 ---
 
 ## Feasibility
-*(Stage 3 — Discover. Split into two passes per maintainer direction: Pass 1 = code + web only; Pass 2 = in-game probes. Pass 1 complete.)*
+*(Stage 3 — Discover. Split into Pass 1 (code + web), Pass 2 (in-game probes), and a Pass 3 scoped below. Pass 1 and Pass 2 complete.)*
 
-**Verdict (Pass 1 scope — identity surface + external-API inventory):** `High`.
-**Overall verdict pending** Pass 2 completion of the capture-surface investigation. No Pass-1-scope showstoppers found; the capture-surface is the remaining uncertainty.
+**Post-Pass-2 verdicts:**
+
+- *Identity resolution:* `Medium-High`. `PMIdentitySubsystem:GetSteamId()` is definitive (6/6 tested contexts identical). `PMPlayerModel.GetDisplayNameV1` / `GetCachedMeResponseV1` / `GetCachedPlayerPublicProfile` UFunctions are **callable** (Pass-2 error was parameter-count, not "uncallable"), but their signatures are unread. Drops from High to Medium-High only because the signature-discovery step is pending; no contradictory evidence.
+- *Capture surface:* `Low`. B2 ruled out the Pawn class as the redirect-signal host (`ForEachFunction` ran cleanly; zero pattern matches across 6 contexts). Hypothesis space (Pawn components, ball/puck actor, replicated properties on `PlayerState_Game_C`, gameplay tags) is unexplored. Needs Pass 3.
+
+No showstoppers. Pass 3 below is a single in-game session plus one GUI-dumper run.
+
+**Binding key decision (maintainer-stated, not ADR-gated):** The profile's primary binding key is the **Odyssey (Prometheus) account ID**, not SteamID. Rationale: Omega Strikers may be playable outside Steam (other launchers / platforms); SteamID is platform-specific, Odyssey identity is platform-agnostic and travels with the account. SteamID remains useful as a **secondary** identifier (cross-reference for Steam-sourced enrichments, fallback if Prometheus resolution fails at startup), not the primary key. This reshapes `0001-identity-model`: the ADR question becomes *"how do we resolve the Odyssey ID reliably?"* rather than *"which ID is primary?"* — making the Pass-3 UFunction signature discovery critical-path for the ADR, not optional.
 
 **Confidence rationale:**
 
@@ -186,11 +192,58 @@ Below: per-probe summary of *what each tests* and *what the output means*. The L
 
 **What Pass 2 needs back from maintainer.** Per the README's "Report output" section: which context each press was made from, plus the `[A*]` / `[B*]` log lines. Stack traces too if anything native-crashes the game (that's also useful data).
 
-**Recommended Stage 5 path (conditional on Pass 2 results):**
+### Pass 2 findings
 
-- **Identity binding:** `full feature` path. Surface is High-confidence with two documented edge-case fixes already on disk. Retrospective integration of `identity.lua` into `main.lua`.
-- **Raw capture pipeline:** `thin slice first`. MVP captures redirects only, validates the runtime-observation assumption (which is currently Low-confidence), then expands. If Pass 2 reveals redirects are not cheaply observable, the capture-side verdict may drop to Low and re-enter Stage 3 for a spike.
-- **Storage:** waits for `0002-profile-storage` ADR. The Pass-2 volume sizing feeds the ADR's options.
+*(Session: 2026-04-24, solo custom game, account `Ispicas` / SteamID `76561198022185004`, character NimbleBlaster. Six F11 presses across menu / char-select pre-pick / char-select post-pick / in-match / awakening-select / post-match; one F12 poll during char-select; B3 pending.)*
+
+**Assumption updates:**
+
+| # | Assumption | Pass 1 | Pass 2 result | New status |
+|---|---|---|---|---|
+| 1 | SteamID stable across contexts | Med-High | 6/6 presses identical: `SteamId=76561198022185004 IdentityState=2` | **High (definitive)** |
+| 2 | `PlayerNamePrivate` passes through a hex window for the local player | Medium | 30/30 polled samples returned friendly name `"Ispicas"` at `len=7`. Zero hex window observed for local player in a solo custom game. | **Falsified for local / custom.** New hypothesis: hex window is a **remote-player replication phenomenon**, not local; matchmade public games unverified. |
+| 3 | `PMPlayerModel` getter UFunctions not trivially callable | Medium | All three errored with `UFunction expected 2 parameters, received 0` — **callable, just wrong arity.** Signatures unread. | **Med-High (signatures are the gate, not callability).** Critical path for the Odyssey-ID binding-key decision. |
+| 4 | `PM*` inventory must be probed live | Low | 3-of-12 guesses confirmed in-match: `PMIdentitySubsystem` (1), `PMPlayerModel` (2), `PMPlayerPublicProfile` (111). `PMPlayerState` resolves to a BP subclass `PlayerState_Game_C` under `/Game/Prometheus/Blueprints/Core/`. Other 8 guesses absent — names are wrong, not the objects. | **Low+** — partial inventory, exhaustive dump still needed. |
+| 5 | Redirect signal hypothesis (UFunction on Pawn) | Low | Pawn class `C_NimbleBlaster_C` — `ForEachFunction` ran cleanly; **zero** pattern matches for Redirect/HitPuck/Bounce/Kick/Smash/Impact/Contact/Deflect across in-match + awakening contexts. | **Falsified for Pawn class.** Next hypothesis space: components of Pawn, ball/puck actor, replicated properties on `PlayerState_Game_C`, gameplay tags. |
+| 6 | Redirect-volume sizing | Low | Pending (B3 — manual observation during practice). |  |
+
+**Incidental findings worth keeping:**
+
+- **`PMPlayerPublicProfile: 111 instances` across all 6 contexts** (menu through post-match). Suspiciously stable count — strongly suggests Odyssey pre-populates a profile-cache pool at load. If the cache shadows the Prometheus `/players/<id>` response shape, it's a **passive capture surface** readable *without* calling the API. Worth a Pass-3 drill into one of the instances to characterize its property set.
+- **`PMPlayerModel: 2 instances` across all 6 contexts.** Two models everywhere, not one. Common UE pattern would be one "me" model + one scratch/cache/query slot. If `GetCachedMeResponseV1` expects 2 parameters, the first might be a target model pointer — worth testing once signatures are known.
+- **`PlayerState_Game_C` is the real class in play for match state.** The C++ `PMPlayerState` parent is a template; the live BP subclass is what `FindAllOf("PMPlayerState")` actually returns. Any future probe targeting "player state properties" should query `PlayerState_Game_C` directly, not the parent.
+- **The known `identity.lua` 3-mode rejection is still correct**, but its rationale updates: the hex-shape rejection is defending against **remote-player bleed contaminating a local read**, not against local-player replication transience. This wasn't clear pre-Pass-2.
+
+**Matchmade verification gap (explicit open question):** A2's local-stable finding came from a solo custom game. Public matchmade games have remote PlayerStates replicating in. They are expected to behave identically for the *local* PlayerState, but unverified — noted in `identity.lua`'s assumption pool.
+
+### Pass 3 scope
+
+Three tasks, one in-game session + one GUI-dumper run. Scoped to resolve the identity ADR's critical path and re-open the capture-surface hypothesis space.
+
+1. **GUI object dumper during active match.** Use the UE4SS GUI's *Dumpers* tab → *Dump all objects and properties*. Writes a `.txt` alongside `UE4SS.log` containing every live UObject's class + property + UFunction list (with parameter signatures). Run during active gameplay to capture match-only objects. Primary outputs we need from it:
+    - **UFunction signatures for `PMPlayerModel.GetCachedMeResponseV1` / `GetDisplayNameV1` / `GetCachedPlayerPublicProfile`** — parameter types + names. Critical path for the identity ADR.
+    - **Exhaustive `PM*` and `/Game/Prometheus/*` class inventory** — fixes B1's 9-of-12 miss rate.
+    - **Ball/puck actor class name** — name it once, stop guessing.
+    - **`PlayerState_Game_C` property + UFunction list** — evidence for whether redirects surface as a replicated property.
+
+2. **Pawn-component enumeration probe (new Lua probe, F9 on the `OSPlusProbes` mod).** Walks `pawn:GetComponents()` (or similar UE4SS API), for each component prints class name and runs the same `ForEachFunction` pattern scan we did on the Pawn itself. Covers the "redirect signal lives on an ability/combat component" hypothesis that B2 couldn't test. Small extension to the existing probe mod; adds one new keybind.
+
+3. **Ball/puck actor probe (bundled with F9 above).** Once the dumper output names the real ball class, the F9 probe can also target it: enumerate its UFunctions, look for redirect-shaped names + inspect its replicated properties.
+
+**Deferred to a later pass or a dedicated session:**
+
+- A2 matchmade verification — same F12 poll, but in a public matchmade lobby. Low-priority given the remote-bleed-only hypothesis is sufficient for MVP scope; can re-check if/when a bug surfaces.
+- B3 redirect-volume sizing — still needs manual count during 2-3 practice matches.
+
+### Factual correction (from Pass 2 session)
+
+The `OSPlusProbes` README said the log lives at `Binaries\Win64\ue4ss\UE4SS.log`. It actually lives at **`Binaries\Win64\UE4SS.log`** (no `ue4ss\` subfolder) on at least this install. Fixed in a separate commit after this Pass 2 write-up.
+
+### Recommended Stage 5 path (revised post-Pass-2)
+
+- **Identity binding:** `full feature` path — once Pass 3 resolves UFunction signatures, the Odyssey-ID resolution path is expected to be cheap. Retrospective integration of `identity.lua` into `main.lua`, extended to emit both SteamID and Prometheus ID.
+- **Raw capture pipeline:** `spike first` (downgraded from "thin slice"). B2 falsified the cheapest hypothesis; we don't yet know what the *actual* observation path looks like. Spike = Pass 3 GUI dumper + component probe + a 1-2 hour analysis session before committing to an MVP capture scope.
+- **Storage:** still waits for `0002-profile-storage` ADR. Pass 3's component-side findings + B3 feed the ADR's write-frequency + schema axes.
 
 ---
 
@@ -231,11 +284,15 @@ Below: per-probe summary of *what each tests* and *what the output means*. The L
 
 **Open questions deferred to Stage 4 or later passes of Stage 3:**
 
-- *[Pass 2]* Which concrete per-match state lands in the MVP capture set beyond redirects? Needs the `PM*` subsystem enumeration from a live match to know what's cheap.
+- *[Pass 3]* UFunction signatures for `PMPlayerModel.GetCachedMeResponseV1` / `GetDisplayNameV1` / `GetCachedPlayerPublicProfile` — critical path for the identity ADR now that Prometheus ID is the required binding key.
+- *[Pass 3]* Where does the redirect signal actually live? (Pawn class is ruled out.) Component-scan probe + ball-actor class name needed.
+- *[Pass 3]* What is the 111 `PMPlayerPublicProfile` instances pool? Is it a passive capture surface?
+- *[Pass 3 / deferred]* Does A2's local-stable finding hold in a matchmade public game, or is it solo-custom-only?
+- *[B3 — pending]* Rough per-match redirect count — feeds `0002-profile-storage` write-frequency axis.
 - *[Stage 4]* Where does raw capture data physically live? Answered by `0002-profile-storage`.
 - *[Stage 4]* What debug visibility, if any, ships with the MVP so "capture is working" is provable without grepping the relay DB?
-- *[Stage 4]* Which identifier is the profile row's primary binding key — SteamID or Prometheus ID? The three-identifier finding in Pass 1 Feasibility makes this an explicit ADR decision, not a default.
-- *[Stage 4]* Does `identity.lua` get extended to surface the Prometheus ID, or is that a separate feature?
+- *[Stage 4]* Does `identity.lua` get extended to surface the Prometheus ID, or is that a separate feature? (Now *when* not *whether* — the binding-key decision forces the extension.)
+- ~~*[Stage 4]* Which identifier is the profile row's primary binding key — SteamID or Prometheus ID?~~ **Decided in Pass 2 findings:** Prometheus ID is primary, SteamID is secondary cross-reference.
 
 **Explicit Brief ↔ Roadmap tension recorded here so it isn't lost:**
 
