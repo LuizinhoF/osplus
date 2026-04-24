@@ -138,177 +138,53 @@ This is an identity-ADR-shaping finding, not a Brief-level reshape — the ADR's
 
 ### Pass 2 probe pack
 
-**How to run these.** UE4SS exposes a live Lua console; default keybind is typically `<` (or whatever's configured in `UE4SS-settings.ini` → `ConsoleKey`). Paste a probe block, hit enter, capture the console's print output. Alternatively: drop the block into a one-shot file under `ue4ss\Mods\OSPlus\scripts\` and reload — the prints go to `UE4SS.log` in the game install. Each probe is `pcall`-wrapped so a missing class won't propagate a crash; expect some probes to cleanly report "not found" in some contexts — that's useful data.
+**How to run these.** F10 is the Unreal `Exec` console (engine commands), not a Lua REPL; pasting Lua there does nothing. The probes run as a **separate throwaway mod** (`OSPlusProbes`), not inside `OSPlus`. Install per [`docs/features/pass2-probes/README.md`](./pass2-probes/README.md), restart the game once, then:
 
-All probes use only the UE4SS Lua APIs exercised by `identity.lua` (`FindFirstOf`, `FindAllOf`, `:IsValid()`, `:GetClass()`, property access, `pcall`).
+- **F11** = one-shot snapshot battery (A1 + A3 + B1 + B2). Press once per game context.
+- **F12** = A2 polling (reads `PlayerNamePrivate` every 500ms for 15s). Press during character-select.
+- **B3** = manual observation during 2–3 practice matches.
 
----
+Runnable source: [`docs/features/pass2-probes/pass2_probes.lua`](./pass2-probes/pass2_probes.lua). Output lands in `Binaries\Win64\ue4ss\UE4SS.log`, tagged `[A1]` / `[A2]` / `[A3]` / `[B1]` / `[B2]` / `[Pass2]`. All probes are `pcall`-wrapped with `:IsValid()` checks; a "not found" line in some contexts is expected data, not a failure.
 
-**Probe A1 — SteamID stability across contexts.**
-Tests assumption #1. **Run once from each of:** main menu, lobby / character-select, active match (controlling a Pawn), post-match results. Record the output and the context.
-
-```lua
-do
-    local sys = FindFirstOf("PMIdentitySubsystem")
-    if not sys or not sys:IsValid() then
-        print("[A1] PMIdentitySubsystem not found")
-        return
-    end
-    local sid, ssok = nil, false
-    pcall(function() sid = sys:GetSteamId() end)
-    if type(sid) == "userdata" then
-        pcall(function() sid = sid:ToString() end)
-    end
-    local st = nil
-    pcall(function() st = sys:GetIdentityState() end)
-    print(string.format("[A1] SteamId=%s IdentityState=%s", tostring(sid), tostring(st)))
-end
-```
-
-**Expected:** same `SteamId` value in all four contexts. `IdentityState` should be `2`. A divergence from either would mean the identity binding has a context-dependent read.
+Below: per-probe summary of *what each tests* and *what the output means*. The Lua lives only in `pass2_probes.lua` (single source of truth).
 
 ---
 
-**Probe A2 — `PlayerNamePrivate` shape over time.**
-Tests assumption #2. **Run repeatedly** during character-select (every 1–2 seconds for ~10s). The value should flip from hex to friendly at some point during replication. Capture the last hex reading (its length settles the 20 vs 24 char question) and the first friendly reading.
+**Probe A1 — SteamID stability across contexts.** Tests assumption #1. Reads `PMIdentitySubsystem:GetSteamId()` and `:GetIdentityState()`. Run in each of: main menu, character-select, active match, post-match. Prints one `[A1]` line per press.
 
-```lua
-do
-    local raw, len, isHex = nil, 0, false
-    pcall(function()
-        local pc = FindFirstOf("PlayerController_Game_C")
-        if not pc or not pc:IsValid() then return end
-        local ps = pc.PlayerState
-        if not ps or not ps:IsValid() then return end
-        raw = ps.PlayerNamePrivate:ToString()
-    end)
-    if type(raw) == "string" then
-        len = #raw
-        isHex = raw:match("^[0-9a-f]+$") ~= nil and len >= 16
-    end
-    print(string.format("[A2] t=%d PlayerNamePrivate=%q len=%d hexShape=%s",
-        os.time(), tostring(raw), len, tostring(isHex)))
-end
-```
-
-**Expected:** early calls return a lowercase hex string (length either 20 or 24 — that's the finding we need); later calls return the friendly display name. **If the hex length is 24**, it matches Clarion's documented Prometheus ID format directly — which would mean `PlayerNamePrivate`'s early-window value **IS** the local Prometheus ID and resolves assumption #3 without needing `PMPlayerModel`. **If it's 20**, there's a different ID format in play and further probing is needed.
+**Expected:** same `SteamId` value in all four contexts, `IdentityState=2`. A divergence from either would mean the identity binding has a context-dependent read — material finding for `0001-identity-model`.
 
 ---
 
-**Probe A3 — `PMPlayerModel` UFunction callability.**
-Tests assumption #3. **Run once, anywhere the game is loaded** (menu is fine). Naive calls to the known-problematic UFunctions; we expect at least one of them to either error (confirming "not trivially callable") or succeed in an unexpected way (which would be a win).
+**Probe A2 — `PlayerNamePrivate` shape over time.** Tests assumption #2. Polls `PlayerState.PlayerNamePrivate` every 500ms for 15s (30 samples) during character-select, to catch the hex → friendly transition window. Prints one `[A2]` line per sample with the raw value, its length, and whether it looks hex-shaped.
 
-```lua
-do
-    local model = FindFirstOf("PMPlayerModel")
-    if not model or not model:IsValid() then
-        print("[A3] PMPlayerModel not found")
-        return
-    end
-    print("[A3] PMPlayerModel found; class=" .. model:GetClass():GetFullName())
-
-    local function try(fnName)
-        local ok, r = pcall(function() return model[fnName](model) end)
-        print(string.format("[A3] %s() ok=%s ret=%s", fnName, tostring(ok), tostring(r)))
-    end
-    try("GetCachedMeResponseV1")
-    try("GetDisplayNameV1")
-    try("GetCachedPlayerPublicProfile")
-end
-```
-
-**Expected:** errors or nil returns are the likely outcomes (confirming KB's "not trivially callable"). A string return from `GetDisplayNameV1` would be a significant find — it would mean a clean local-player name path exists that bypasses the `PlayerNamePrivate` three-mode drama entirely.
+**Expected:** early samples return a lowercase hex string; later samples return the friendly display name. The critical datum is the **length** of the hex form. **If `len=24`**, the hex string matches Clarion's documented Prometheus ID format — which would mean `PlayerNamePrivate`'s early-window value **IS** the local Prometheus ID and resolves assumption #3 without needing `PMPlayerModel`. **If `len=20`**, there's a different ID format in play; further probing needed.
 
 ---
 
-**Probe B1 — `PM*` object enumeration.**
-Tests capture-surface task #4. **Run during active gameplay.** Walks a fixed list of likely `PM*` class names + dumps counts. Not exhaustive — it relies on us having guessed the class names. For the full list, use UE4SS's object dumper (instructions after the probe).
+**Probe A3 — `PMPlayerModel` UFunction callability.** Tests assumption #3. Calls `GetCachedMeResponseV1`, `GetDisplayNameV1`, `GetCachedPlayerPublicProfile` on the `PMPlayerModel` singleton with no args. Prints `[A3]` lines with `ok=` and `ret=` per call.
 
-```lua
-do
-    local candidates = {
-        "PMIdentitySubsystem", "PMPlayerModel", "PMPlayerPublicProfile",
-        "PMGameInstanceSubsystem", "PMPlayerState", "PMCombatComponent",
-        "PMStrikerGameState", "PMMatchSubsystem", "PMPuckComponent",
-        "PMMatchStatsComponent", "PMStrikerPlayerState", "PMStrikerCharacter",
-    }
-    for _, kind in ipairs(candidates) do
-        local n, first = 0, nil
-        local ok, list = pcall(FindAllOf, kind)
-        if ok and list then
-            for _, o in ipairs(list) do
-                if o and o:IsValid() then
-                    n = n + 1
-                    if not first then first = o:GetClass():GetFullName() end
-                end
-            end
-        end
-        if n > 0 then
-            print(string.format("[B1] %s : %d instance(s), class=%s", kind, n, tostring(first)))
-        else
-            print(string.format("[B1] %s : not found", kind))
-        end
-    end
-end
-```
-
-**For the exhaustive enumeration** (recommended as a one-shot): open the UE4SS in-game GUI (default `F1` or `<` then `UE4SS Debug Tools`) → run the object dumper (sometimes labelled `Dump all objects and properties`). It writes a large `.txt` (often `UE4SS_ObjectDump.txt`) next to `UE4SS.log` in `Binaries\Win64\ue4ss\`. Grep that file for `/PM` or class names starting with `PM` to inventory everything the runtime currently holds. Run this dump during **active gameplay** (not menu) to catch match-only objects.
+**Expected:** errors or nil returns are the likely outcomes — confirming KB's "not trivially callable". A string return from `GetDisplayNameV1` would be a significant find — a clean local-player name path that bypasses the `PlayerNamePrivate` three-mode drama entirely.
 
 ---
 
-**Probe B2 — Redirect-signal hypothesis scan.**
-Tests capture-surface task #5. **Run during active gameplay.** Walks the local Pawn's class and candidate puck/ball actors looking for UFunction names that sound redirect-related. This is exploratory; a negative result just narrows the hypothesis space.
+**Probe B1 — `PM*` object enumeration.** Tests capture-surface task #4. Walks a fixed list of 12 guessed `PM*` class names; for each, prints `[B1] <kind> : N instance(s), class=<fullClass>` or `[B1] <kind> : not found`. Not exhaustive — depends on us having guessed the class names.
 
-```lua
-do
-    local patterns = { "[Rr]edirect", "[Hh]itPuck", "[Pp]uckHit", "[Bb]allHit",
-                       "[Bb]ounce", "[Kk]ick", "[Ss]mash", "[Ii]mpact",
-                       "[Cc]ontact", "[Dd]eflect" }
-    local function matches(n)
-        for _, p in ipairs(patterns) do
-            if n:match(p) then return p end
-        end
-        return nil
-    end
-
-    local pc = FindFirstOf("PlayerController_Game_C")
-    local pawn = pc and pc:IsValid() and pc.Pawn or nil
-    if pawn and pawn:IsValid() then
-        print("[B2] Pawn class: " .. pawn:GetClass():GetFullName())
-        -- Try to enumerate UFunctions; exact API may vary by UE4SS version.
-        local ok = pcall(function()
-            pawn:GetClass():ForEachFunction(function(fn)
-                local n = fn:GetFName():ToString()
-                local m = matches(n)
-                if m then print(string.format("[B2]   Pawn fn matches %q: %s", m, n)) end
-            end)
-        end)
-        if not ok then print("[B2]   (UFunction enumeration not supported in this UE4SS version)") end
-    else
-        print("[B2] No Pawn (not in active match)")
-    end
-
-    for _, kind in ipairs({ "BP_Puck_C", "BP_Ball_C", "PMPuck_C", "Puck_C",
-                            "BP_StrikerBall_C", "PMBallActor_C" }) do
-        local b = FindFirstOf(kind)
-        if b and b:IsValid() then
-            print("[B2] Ball-candidate actor: " .. kind)
-            break
-        end
-    end
-end
-```
-
-**Expected:** at least one of the pattern groups probably hits something. Candidate returns feed a follow-up session that hooks the function and counts calls. **If no hits**, redirects likely aren't exposed as a UFunction name at all — next hypothesis is a replicated property on `PlayerState` that increments (observable via polling) or a tagged gameplay event.
+**For the exhaustive enumeration** (recommended once, in-match): use UE4SS's built-in object dumper via the UE4SS GUI (`Dumpers` tab → `Dump all objects and properties`). Writes a large `.txt` next to `UE4SS.log`; grep for `/PM` or `PM*` class names. Run during active gameplay to catch match-only objects.
 
 ---
 
-**Observation B3 — Redirect volume sizing.**
-Tests capture-surface task #6. **No script** — this is a manual observation during a practice-mode session. Play 2–3 full practice matches, roughly count how many times you deliberately redirect the puck per match. Report back a rough range. This pins the storage ADR's write-frequency axis (is it 5–10 writes per match, or 50–100?).
+**Probe B2 — Redirect-signal hypothesis scan.** Tests capture-surface task #5. Walks the local Pawn's UFunction list looking for names matching redirect-related patterns (`Redirect`, `HitPuck`, `Bounce`, `Kick`, `Smash`, `Impact`, `Contact`, `Deflect`, etc.); also probes a guess list of ball/puck actor classes. Exploratory — negative results narrow the hypothesis space.
+
+**Expected:** at least one pattern group probably hits something on the Pawn class or a component; the names feed a follow-up session that hooks the function and counts calls. **If no hits**, redirects likely aren't exposed as a named UFunction — next hypothesis is a replicated property on `PlayerState` that increments (observable via polling) or a tagged gameplay event.
 
 ---
 
-**What Pass 2 needs back from maintainer.** For each probe, paste the `print()` output (or UE4SS log snippet) and which context it was run from. That becomes the evidence for a Pass 2 revision of this Feasibility section + a verdict on the capture surface.
+**Observation B3 — Redirect volume sizing.** Tests capture-surface task #6. No script — play 2–3 full practice matches, loosely count how often you deliberately redirect the puck per match. Rough range is enough. Pins the storage ADR's write-frequency axis (5–10 writes per match vs. 50–100 is a different ADR conversation).
+
+---
+
+**What Pass 2 needs back from maintainer.** Per the README's "Report output" section: which context each press was made from, plus the `[A*]` / `[B*]` log lines. Stack traces too if anything native-crashes the game (that's also useful data).
 
 **Recommended Stage 5 path (conditional on Pass 2 results):**
 
