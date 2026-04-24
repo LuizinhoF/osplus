@@ -8,8 +8,9 @@
       F11 — one-shot snapshot battery: A1 + A3 + B1 + B2
       F12 — start A2 polling: PlayerNamePrivate every 500ms for 15s
 
-    Output: Binaries/Win64/ue4ss/UE4SS.log (search for [A1], [A2], [A3],
-    [B1], [B2]) and any mirrored external console window.
+    Output: Binaries/Win64/UE4SS.log (search for [A1], [A2], [A3],
+    [B1], [B2]) and any mirrored external console window. Some UE4SS
+    installs place the log under Binaries/Win64/ue4ss/ — check yours.
 
     Self-contained — uses only UE4SS Lua globals (FindFirstOf, FindAllOf,
     RegisterKeyBind, ExecuteInGameThread, LoopAsync, Key).

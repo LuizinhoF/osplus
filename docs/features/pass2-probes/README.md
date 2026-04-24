@@ -8,13 +8,15 @@ Scope of what the probes resolve: assumptions 1, 2, 3 (identity) and capture-sur
 
 ## Install
 
+*UE4SS layout note:* on this install, UE4SS lives directly under `Binaries\Win64\` (so the log is at `Binaries\Win64\UE4SS.log` and mods are under `Binaries\Win64\Mods\`). Some UE4SS installations use a nested `Binaries\Win64\ue4ss\` folder instead. Check where your `UE4SS.log` actually lives before copying paths below.
+
 1. Create the mod directory in the game install:
 
     ```
-    <GameDir>\OmegaStrikers\Binaries\Win64\ue4ss\Mods\OSPlusProbes\scripts\
+    <GameDir>\OmegaStrikers\Binaries\Win64\Mods\OSPlusProbes\Scripts\
     ```
 
-    For this machine: `F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\ue4ss\Mods\OSPlusProbes\scripts\`.
+    For this machine: `F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\Mods\OSPlusProbes\Scripts\`.
 
 2. Copy `pass2_probes.lua` (this folder) to that directory, renaming it to `main.lua`:
 
@@ -22,7 +24,7 @@ Scope of what the probes resolve: assumptions 1, 2, 3 (identity) and capture-sur
 
     ```powershell
     $src = "C:\Users\T-Gamer\Documents\omega-strikers-overlay\docs\features\pass2-probes\pass2_probes.lua"
-    $dst = "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\ue4ss\Mods\OSPlusProbes\scripts\main.lua"
+    $dst = "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\Mods\OSPlusProbes\Scripts\main.lua"
     New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
     Copy-Item $src $dst -Force
     ```
@@ -30,14 +32,14 @@ Scope of what the probes resolve: assumptions 1, 2, 3 (identity) and capture-sur
 3. Create `enabled.txt` with contents `1` in the mod root:
 
     ```powershell
-    Set-Content "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\ue4ss\Mods\OSPlusProbes\enabled.txt" "1"
+    Set-Content "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\Mods\OSPlusProbes\enabled.txt" "1"
     ```
 
 4. Add `OSPlusProbes : 1` to `Mods\mods.txt` (next to `OSPlus : 1`). Any text editor; no reorder needed.
 
 5. Restart the game fully (UE4SS only loads Lua mods once, at process start).
 
-On successful load you'll see this in `Binaries\Win64\ue4ss\UE4SS.log`:
+On successful load you'll see this in `Binaries\Win64\UE4SS.log`:
 
 ```
 [Lua] [OSPlusProbes] loaded. F11 = A1+A3+B1+B2 battery, F12 = A2 poll (15s)
@@ -91,7 +93,7 @@ For each probe, paste back:
 2. The `[A1]`, `[A2]`, `[A3]`, `[B1]`, `[B2]` lines from `UE4SS.log`. Easiest: grep the log in PowerShell:
 
     ```powershell
-    Select-String -Path "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\ue4ss\UE4SS.log" -Pattern "\[(A1|A2|A3|B1|B2|Pass2)\]" | ForEach-Object { $_.Line }
+    Select-String -Path "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Binaries\Win64\UE4SS.log" -Pattern "\[(A1|A2|A3|B1|B2|Pass2)\]" | ForEach-Object { $_.Line }
     ```
 
 If one probe errors in a way the defensive `pcall`s don't catch, paste the stack trace — that's also useful data.
@@ -102,7 +104,7 @@ If one probe errors in a way the defensive `pcall`s don't catch, paste the stack
 
 When Pass 2 is complete:
 
-1. Delete `<GameDir>\Binaries\Win64\ue4ss\Mods\OSPlusProbes\` (entire folder).
+1. Delete `<GameDir>\Binaries\Win64\Mods\OSPlusProbes\` (entire folder).
 2. Remove the `OSPlusProbes : 1` line from `Mods\mods.txt`.
 3. Restart the game.
 
