@@ -20,7 +20,7 @@ Entry point for any AI coding agent in this repo. If you need depth, link to a d
 
 ## Workflow skills
 
-Four skills in `cursor/skills/` auto-activate by description match. If your current work matches a trigger and you haven't read the skill, you're skipping a step. Skills map onto stages of [`docs/dev-cycle.md`](./docs/dev-cycle.md).
+Four skills in `.cursor/skills/` auto-activate by description match. If your current work matches a trigger and you haven't read the skill, you're skipping a step. Skills map onto stages of [`docs/dev-cycle.md`](./docs/dev-cycle.md).
 
 - **`discover`** — Stage 3 (Feasibility / RE). "Is X possible in OS?", "can we hook Y?", or feasibility check for a framed feature. Produces `## Feasibility` in a feature doc, or a learning entry / KNOWLEDGEBASE update for standalone RE. Spike pattern for Low-confidence verdicts.
 - **`feature-design`** — Stage 4. "Add X" / "implement X" for non-trivial features. **Requires Stage 3 to have run** (precondition checks the feature doc). Surfaces design axes before code is written. Stops for sign-off.
@@ -70,21 +70,21 @@ Always check this before writing any script. If a workflow seems missing, ask be
 
 1. **Product definition is canon.** `docs/product.md` defines what OSPlus is and who it's for. Accepted ADRs in `docs/decisions/` define how it's built. Surface "this feature vs. the product / an ADR" conflicts instead of papering over them.
 2. **No fabrication.** If you don't know a UFunction signature, a BP property, an OCI command — say so and probe (Lua dumps, `KNOWLEDGEBASE.md`, web search). Inventing plausible detail compounds into silent breakage. Applies to comments and log messages too.
-3. **Lua/BP boundary respected.** UI-reactive → BP. Domain/operational → Lua. Display values → BP holds, Lua pushes. See `cursor/rules/mod-architecture.mdc`.
+3. **Lua/BP boundary respected.** UI-reactive → BP. Domain/operational → Lua. Display values → BP holds, Lua pushes. See `.cursor/rules/mod-architecture.mdc`.
 4. **Default-paired stance.** The agent stops at every non-trivial decision point and surfaces choices, not just at stage transitions. See [`docs/dev-cycle.md`](./docs/dev-cycle.md).
 
-"Don't reinvent harnesses" is enforced by `cursor/rules/harnesses.mdc`. "Log findings before done" by `cursor/rules/learnings-discipline.mdc`. Both `alwaysApply`.
+"Don't reinvent harnesses" is enforced by `.cursor/rules/harnesses.mdc`. "Log findings before done" by `.cursor/rules/learnings-discipline.mdc`. Both `alwaysApply`.
 
 ## Git workflow
 
-`main` stays green. Non-trivial work goes on a branch (`feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `experiment/`). Propose the branch name before creating it. Conventional commits (`feat(chat): add channel switcher`). Never force-push `main`. Full policy in `cursor/rules/git-workflow.mdc`.
+`main` stays green. Non-trivial work goes on a branch (`feat/`, `fix/`, `docs/`, `refactor/`, `chore/`, `experiment/`). Propose the branch name before creating it. Conventional commits (`feat(chat): add channel switcher`). Never force-push `main`. Full policy in `.cursor/rules/git-workflow.mdc`.
 
 ## Product, decisions, lifecycle, and roadmap
 
 - **[`docs/product.md`](./docs/product.md)** — the north star. Audience, problem, wedge, anti-goals, success criteria, hard constraints. Everything else in the project is downstream of this doc. Read at session start; read before designing a feature; read before arguing for a new direction.
 - **[`docs/dev-cycle.md`](./docs/dev-cycle.md)** — the 6-stage lifecycle (Capture → Frame → Feasibility → Design → Build → Land), back-edges, default-paired stance. The "how we work" doc.
 - **[`docs/features/`](./docs/features/)** — per-feature paper trails. Each feature gets one file with Brief / Feasibility / Design / Outcome sections, filled progressively as it moves through the lifecycle. Shelved features stay; their value is *why* they didn't pan out.
-- **[`docs/decisions/`](./docs/decisions/)** — architectural decisions. ADRs carry options-considered + rationale. Three areas (identity model, profile storage, ephemeral state) are flagged as first-priority ADR work per the README — feature work touching those areas forces the ADR first. Enforced by `cursor/rules/decision-discipline.mdc`.
+- **[`docs/decisions/`](./docs/decisions/)** — architectural decisions. ADRs carry options-considered + rationale. Three areas (identity model, profile storage, ephemeral state) are flagged as first-priority ADR work per the README — feature work touching those areas forces the ADR first. Enforced by `.cursor/rules/decision-discipline.mdc`.
 - **[`docs/ROADMAP.md`](./docs/ROADMAP.md)** — Now / Next / Later / Won't-do, filtered through the product lens. "Next" is not a priority queue. Read before picking up new work.
 
 The prior `docs/vision.md` — which encoded four "v1 locks" without recorded alternatives — has been archived to [`docs/decisions/_archive/vision-v1-superseded.md`](./docs/decisions/_archive/vision-v1-superseded.md) with a header explaining why. Do not treat the choices in that archive as current commitments; the ADR queue in `docs/decisions/README.md` supersedes them.
@@ -92,8 +92,8 @@ The prior `docs/vision.md` — which encoded four "v1 locks" without recorded al
 ## When in doubt
 
 - How do I work on a feature? → [`docs/dev-cycle.md`](./docs/dev-cycle.md).
-- Engine question → `KNOWLEDGEBASE.md` → `docs/architecture/` → `cursor/skills/ue4ss-modding/`.
-- Is X possible in OS? → `cursor/skills/discover/`.
+- Engine question → `KNOWLEDGEBASE.md` → `docs/architecture/` → `.cursor/skills/ue4ss-modding/`.
+- Is X possible in OS? → `.cursor/skills/discover/`.
 - Build/deploy → Toolchain above → `docs/ops/`.
 - Past gotcha → `docs/learnings/`.
 - Why the agentic structure is this way → `docs/research/`.

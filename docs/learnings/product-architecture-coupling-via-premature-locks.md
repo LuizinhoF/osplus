@@ -31,8 +31,8 @@ Split the two concerns into two documents with two writing disciplines:
 - **`docs/product.md`** — product north star. Audience, problem, wedge, anti-goals, success, hard constraints. Single screen. Read at session start.
 - **`docs/decisions/`** — architectural deliberation via ADRs. Each ADR carries **at least two real options with honest pros and cons**, then a decision with rationale. Single-option ADRs are explicitly blocked in the template.
 - Archived the prior `docs/vision.md` to `docs/decisions/_archive/vision-v1-superseded.md` with a header explaining why, so a future agent can see what was tried and why it was retired.
-- Added `cursor/rules/decision-discipline.mdc` (alwaysApply) enforcing ADR requirement for architectural choices.
-- Added Phase 2.5 (ADR checkpoint) to `cursor/skills/feature-design/SKILL.md` — the skill now STOPS feature design if the feature forces a decision in any currently-open ADR queue area.
+- Added `.cursor/rules/decision-discipline.mdc` (alwaysApply) enforcing ADR requirement for architectural choices.
+- Added Phase 2.5 (ADR checkpoint) to `.cursor/skills/feature-design/SKILL.md` — the skill now STOPS feature design if the feature forces a decision in any currently-open ADR queue area.
 - Updated `AGENTS.md`, `docs/ROADMAP.md`, cold-start scenarios, and related prompt files to point at the new surfaces.
 
 **Three architectural areas were immediately flagged as first-priority ADR work** (identity, profile storage, ephemeral state) rather than deferred to "when a feature forces it" — the user correctly pushed back that deferring architectural analysis costs more than doing it, particularly for foundational decisions other features will build on.
@@ -52,7 +52,7 @@ Split the two concerns into two documents with two writing disciplines:
 - Archive: [`docs/decisions/_archive/vision-v1-superseded.md`](../decisions/_archive/vision-v1-superseded.md)
 - New product doc: [`docs/product.md`](../product.md)
 - New ADR infrastructure: [`docs/decisions/README.md`](../decisions/README.md)
-- ADR discipline rule: `cursor/rules/decision-discipline.mdc`
-- Updated skill: `cursor/skills/feature-design/SKILL.md` (Phase 2.5 ADR checkpoint)
+- ADR discipline rule: `.cursor/rules/decision-discipline.mdc`
+- Updated skill: `.cursor/skills/feature-design/SKILL.md` (Phase 2.5 ADR checkpoint)
 - Cold-start validation: [`docs/research/cold-start-log.md`](../research/cold-start-log.md)
 - Context in the agentic stack research: `docs/research/2026-agentic-stack.md` → "2026-04-23 — product-foundation rebuild"

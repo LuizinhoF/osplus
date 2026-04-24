@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-04-04 (original), 2026-04-23 (refresh) |
 | Scope | How OSPlus structures always-loaded context, on-demand expertise, and behavioral rules so AI coding agents (Cursor, Codex, Copilot, etc.) work productively across sessions. |
-| Status | Decisions locked. Implementation in `AGENTS.md`, `cursor/rules/`, `cursor/skills/`, `cursor/hooks.json`, `docs/product.md`, `docs/decisions/`, `docs/dev-cycle.md`, `docs/features/`. |
+| Status | Decisions locked. Implementation in `AGENTS.md`, `.cursor/rules/`, `.cursor/skills/`, `.cursor/hooks.json`, `docs/product.md`, `docs/decisions/`, `docs/dev-cycle.md`, `docs/features/`. |
 | Re-evaluate when | Cursor's rule / hook / skill format changes meaningfully, AGENTS.md spec gets a v2, or a tool we use drops/adds support. |
 
 This doc exists so the structure of OSPlus's agent-facing files is **defensible**, not just "the way it is." If a future agent (or future me) wants to change it, they should be arguing against this doc, not against vibes.
@@ -129,7 +129,7 @@ This is the failure mode: agent starts a fresh chat, doesn't know about `build_d
 
 ```
 AGENTS.md                          ← always-loaded project briefing (~95 lines)
-cursor/                            ← renamed from .cursor/ to keep auto-context clean
+.cursor/                           ← canonical path; Cursor's rule/skill/hook/MCP auto-attachment is keyed on the dot
   hooks.json                       ← v1 hooks: beforeShellExecution, afterFileEdit, stop
   hooks/
     block-mcp-commit.ps1           ← deny git commands that would commit mcp.json
@@ -205,7 +205,7 @@ A content-level audit found the structure sound but individual files bloated pas
 
 ### Hooks — deterministic backstops
 
-New layer: `cursor/hooks.json` with three project-level hooks. These are the *enforcement* layer that survives even when the agent's context is stripped:
+New layer: `.cursor/hooks.json` with three project-level hooks. These are the *enforcement* layer that survives even when the agent's context is stripped:
 
 - `beforeShellExecution` → `block-mcp-commit.ps1` — returns `permission: deny` for any `git add/commit/stash/checkout` that references `mcp.json`. The gitignore is the default defense; this is the belt.
 - `afterFileEdit` → `warn-hardcoded-path.ps1` — logs a warning to Cursor's Hooks output channel when an edit adds an `F:\Omegamod|UE510|SteamLibrary` reference to a file outside the known scope-debt allowlist. Informational by design — surfacing the signal is the whole point; it doesn't block.
@@ -226,7 +226,7 @@ The original 2026-04-04 research validated that the *layout* was correct (AGENTS
 A follow-up pass diagnosed that the agentic stack was healthy *structurally* but the project it served was **poorly defined at the product layer**, and architectural choices had been written as "locks" without recorded alternatives. Structure fix: separate the two concerns.
 
 - **`docs/product.md` (new)** — product north star. Audience / problem / wedge / anti-goals / success / hard constraints. One screen. Read at session start.
-- **`docs/decisions/` (new)** — architectural deliberation via ADRs. Each ADR requires ≥2 honest options — single-option ADRs are blocked. Enforced by `cursor/rules/decision-discipline.mdc`.
+- **`docs/decisions/` (new)** — architectural deliberation via ADRs. Each ADR requires ≥2 honest options — single-option ADRs are blocked. Enforced by `.cursor/rules/decision-discipline.mdc`.
 - **`docs/vision.md` → `docs/decisions/_archive/vision-v1-superseded.md`** — the prior "v1 locks" doc is archived, preserved so future agents can see what was tried (and why it was retired).
 - **`feature-design/SKILL.md` gains Phase 2.5** — ADR checkpoint. If a feature forces an architectural decision in any open-queue area, feature design stops and an ADR is drafted first.
 - **`AGENTS.md` and `ROADMAP.md` rewritten** through the product lens. Both now point to `docs/product.md` as canon.
@@ -264,6 +264,23 @@ A follow-up pass diagnosed that the agentic stack now had a clean *what* (produc
 - The promotion discipline in Step 6 of `discover` — feature-local findings stay local; general findings get auto-promoted; judgment calls get asked. The compounding model only works if Step 6 is non-skippable.
 
 The meta-lesson is captured in [`docs/learnings/lifecycle-design-back-edges-and-confidence-tiers.md`](../learnings/lifecycle-design-back-edges-and-confidence-tiers.md): *RE-heavy modding has unknowns that surface only during Build, so the lifecycle must encode loop-backs as first-class rather than treating them as failures of the linear plan.*
+
+## 2026-04-23 — revert: `.cursor/` path is load-bearing
+
+Earlier in the 2026-04-23 refresh, the rules/skills/hooks folder was renamed from `.cursor/` to `cursor/` (no dot) to "keep auto-context clean." That hypothesis was wrong: Cursor's rule auto-attachment, skill-by-description invocation, project-level hooks, and MCP config discovery are all keyed on the literal `.cursor/` path. Moving the folder off that path turned the entire agentic layer into static documentation — present in the tree, inert at runtime. The first fresh-chat test of the workflow revealed this the moment skills didn't auto-activate.
+
+### Decisions
+
+- **Folder name reverts to `.cursor/`.** All docs and skill references in the repo updated to match. The `.gitignore` entry for the local MCP config reverts to `.cursor/mcp.json`.
+- **The "context pollution" concern is real but lives in rule frontmatter, not folder names.** `alwaysApply: false` + `globs: <pattern>` + `description`-only activation are the instruments for controlling what loads in a given chat. An audit of `alwaysApply: true` rules is tracked as follow-up; moving the folder is not the lever.
+- **The adopted-layout diagram above now shows `.cursor/`.** Previous-pass text that described the rename (`cursor/ ← renamed from .cursor/`) replaced with a note that `.cursor/` is the canonical path because auto-attachment depends on it.
+
+### What this rules out
+
+- Any future attempt to relocate `.cursor/` to a different path "to control context" without first verifying that Cursor's auto-attachment tolerates the new path. It does not.
+- Folder-level hacks as a substitute for per-rule frontmatter discipline.
+
+The meta-lesson is captured in [`docs/learnings/cursor-dot-path-is-load-bearing.md`](../learnings/cursor-dot-path-is-load-bearing.md): *the `.cursor/` prefix is not cosmetic; it's the hook point for every auto-attachment mechanism Cursor provides, and renaming it is a silent-disable of the whole stack.*
 
 ## What we're committing to maintain
 

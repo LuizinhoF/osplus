@@ -27,6 +27,7 @@ Add new entries here, newest first.
 
 | Date | Slug | Area | One-line summary |
 |---|---|---|---|
+| 2026-04-23 | [cursor-dot-path-is-load-bearing](cursor-dot-path-is-load-bearing.md) | docs | Renaming `.cursor/` to `cursor/` silently disables Cursor's rule / skill / hook / MCP auto-attachment — the leading dot is the hook point, not cosmetic. Control context via per-rule frontmatter, never by relocating the folder. |
 | 2026-04-23 | [lifecycle-design-back-edges-and-confidence-tiers](lifecycle-design-back-edges-and-confidence-tiers.md) | docs | Linear-with-binary-gates lifecycle hides Build-stage walls as "iteration"; design with first-class back-edges + High/Med/Low confidence tiers + named assumption lists, and split feasibility/RE out of `feature-design` into a dedicated `discover` skill. |
 | 2026-04-23 | [product-architecture-coupling-via-premature-locks](product-architecture-coupling-via-premature-locks.md) | docs | Collapsing product definition and architectural deliberation into one "v1 locks" doc causes architectural choices to acquire product authority they don't deserve; split into `docs/product.md` + `docs/decisions/` (ADR-based). |
 | 2026-04-21 | [lua-vararg-in-pcall-closure](lua-vararg-in-pcall-closure.md) | mod | `...` cannot cross from an outer vararg function into a nested closure inside `pcall` — it's a parse-time syntax error that crashes module load; capture varargs into locals first. |

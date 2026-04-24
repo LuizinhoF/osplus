@@ -1,9 +1,9 @@
 # beforeShellExecution hook — block git commands that would commit mcp.json.
 #
-# Why: .cursor/mcp.json and cursor/mcp.json are developer-machine-specific
-# (absolute paths to MCP servers, API keys for hosted MCP endpoints). They
-# are gitignored, but `git add -A`, `git add .`, or an explicit `git add
-# **/mcp.json` can still commit them. This hook catches those and denies.
+# Why: .cursor/mcp.json is developer-machine-specific (absolute paths to MCP
+# servers, API keys for hosted MCP endpoints). It is gitignored, but
+# `git add -A`, `git add .`, or an explicit `git add **/mcp.json` can still
+# commit it. This hook catches those and denies.
 #
 # Contract (Cursor hooks v1):
 #   stdin  : JSON with fields {command, cwd, ...}

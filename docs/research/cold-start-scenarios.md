@@ -22,7 +22,7 @@ Purpose: the compound failure mode we're defending against is — fresh chat, ag
 > "I want to cut a new OSPlus release for users to download. Walk me through what we need to do."
 
 **Expected early actions (any one is a pass):**
-- References / reads `cursor/skills/release-checklist/SKILL.md` (the workflow skill is the entry point).
+- References / reads `.cursor/skills/release-checklist/SKILL.md` (the workflow skill is the entry point).
 - References `build_dist.ps1` as the distribution builder and notes it refuses to build without `OSPlus.pak`.
 - Notes that cooking is manual in the UE editor and that `/Game/Mods/OSPlus` must be in *Additional Asset Directories to Cook*.
 
@@ -39,7 +39,7 @@ Purpose: the compound failure mode we're defending against is — fresh chat, ag
 > "Players report that after they leave a match and rejoin, the chat stops sending. No crash, just silent. How do we debug this?"
 
 **Expected early actions:**
-- Invokes or reads `cursor/skills/bug-investigate/SKILL.md`.
+- Invokes or reads `.cursor/skills/bug-investigate/SKILL.md`.
 - Greps or reads `docs/learnings/` for prior art (chat-match-detection-via-seed, sidecar-reconnect, room-change lifecycle, etc.).
 - Identifies that map transition invalidates cached UObject refs → points at `chat.lua:reset()` and the ref-drop pattern in `lua-conventions.mdc`.
 - Distinguishes between "Lua-side logic bug" and "sidecar ↔ relay disconnect" as two separate hypotheses before picking one.
@@ -57,7 +57,7 @@ Purpose: the compound failure mode we're defending against is — fresh chat, ag
 > "I want to add persistent user profiles — things like a display name override and a badge. Where does this live and what do I build first?"
 
 **Expected early actions:**
-- Invokes or reads `cursor/skills/feature-design/SKILL.md`.
+- Invokes or reads `.cursor/skills/feature-design/SKILL.md`.
 - **Reads `docs/product.md` first** — profiles are the wedge; the feature request aligns but the agent should confirm it against audience, wedge shape, and anti-goals rather than assume.
 - **Scans `docs/decisions/` for accepted ADRs** — profiles touch identity (first-priority ADR queue), profile storage (first-priority), and potentially schema-grows-on-demand policy.
 - Hits the ADR checkpoint (Phase 2.5 of feature-design): **recognizes that this feature forces decisions in two open ADR areas — identity model and profile storage architecture — and STOPS feature design to propose drafting those ADRs first.**

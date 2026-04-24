@@ -35,7 +35,7 @@ Per-feature paper trail: `docs/features/<slug>.md` with `## Brief / ## Feasibili
 
 Knowledge accumulation: `discover` Step 6 promotes generally-reusable findings to `docs/learnings/` or `KNOWLEDGEBASE.md` automatically when obvious, asks when judgment-call. Compounding model: the second feature investigating the same engine area starts with a populated knowledge base, not a blank page.
 
-See: [`docs/dev-cycle.md`](../dev-cycle.md), [`cursor/skills/discover/`](../../cursor/skills/discover/), [`docs/features/_TEMPLATE.md`](../features/_TEMPLATE.md), and the Phase 0 addition to [`cursor/skills/feature-design/SKILL.md`](../../cursor/skills/feature-design/SKILL.md).
+See: [`docs/dev-cycle.md`](../dev-cycle.md), [`.cursor/skills/discover/`](../../.cursor/skills/discover/), [`docs/features/_TEMPLATE.md`](../features/_TEMPLATE.md), and the Phase 0 addition to [`.cursor/skills/feature-design/SKILL.md`](../../.cursor/skills/feature-design/SKILL.md).
 
 ## Lesson
 
@@ -49,6 +49,6 @@ The meta-meta-lesson: workflow discipline is itself a compounding artifact. Each
 
 ## Related
 
-- Files: [`docs/dev-cycle.md`](../dev-cycle.md), [`docs/features/README.md`](../features/README.md), [`docs/features/_TEMPLATE.md`](../features/_TEMPLATE.md), [`cursor/skills/discover/SKILL.md`](../../cursor/skills/discover/SKILL.md), [`cursor/skills/discover/references/playbook.md`](../../cursor/skills/discover/references/playbook.md), [`cursor/skills/discover/references/standalone-mode.md`](../../cursor/skills/discover/references/standalone-mode.md), [`cursor/skills/discover/references/spike-pattern.md`](../../cursor/skills/discover/references/spike-pattern.md), [`cursor/skills/feature-design/SKILL.md`](../../cursor/skills/feature-design/SKILL.md), [`docs/research/2026-agentic-stack.md`](../research/2026-agentic-stack.md) (2026-04-23 workflow design section), `AGENTS.md`, `docs/ROADMAP.md`.
+- Files: [`docs/dev-cycle.md`](../dev-cycle.md), [`docs/features/README.md`](../features/README.md), [`docs/features/_TEMPLATE.md`](../features/_TEMPLATE.md), [`.cursor/skills/discover/SKILL.md`](../../.cursor/skills/discover/SKILL.md), [`.cursor/skills/discover/references/playbook.md`](../../.cursor/skills/discover/references/playbook.md), [`.cursor/skills/discover/references/standalone-mode.md`](../../.cursor/skills/discover/references/standalone-mode.md), [`.cursor/skills/discover/references/spike-pattern.md`](../../.cursor/skills/discover/references/spike-pattern.md), [`.cursor/skills/feature-design/SKILL.md`](../../.cursor/skills/feature-design/SKILL.md), [`docs/research/2026-agentic-stack.md`](../research/2026-agentic-stack.md) (2026-04-23 workflow design section), `AGENTS.md`, `docs/ROADMAP.md`.
 - Prior learnings (this extends): [`docs/learnings/product-architecture-coupling-via-premature-locks.md`](product-architecture-coupling-via-premature-locks.md) — same shape of failure (collapsing two disciplines into one), different layer of the stack.
 - Upstream sources: no external sources directly. This is OSPlus-specific structural design.

@@ -63,7 +63,7 @@ What this means in practice:
 | Inside a stage, before non-trivial actions | Agent surfaces the plan and waits ("I plan to dump UFunctions for the lobby widget — sound right?"). |
 | Surprising findings | Agent stops and reports. Does not continue past contradiction. |
 | Direction changes / loop-backs | Agent proposes the back-edge; you decide whether to take it. |
-| Architectural commitments | Agent stops and routes to the ADR discipline (see `cursor/rules/decision-discipline.mdc`). |
+| Architectural commitments | Agent stops and routes to the ADR discipline (see `.cursor/rules/decision-discipline.mdc`). |
 
 The agent is autonomous on **mechanical** work inside a stage (running a search, dumping an object, drafting a section, applying a known fix). It is paired on **judgment** work (which option to pursue, when to loop back, whether to accept evidence as conclusive).
 
@@ -83,7 +83,7 @@ Stage 3 does not produce binary "yes / no." It produces:
 
 Plus an **explicit assumption list** in the feature doc: "this assumes `UEmoteWidget::ShowEmote` is callable from any `UWorld`; we have not verified that during a match." When build hits a wall, the failed assumption is named — no re-deriving.
 
-The spike pattern is documented in [`cursor/skills/discover/references/spike-pattern.md`](../cursor/skills/discover/references/spike-pattern.md).
+The spike pattern is documented in [`.cursor/skills/discover/references/spike-pattern.md`](../.cursor/skills/discover/references/spike-pattern.md).
 
 ---
 
@@ -126,11 +126,11 @@ This is what makes Stage 3 cheap over time: the second feature investigating the
 |---|---|
 | 1. Capture | `docs/ROADMAP.md` "Open questions" (current inbox); no skill |
 | 2. Frame | No dedicated skill; agent drafts directly into `docs/features/<slug>.md` `## Brief` |
-| 3. Feasibility | [`cursor/skills/discover`](../cursor/skills/discover/) skill |
-| 4. Design | [`cursor/skills/feature-design`](../cursor/skills/feature-design/) skill (with the Phase 2.5 ADR checkpoint) |
-| 5. Build | Direct implementation; harnesses per [`cursor/rules/harnesses.mdc`](../cursor/rules/harnesses.mdc); deploy via `deploy.ps1` |
-| 6. Land | [`cursor/skills/release-checklist`](../cursor/skills/release-checklist/) + [`cursor/rules/learnings-discipline.mdc`](../cursor/rules/learnings-discipline.mdc) |
-| Bug-fix lane | [`cursor/skills/bug-investigate`](../cursor/skills/bug-investigate/) |
+| 3. Feasibility | [`.cursor/skills/discover`](../.cursor/skills/discover/) skill |
+| 4. Design | [`.cursor/skills/feature-design`](../.cursor/skills/feature-design/) skill (with the Phase 2.5 ADR checkpoint) |
+| 5. Build | Direct implementation; harnesses per [`.cursor/rules/harnesses.mdc`](../.cursor/rules/harnesses.mdc); deploy via `deploy.ps1` |
+| 6. Land | [`.cursor/skills/release-checklist`](../.cursor/skills/release-checklist/) + [`.cursor/rules/learnings-discipline.mdc`](../.cursor/rules/learnings-discipline.mdc) |
+| Bug-fix lane | [`.cursor/skills/bug-investigate`](../.cursor/skills/bug-investigate/) |
 
 ---
 
@@ -152,6 +152,6 @@ The lifecycle exists to prevent specific failure modes. Recognize them:
 - [`docs/product.md`](product.md) — product definition; what features must serve.
 - [`docs/decisions/`](decisions/) — accepted ADRs; what designs cannot quietly violate.
 - [`docs/features/`](features/) — per-feature paper trail.
-- [`cursor/rules/decision-discipline.mdc`](../cursor/rules/decision-discipline.mdc) — when to stop and write an ADR.
-- [`cursor/rules/learnings-discipline.mdc`](../cursor/rules/learnings-discipline.mdc) — when (always) to write a learning.
-- [`cursor/rules/git-workflow.mdc`](../cursor/rules/git-workflow.mdc) — branching and commit conventions.
+- [`.cursor/rules/decision-discipline.mdc`](../.cursor/rules/decision-discipline.mdc) — when to stop and write an ADR.
+- [`.cursor/rules/learnings-discipline.mdc`](../.cursor/rules/learnings-discipline.mdc) — when (always) to write a learning.
+- [`.cursor/rules/git-workflow.mdc`](../.cursor/rules/git-workflow.mdc) — branching and commit conventions.

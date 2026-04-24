@@ -55,5 +55,5 @@ Newest first. Empty until the first feature gets a doc.
 - [`docs/product.md`](../product.md) — the lens every brief must pass.
 - [`docs/decisions/`](../decisions/) — accepted ADRs that constrain feature designs.
 - [`docs/learnings/`](../learnings/) — diary of findings; feature docs link out when a finding gets promoted.
-- [`cursor/skills/discover/`](../../cursor/skills/discover/) — Stage 3 skill; writes into `## Feasibility`.
-- [`cursor/skills/feature-design/`](../../cursor/skills/feature-design/) — Stage 4 skill; writes into `## Design`.
+- [`.cursor/skills/discover/`](../../.cursor/skills/discover/) — Stage 3 skill; writes into `## Feasibility`.
+- [`.cursor/skills/feature-design/`](../../.cursor/skills/feature-design/) — Stage 4 skill; writes into `## Design`.

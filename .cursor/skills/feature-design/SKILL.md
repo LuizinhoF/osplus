@@ -49,7 +49,7 @@ If **any** check fails, **stop** and route appropriately:
 |---|---|
 | Feature doc doesn't exist or `## Brief` is empty | Stage 2 (Frame) — agent drafts the Brief into the feature doc, gets sign-off, then comes back |
 | `## Feasibility` is empty or missing | Stage 3 — invoke the [`discover`](../discover/) skill against the Brief |
-| Verdict is **Low** | Spike pattern (see [`cursor/skills/discover/references/spike-pattern.md`](../discover/references/spike-pattern.md)). No design work until the spike resolves. |
+| Verdict is **Low** | Spike pattern (see [`.cursor/skills/discover/references/spike-pattern.md`](../discover/references/spike-pattern.md)). No design work until the spike resolves. |
 | Verdict is **Not feasible** | Mark the feature `## Outcome: shelved` with reason. No design work; this skill exits. |
 | Verdict is High/Medium but assumption list is empty | Send back to `discover` — a verdict without named assumptions is useless to Stage 5 |
 
