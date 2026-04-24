@@ -218,17 +218,22 @@ Below: per-probe summary of *what each tests* and *what the output means*. The L
 
 ### Pass 3 scope
 
-Three tasks, one in-game session + one GUI-dumper run. Scoped to resolve the identity ADR's critical path and re-open the capture-surface hypothesis space.
+Two parallel tasks (one Lua probe, one GUI action), both run in a single **active-match** session. Scoped to resolve the identity ADR's critical path and push the capture-surface hypothesis space from "falsified Pawn" to "specific component / actor / property confirmed or falsified."
 
-1. **GUI object dumper during active match.** Use the UE4SS GUI's *Dumpers* tab → *Dump all objects and properties*. Writes a `.txt` alongside `UE4SS.log` containing every live UObject's class + property + UFunction list (with parameter signatures). Run during active gameplay to capture match-only objects. Primary outputs we need from it:
-    - **UFunction signatures for `PMPlayerModel.GetCachedMeResponseV1` / `GetDisplayNameV1` / `GetCachedPlayerPublicProfile`** — parameter types + names. Critical path for the identity ADR.
-    - **Exhaustive `PM*` and `/Game/Prometheus/*` class inventory** — fixes B1's 9-of-12 miss rate.
-    - **Ball/puck actor class name** — name it once, stop guessing.
-    - **`PlayerState_Game_C` property + UFunction list** — evidence for whether redirects surface as a replicated property.
+**Primary task — GUI object dumper during active match.** UE4SS's built-in dumper writes every live UObject (class + properties + UFunctions with full parameter signatures) to a large `.txt` alongside `UE4SS.log`. Run during active gameplay to capture match-only objects. Targets:
 
-2. **Pawn-component enumeration probe (new Lua probe, F9 on the `OSPlusProbes` mod).** Walks `pawn:GetComponents()` (or similar UE4SS API), for each component prints class name and runs the same `ForEachFunction` pattern scan we did on the Pawn itself. Covers the "redirect signal lives on an ability/combat component" hypothesis that B2 couldn't test. Small extension to the existing probe mod; adds one new keybind.
+- **UFunction signatures for `PMPlayerModel.GetCachedMeResponseV1` / `GetDisplayNameV1` / `GetCachedPlayerPublicProfile`** — parameter types + names. **Critical path for `0001-identity-model`** given the maintainer-stated requirement that Prometheus ID is the binding key.
+- **Exhaustive class inventory under `/Script/Prometheus.*` and `/Game/Prometheus/*`** — fixes B1's 9-of-12 miss rate. Feeds future probe rounds with real class names instead of guesses.
+- **Ball/puck actor class name** — name it once, stop guessing.
+- **`PlayerState_Game_C` full property + UFunction list** — evidence for whether redirects surface as a replicated property (e.g., a `Redirects` Int with net-replication flag).
 
-3. **Ball/puck actor probe (bundled with F9 above).** Once the dumper output names the real ball class, the F9 probe can also target it: enumerate its UFunctions, look for redirect-shaped names + inspect its replicated properties.
+**Secondary task — `F9` battery on `OSPlusProbes`.** Same-session cross-check, Lua-side. Three sub-probes under one keybind, grep tags `[C1]` / `[C2]` / `[C3]`:
+
+1. **C1 — Pawn component enumeration.** Walks `BlueprintCreatedComponents` + `InstanceComponents` TArrays on the Pawn; per-component, class name + redirect-pattern UFunction scan. Directly tests the post-B2 hypothesis ("redirect logic lives on a component of the Pawn, not the Pawn class itself").
+2. **C2 — `PMPlayerModel` UFunction introspection.** For each of the three target getters, enumerates their parameter-properties via `UFunction:ForEachProperty`. **If this API exists in this UE4SS build, the Pass-2 "expected 2 parameters, received 0" mystery resolves in-session and the identity ADR unblocks without waiting for the dumper file.** If not, the GUI dumper is the guaranteed fallback.
+3. **C3 — `PlayerState_Game_C` full dump.** Property count + UFunction count + pattern-matched highlights. Tests "redirect is a replicated counter on PlayerState" as an alternative signal source.
+
+Probe source: [`docs/features/pass2-probes/pass2_probes.lua`](./pass2-probes/pass2_probes.lua) — F9 keybind added. Install/usage: [`docs/features/pass2-probes/README.md`](./pass2-probes/README.md) — updated with the F9 section + GUI-dumper step-by-step.
 
 **Deferred to a later pass or a dedicated session:**
 
