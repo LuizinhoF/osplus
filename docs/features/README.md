@@ -45,7 +45,7 @@ Newest first. Empty until the first feature gets a doc.
 
 | Status | Slug | One-line summary |
 |---|---|---|
-| _(none yet)_ | | |
+| `framed` | [`in-game-profile-mvp`](./in-game-profile-mvp.md) | v1 wedge substrate — plumbing only: identity binding to Odyssey account + raw per-match state capture. No stats display, no unlockables. ADR-gated on identity model + profile storage (raw-capture scope expands the latter's options). |
 
 `Status` values: `framed` (Stage 2 done), `feasibility` (Stage 3 done), `designed` (Stage 4 done), `building` (Stage 5 in progress), `shipped`, `shelved`.
 
