@@ -428,6 +428,42 @@ Both meanings are active. In community tooling, "Prometheus" almost always means
 
 **See also:** `docs/learnings/os-prometheus-api-ecosystem.md` (discovery diary).
 
+### Per-match runtime data — what's reachable from Lua
+
+The backend API (above) exposes career aggregates. The *client* exposes per-match transient state through a parallel set of objects. This section is the canonical "what to grep for" when a feature needs in-match observable data.
+
+**`PMPlayerMatchSummary`** (`/Script/Prometheus.PMPlayerMatchSummary` ScriptStruct) — per-player per-match counter struct. Fields (offset / type):
+
+| Offset | Field | Type | EOG stat # |
+|---|---|---|---|
+| 0x00 | `RedirectRock` | Int | 5 (Redirects) — **the canonical OSPlus capture target** |
+| 0x04 | `PowerUpsPickedUpCount` | Int | 8 (PowerUps) |
+| 0x08 | `HitRockIntoGoalArea` | Int | 6 (ShotsOnGoal) |
+| 0x0C | `DamageDoneToPlayers` | Int | 7 (Damage) |
+
+**`EPMEndOfGameStat`** enum — the full per-match stat universe surfaced at end-of-match:
+
+```
+None=0, Goals=1, Assists=2, Saves=3, KOs=4,
+Redirects=5, ShotsOnGoal=6, Damage=7, PowerUps=8
+```
+
+`PMPlayerMatchSummary` covers 4 of those 9. The other 5 (Goals / Assists / Saves / KOs) live on a sibling structure — investigation pending. Most likely `PMPlayerState` (the C++ parent of `PlayerState_Game_C`) or another summary keyed off it. See `docs/learnings/os-runtime-data-model.md` → "Per-match runtime data".
+
+**Other relevant runtime objects:**
+- `PMEndOfGamePlayerUIData:Redirects : Struct` — EOG UI surface (probably wraps the same counter).
+- `PMRockCharacter:LastRedirectKnockBack : Struct` — last redirect on the puck character itself. For per-event detail (vs. per-match aggregate), this is the per-redirect surface.
+- `EKnockBackType::Redirect = 2` — redirects are classified knock-backs of type 2.
+
+**Naming gotcha — the puck is internally called "Rock".** Future searches for the puck/ball actor should grep `Rock`, not `Ball` / `Puck` / `Core`. The `PMRockCharacter` class is the puck.
+
+**Open questions** (Pass-4 candidates for `in-game-profile-mvp`):
+- How does a `PMPlayerMatchSummary` instance map back to its player? (Held by `PMPlayerState`? An array on `PMGameState`? Keyed by `PlayerId`?)
+- Where do Goals / Assists / Saves / KOs live? (Likely `PMPlayerState` or sibling.)
+- Lifetime: persists across match-end, replaced per-match, or held for the session?
+
+**See also:** `docs/learnings/os-runtime-data-model.md` (the runtime data model in full).
+
 ### Game Lifecycle & Phase Detection
 
 The game progresses through distinct phases. Each phase has a unique combination of classes that can be queried from Lua:
@@ -760,7 +796,12 @@ Three separate namespaces. A Prometheus ID cannot be derived from a SteamID (or 
 - **SteamID**: `FindFirstOf("PMIdentitySubsystem"):GetSteamId()` → `76561198022185004`
 - **Identity state**: `FindFirstOf("PMIdentitySubsystem"):GetIdentityState()` → `2` (Authenticated — enum semantics inferred from name, not confirmed by enum-dump)
 - **PMPlayerPublicProfile**: `FindAllOf("PMPlayerPublicProfile")` returns ~100+ cached profiles of OTHER players (observed: 104 and 109 in two separate dumps). Each has `Username` (display name) and `PlayerId` (Prometheus ID). **The local player is NOT in this cache.**
-- **PMPlayerModel**: Has `GetCachedPlayerPublicProfile`, `GetCachedMeResponseV1`, `GetDisplayNameV1` UFunctions but all require 2 params (out-param pattern) and the correct UScriptStruct types — **not trivially callable from Lua.** This is likely the cleanest path to the local Prometheus ID if the signature can be unlocked.
+- **PMPlayerModel**: Hosts the local-identity getters. Signatures (from the GUI Object Dumper, in-match):
+  - `GetCachedMeResponseV1(out WasCached: Bool, out OutMeResponse: MeResponseV1)` — sync read of the local cache.
+  - `GetCachedPlayerPublicProfile(out WasCached: Bool, out Profile: PlayerPublicProfile)` — sync read of an already-cached profile.
+  - `GetDisplayNameV1(out WasSent: Bool, out OutRequestId: Str)` — **async**: returns a request ID; the actual response fires the `GetDisplayNameV1Completed` multicast delegate.
+  - **`MeResponseV1` extends `PlayerPublicProfile`** (UE `ScriptStruct` inheritance via the dumper's `sps` field), so `OutMeResponse` carries every PlayerPublicProfile field — **`PlayerId` (Prometheus ID), `Username`, `LogoId`/`NameplateId`/`EmoticonId`/`TitleId`, `PlatformIds` struct, `MasteryLevel`, `CurrentPlatform` enum** — plus Me-only fields (`MatchmakingRegion`, `EulaNeeded`, `DiscordConnection`, etc.). One sync call → full local identity.
+  - UE4SS calling convention: pass *placeholder* values for the output params (e.g. `model:GetCachedMeResponseV1(false, nil)`) and capture the return values. The Pass-2 error `UFunction expected 2 parameters, received 0` was UE4SS asking for the output slots, not "uncallable." Exact placeholder shape is build-dependent — see `docs/learnings/os-runtime-data-model.md` for the validation gap.
 - **Practice mode caveat**: `PlayerNamePrivate` returns a hex Prometheus ID rather than the display name in practice mode. Only returns the display name in custom / real games.
 
 ### ScrollBox Crash — Root Cause & Resolution (SOLVED)

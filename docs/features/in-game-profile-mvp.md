@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Slug | `in-game-profile-mvp` |
-| Status | `feasibility` (Pass 1 complete; Pass 2 pending in-game probes) |
+| Status | `feasibility` (Passes 1, 2, 3 complete; Stage 4 unblocked pending ADR sign-off) |
 | Created | 2026-04-24 |
 | Last updated | 2026-04-24 |
 | Owner | agent + maintainer |
@@ -58,14 +58,14 @@
 ---
 
 ## Feasibility
-*(Stage 3 — Discover. Split into Pass 1 (code + web), Pass 2 (in-game probes), and a Pass 3 scoped below. Pass 1 and Pass 2 complete.)*
+*(Stage 3 — Discover. Split into Pass 1 (code + web), Pass 2 (in-game probes), Pass 3 (in-game cross-check + GUI Object Dumper). All three passes complete.)*
 
-**Post-Pass-2 verdicts:**
+**Post-Pass-3 verdicts:**
 
-- *Identity resolution:* `Medium-High`. `PMIdentitySubsystem:GetSteamId()` is definitive (6/6 tested contexts identical). `PMPlayerModel.GetDisplayNameV1` / `GetCachedMeResponseV1` / `GetCachedPlayerPublicProfile` UFunctions are **callable** (Pass-2 error was parameter-count, not "uncallable"), but their signatures are unread. Drops from High to Medium-High only because the signature-discovery step is pending; no contradictory evidence.
-- *Capture surface:* `Low`. B2 ruled out the Pawn class as the redirect-signal host (`ForEachFunction` ran cleanly; zero pattern matches across 6 contexts). Hypothesis space (Pawn components, ball/puck actor, replicated properties on `PlayerState_Game_C`, gameplay tags) is unexplored. Needs Pass 3.
+- *Identity resolution:* `High`. The local-Prometheus-ID path is fully characterized: `PMPlayerModel:GetCachedMeResponseV1(out WasCached, out OutMeResponse)` returns a `MeResponseV1` struct that **inherits from `PlayerPublicProfile`** (UE `ScriptStruct` `sps` chain confirmed in the dumper output). One sync call yields `PlayerId` (Prometheus ID), `Username`, `PlatformIds` struct (the SteamID crosswalk), and the full cosmetic loadout. Signatures, parameter shapes, and inheritance chain are all in `docs/learnings/os-runtime-data-model.md`. *Single residual gap:* the exact UE4SS calling convention for output-param placeholders (e.g. `(false, nil)` vs `(false, {})`) is build-dependent; one Pass-4 in-game probe call validates it before any feature relies on it.
+- *Capture surface:* `High`. The redirect counter is reachable: `/Script/Prometheus.PMPlayerMatchSummary:RedirectRock : Int`. Sibling counters on the same struct cover ShotsOnGoal, Damage, PowerUps. The full per-match stat universe is enumerated by `EPMEndOfGameStat` (9 entries); 4 of 9 are already mapped to `PMPlayerMatchSummary`. The puck/ball is internally called *Rock* — `PMRockCharacter:LastRedirectKnockBack` carries per-event detail, and `EKnockBackType::Redirect = 2` confirms redirects are a classified knock-back type. Per-match raw capture is feasible without instrumentation — just read existing structs.
 
-No showstoppers. Pass 3 below is a single in-game session plus one GUI-dumper run.
+**No remaining feasibility blockers.** Both forced ADRs (`0001-identity-model`, `0002-profile-storage`) are now writable.
 
 **Binding key decision (maintainer-stated, not ADR-gated):** The profile's primary binding key is the **Odyssey (Prometheus) account ID**, not SteamID. Rationale: Omega Strikers may be playable outside Steam (other launchers / platforms); SteamID is platform-specific, Odyssey identity is platform-agnostic and travels with the account. SteamID remains useful as a **secondary** identifier (cross-reference for Steam-sourced enrichments, fallback if Prometheus resolution fails at startup), not the primary key. This reshapes `0001-identity-model`: the ADR question becomes *"how do we resolve the Odyssey ID reliably?"* rather than *"which ID is primary?"* — making the Pass-3 UFunction signature discovery critical-path for the ADR, not optional.
 
@@ -240,15 +240,39 @@ Probe source: [`docs/features/pass2-probes/pass2_probes.lua`](./pass2-probes/pas
 - A2 matchmade verification — same F12 poll, but in a public matchmade lobby. Low-priority given the remote-bleed-only hypothesis is sufficient for MVP scope; can re-check if/when a bug surfaces.
 - B3 redirect-volume sizing — still needs manual count during 2-3 practice matches.
 
+### Pass 3 findings
+
+*(Session: 2026-04-24, in-match. F9 battery on `OSPlusProbes` + UE4SS GUI Object Dumper run during active gameplay. Dumper output: 40 MB at `Binaries\Win64\UE4SS_ObjectDump.txt`, generated in 0.58s.)*
+
+**Assumption updates:**
+
+| # | Assumption | Pass 2 status | Pass 3 result | New status |
+|---|---|---|---|---|
+| 3 | `PMPlayerModel` getter UFunctions resolvable to a clean local-Prometheus-ID path | Med-High (callable, signatures unread) | Signatures fully read from dumper; cross-checked in-game via C2 (`ForEachProperty`). `MeResponseV1` ScriptStruct inherits from `PlayerPublicProfile` (`sps` chain). One sync call yields the local profile struct including `PlayerId`. | **High.** Calling-convention placeholder shape is the only Pass-4 residual. |
+| 5 | Redirect signal lives somewhere in the runtime | Falsified for Pawn class (B2); component / ball-actor / PlayerState hypotheses untested | C1 confirmed: Pawn's `BlueprintCreatedComponents` are all generic engine types (no `PM*` components). C3 confirmed: `PlayerState_Game_C`'s 14 BP-defined properties + 15 BP UFunctions contain zero redirect-pattern matches. Dumper found the actual host: **`PMPlayerMatchSummary:RedirectRock : Int`** (a parallel C++ ScriptStruct, not on the Pawn or its components). | **High.** Per-match counter reachable; per-event detail also available via `PMRockCharacter:LastRedirectKnockBack`. |
+| 6 | Redirect-volume sizing | Pending | Still pending (B3 — manual practice-match observation). | Unchanged — feeds storage ADR's write-frequency axis but doesn't block ADR drafting. |
+
+**New findings (Pass-3-specific, material to ADRs):**
+
+- **`PlayerPublicProfile` is the canonical profile shape.** 14 fields including `PlayerId : Str` (Prometheus ID, offset 0), `Username : Str`, the cosmetic-ID quad (`LogoId` / `NameplateId` / `EmoticonId` / `TitleId`), `PlatformIds : Struct` (the SteamID crosswalk path), `MasteryLevel : Int`, `CurrentPlatform : Enum`. Three structs in the dump inherit from it: `PlayerPublicProfileWithTimestamp` (adds `Timestamp`), `MeResponseV1` (adds Me-only fields), and `PMPlayerPublicProfile` UObject wraps it as a field. **All cached profile reads return some flavor of this shape.** Reshapes the storage ADR's schema axis — the profile row should be designed against this canonical shape, not invented from scratch.
+- **`EPMEndOfGameStat` enumerates the per-match stat universe at 9 entries.** `PMPlayerMatchSummary` covers 4 (Redirects + ShotsOnGoal + Damage + PowerUps). The other 5 (Goals / Assists / Saves / KOs) live elsewhere — most likely on `PMPlayerState` (the C++ parent of `PlayerState_Game_C`) or a sibling summary keyed off it. **Open: not blocking ADRs**, but worth a Pass-4 grep before designing the full capture schema.
+- **The puck is internally called "Rock".** `PMRockCharacter` is the puck class. `PMRockCharacter:LastRedirectKnockBack : Struct` is a per-redirect runtime field; `EKnockBackType::Redirect = 2` is the redirect-type enum value. Future per-event capture (vs. per-match aggregate) hangs off this surface.
+- **`PMPlayerState` exists as a C++ parent class** (`/Script/Prometheus.PMPlayerState`) — `PlayerState_Game_C` is the BP layer extending it with orb-tracking. The 14 BP-layer properties on `PlayerState_Game_C` are all orb-mechanic state (`NumOrbsAcquired`, `OrbAwakeningsMaxStacks`, `LevelUnlockForSpecial`, etc.); the per-match counter universe lives on the C++ parent or a sibling — **not** on the BP subclass. Saved a chase down the wrong path.
+- **`GetDisplayNameV1` is async.** Signature: `(WasSent: Bool, OutRequestId: Str)`. It enqueues a request and fires the multicast `GetDisplayNameV1Completed` delegate when the response arrives. Not the right tool for "what's the local Prometheus ID right now?" — that's `GetCachedMeResponseV1`. Use `GetDisplayNameV1` only when the cached profile is missing or stale (e.g., a remote player whose hex window hasn't resolved).
+
+**Probe `OSPlusProbes/pass2_probes.lua` C3 tech debt:** The probe printed only the names that *matched* the redirect pattern, not all 14 properties / 15 UFunctions. We had to grep the dumper output to recover the full list. Worth fixing if we run C3 again — but the dumper now serves that purpose, so don't fix preemptively.
+
+**No new identity-side gaps surfaced.** The matchmade-public verification gap from Pass 2 (does the local-stable hex-window finding hold outside solo-custom?) remains the only A2 carryover; sufficient for MVP scope per Pass 2 reasoning.
+
 ### Factual correction (from Pass 2 session)
 
 The `OSPlusProbes` README said the log lives at `Binaries\Win64\ue4ss\UE4SS.log`. It actually lives at **`Binaries\Win64\UE4SS.log`** (no `ue4ss\` subfolder) on at least this install. Fixed in a separate commit after this Pass 2 write-up.
 
-### Recommended Stage 5 path (revised post-Pass-2)
+### Recommended Stage 5 path (revised post-Pass-3)
 
-- **Identity binding:** `full feature` path — once Pass 3 resolves UFunction signatures, the Odyssey-ID resolution path is expected to be cheap. Retrospective integration of `identity.lua` into `main.lua`, extended to emit both SteamID and Prometheus ID.
-- **Raw capture pipeline:** `spike first` (downgraded from "thin slice"). B2 falsified the cheapest hypothesis; we don't yet know what the *actual* observation path looks like. Spike = Pass 3 GUI dumper + component probe + a 1-2 hour analysis session before committing to an MVP capture scope.
-- **Storage:** still waits for `0002-profile-storage` ADR. Pass 3's component-side findings + B3 feed the ADR's write-frequency + schema axes.
+- **Identity binding:** `full feature` path. Resolution path is now characterized end-to-end (`PMPlayerModel:GetCachedMeResponseV1` → `MeResponseV1` (extends `PlayerPublicProfile`) → `PlayerId`). One Pass-4 in-game probe validates the UE4SS calling-convention placeholder shape, then `identity.lua` extends to surface the Prometheus ID alongside the existing SteamID + display-name reads. Trust posture and primary-key choice land in `0001-identity-model`.
+- **Raw capture pipeline:** `thin slice` (upgraded from "spike first"). The capture surface is now known: `FindAllOf("PMPlayerMatchSummary")` during a match yields the per-player counters. Thin slice = (1) read all summaries at end-of-match, (2) write each as one row to wherever `0002-profile-storage` lands them, (3) prove round-trip end-to-end with one match's worth of redirect counts. The per-summary → per-player mapping question (Pass-4) is the only thing that could turn this back into a spike.
+- **Storage:** still waits for `0002-profile-storage` ADR. Pass-3 findings now feed concrete inputs: schema rows can be designed against `PlayerPublicProfile` for profile data and against the `EPMEndOfGameStat` enum (capped at 9 ints per player per match) for capture data. Cardinality bounded; cheapest write strategy is now answerable.
 
 ---
 
@@ -289,9 +313,12 @@ The `OSPlusProbes` README said the log lives at `Binaries\Win64\ue4ss\UE4SS.log`
 
 **Open questions deferred to Stage 4 or later passes of Stage 3:**
 
-- *[Pass 3]* UFunction signatures for `PMPlayerModel.GetCachedMeResponseV1` / `GetDisplayNameV1` / `GetCachedPlayerPublicProfile` — critical path for the identity ADR now that Prometheus ID is the required binding key.
-- *[Pass 3]* Where does the redirect signal actually live? (Pawn class is ruled out.) Component-scan probe + ball-actor class name needed.
-- *[Pass 3]* What is the 111 `PMPlayerPublicProfile` instances pool? Is it a passive capture surface?
+- ~~*[Pass 3]* UFunction signatures for `PMPlayerModel.GetCachedMeResponseV1` / `GetDisplayNameV1` / `GetCachedPlayerPublicProfile`~~ — **Resolved in Pass 3 findings.** Documented in `docs/learnings/os-runtime-data-model.md` and `KNOWLEDGEBASE.md`.
+- ~~*[Pass 3]* Where does the redirect signal actually live?~~ — **Resolved in Pass 3 findings.** `PMPlayerMatchSummary:RedirectRock`, plus per-event `PMRockCharacter:LastRedirectKnockBack`.
+- ~~*[Pass 3]* What is the 111 `PMPlayerPublicProfile` instances pool?~~ — **Resolved.** It's the *remote*-player profile cache (UObject wrapper around `PlayerPublicProfile` struct + `IsOnline` flag); the local player isn't in it. Local player goes through `PMPlayerModel:GetCachedMeResponseV1` instead.
+- *[Pass 4]* Validate UE4SS calling-convention for output-param placeholders on `GetCachedMeResponseV1` — `(false, nil)` vs `(false, {})` vs no args; build-dependent. Single in-game probe call.
+- *[Pass 4]* How does a `PMPlayerMatchSummary` instance map back to its player? (Held by `PMPlayerState`? An array on `PMGameState`? Keyed by `PlayerId`?) Required before designing the storage schema's player-FK shape.
+- *[Pass 4]* Where do the missing 5 EOG stats (Goals / Assists / Saves / KOs) live? Most likely on `PMPlayerState` C++ parent; needs a property dump of that class.
 - *[Pass 3 / deferred]* Does A2's local-stable finding hold in a matchmade public game, or is it solo-custom-only?
 - *[B3 — pending]* Rough per-match redirect count — feeds `0002-profile-storage` write-frequency axis.
 - *[Stage 4]* Where does raw capture data physically live? Answered by `0002-profile-storage`.
