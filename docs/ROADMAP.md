@@ -4,6 +4,8 @@ Forward-looking companion to [`docs/product.md`](./product.md) (the product nort
 
 If you're an agent picking up work: this is where you find what's coming, what's deferred, and what's been explicitly dropped for not serving the wedge. Not a task tracker — no estimates, no dates, no checkboxes.
 
+**How features actually get worked on:** see [`docs/dev-cycle.md`](./dev-cycle.md). This roadmap is the *what*; that doc is the *how*. Promoting an item from Later → Next → Now means moving it through the lifecycle's stages (Capture → Frame → Feasibility → Design → Build → Land), with a paper trail in `docs/features/<slug>.md`.
+
 ## How to read this doc
 
 | Section | What it means |
@@ -29,9 +31,9 @@ If a proposed feature doesn't pass all three, it belongs below in "Won't do" wit
 
 ## Now
 
-**Agentic workflow foundation rebuild.** Replacing the prior `vision.md` architectural locks with `docs/product.md` (product definition) + ADR discipline (`docs/decisions/`). Currently Phase 5 (reconciling downstream docs) — this file, `AGENTS.md`, and `feature-design` skill. Phase 6 (cold-start validation against new docs) remains.
+**Agentic workflow design.** Foundation rebuild (product, ADRs, cursor restructure) is committed. Currently building the lifecycle layer: `docs/dev-cycle.md`, `docs/features/` per-feature paper trail, `discover` skill for Stage 3 (Feasibility / RE), and the Stage-3 precondition in the `feature-design` skill. Once this lands, the agentic surface is complete enough that the next active feature-level item is a real Stage-1 capture for the wedge.
 
-Once the foundation pass wraps, the next active feature-level item is a decision point: pick the first piece of the wedge (profile scaffolding vs. first unlockable-earning path), which will force the identity ADR.
+After this: pick the first piece of the wedge (profile scaffolding vs. first unlockable-earning path) → triage as Stage 1 → frame into a feature doc → run `discover` → it will likely force the identity ADR.
 
 ## Next
 

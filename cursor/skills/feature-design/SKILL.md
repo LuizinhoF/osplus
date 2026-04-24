@@ -27,17 +27,47 @@ If you're unsure whether to use it, use it. The cost of designing first is small
 
 ---
 
+## Phase 0: Precondition — Stage 3 (Feasibility) must have run
+
+This skill is **Stage 4** of the dev cycle (see [`docs/dev-cycle.md`](../../../docs/dev-cycle.md)). It assumes Stage 3 has already produced a Feasibility verdict for the feature. Designing on top of unverified assumptions is the failure mode this precondition exists to prevent.
+
+Before any other phase, check that a feature doc exists with **both** a `## Brief` and a `## Feasibility` section:
+
+```
+PRECONDITION CHECK
+  Feature doc: docs/features/<slug>.md
+    [ ] Exists
+    [ ] ## Brief is filled (problem, audience, wedge fit, anti-goal check, success criteria)
+    [ ] ## Feasibility is filled (verdict, confidence, assumption list, evidence trail)
+    [ ] Verdict tier is High or Medium (not Low; not Not feasible)
+    [ ] Recommended Stage 5 path is "full feature" or "thin slice first"
+```
+
+If **any** check fails, **stop** and route appropriately:
+
+| Failure | Route to |
+|---|---|
+| Feature doc doesn't exist or `## Brief` is empty | Stage 2 (Frame) — agent drafts the Brief into the feature doc, gets sign-off, then comes back |
+| `## Feasibility` is empty or missing | Stage 3 — invoke the [`discover`](../discover/) skill against the Brief |
+| Verdict is **Low** | Spike pattern (see [`cursor/skills/discover/references/spike-pattern.md`](../discover/references/spike-pattern.md)). No design work until the spike resolves. |
+| Verdict is **Not feasible** | Mark the feature `## Outcome: shelved` with reason. No design work; this skill exits. |
+| Verdict is High/Medium but assumption list is empty | Send back to `discover` — a verdict without named assumptions is useless to Stage 5 |
+
+**If all checks pass**, proceed to Phase 1. The Brief is your goal source; the Feasibility section is your constraint set.
+
+---
+
 ## Phase 1: Restate the goal
 
-Before any analysis:
+Read the feature doc's `## Brief` (Stage 2 output). The goal is already framed there — your job in this phase is to distill it into three load-bearing lines and confirm they match what the user actually wants.
 
 ```
 GOAL: <1 sentence — what the user wants to be true after this lands>
 USER-VISIBLE OUTCOME: <1-2 sentences — what changes for someone using OSPlus>
-SCOPE BOUNDARY: <1 sentence — what is explicitly NOT being changed>
+SCOPE BOUNDARY: <1 sentence — what is explicitly NOT being changed (often pulled from the Brief's "Out of scope")>
 ```
 
-If you can't write these three lines without paraphrasing the user back to themselves, you don't understand the request well enough yet. Ask before continuing.
+If the Brief and your distillation diverge meaningfully, **stop and surface it** — either the Brief needs updating (loop back to Stage 2) or you're misreading it. Don't quietly proceed with a design that doesn't match the Brief.
 
 ---
 
@@ -45,17 +75,19 @@ If you can't write these three lines without paraphrasing the user back to thems
 
 Read, in this order, only what's relevant:
 
-1. **`docs/product.md`** — does the feature serve the audience, the problem, the wedge? Does it violate an anti-goal? If yes to "violate," stop here and surface the conflict — don't quietly redefine the product via a feature.
-2. **`docs/decisions/`** — scan for accepted ADRs that apply to the feature's domain (identity, persistence, state ownership, wire protocol, trust boundaries). An accepted ADR is a decided axis — don't re-litigate it in Phase 3.
-3. **`AGENTS.md` Product/decisions/roadmap section** — for framing and pointers; it routes, it doesn't re-state.
-4. **`docs/learnings/`** — `grep` for any symptom or system this feature touches. Past fixes constrain future designs.
-5. **The files that will be touched.** If the feature is in chat: `mod/OSPlus/scripts/chat.lua`, `sidecar/index.js` chat handling, `server/index.js` chat handling, `ue-assets/.../WBP_ModChat`. If it's profile/presence: those plus wherever the feature lives.
-6. **The relevant code-conventions rules** auto-load by glob — let them. Don't re-read them defensively.
+1. **The feature doc's `## Feasibility` section** — verdict, confidence, assumption list, evidence trail, promoted findings. This is the constraint set you are designing against. The assumption list is especially load-bearing: every axis in Phase 3 must respect those assumptions or explicitly call out which one it relaxes (and why that's safe).
+2. **`docs/product.md`** — does the feature serve the audience, the problem, the wedge? Does it violate an anti-goal? If yes to "violate," stop here and surface the conflict — don't quietly redefine the product via a feature.
+3. **`docs/decisions/`** — scan for accepted ADRs that apply to the feature's domain (identity, persistence, state ownership, wire protocol, trust boundaries). An accepted ADR is a decided axis — don't re-litigate it in Phase 3.
+4. **`AGENTS.md` Product/decisions/roadmap section** — for framing and pointers; it routes, it doesn't re-state.
+5. **`docs/learnings/`** — `grep` for any symptom or system this feature touches. Past fixes constrain future designs. (The feature doc's `Promoted findings` already links the most relevant ones — start there.)
+6. **The files that will be touched.** If the feature is in chat: `mod/OSPlus/scripts/chat.lua`, `sidecar/index.js` chat handling, `server/index.js` chat handling, `ue-assets/.../WBP_ModChat`. If it's profile/presence: those plus wherever the feature lives.
+7. **The relevant code-conventions rules** auto-load by glob — let them. Don't re-read them defensively.
 
 Produce a short anchor:
 
 ```
 ANCHOR
+  Feasibility constraints: <verdict tier; load-bearing assumptions copied from feature doc>
   Product fit: <which part of the wedge / long-horizon shape does this serve; any anti-goal tension>
   ADRs that apply: <list accepted ADRs with numbers, or "none directly applicable">
   Learnings that constrain: <relative paths, or "none">
@@ -165,6 +197,9 @@ Your final output MUST follow this structure:
 FEATURE DESIGN: <feature name>
 ═══════════════════════════════════════════════
 
+── PHASE 0: PRECONDITION ──
+<from §0 — confirm Brief + Feasibility present, verdict tier, recommended path>
+
 ── PHASE 1: GOAL ──
 <from §1>
 
@@ -180,6 +215,8 @@ FEATURE DESIGN: <feature name>
 ═══════════════════════════════════════════════
 ```
 
+After user sign-off, the design phase output is also written into the feature doc's `## Design` section per the template in [`docs/features/_TEMPLATE.md`](../../../docs/features/_TEMPLATE.md). The doc-section write is mechanical and happens after the Phase 4 proposal is accepted.
+
 ---
 
 ## Rules
@@ -191,3 +228,4 @@ FEATURE DESIGN: <feature name>
 5. **Future-sight is a real axis.** Every design pass should ask: "what's the obvious feature on top of this, and does this design make that easier or harder?" Surface the answer in an axis or in OPEN QUESTIONS. (This is the direct fix for the Phase 1e cold-start failure mode.)
 6. **Two-axis designs are suspicious.** A feature with only two design choices probably has three you missed. Look harder before submitting.
 7. **The user's pushback is signal.** When the user rejects a proposal or rescopes it, that means the design pass missed something — note what was missed for next time, don't just adjust and resubmit.
+8. **Don't re-run Stage 3.** If you find yourself questioning a Feasibility assumption mid-design, that's a back-edge to Stage 3, not a Phase 3 axis. Surface it: "the design needs assumption X re-verified — loop back to `discover` or accept the verdict?" Don't silently re-investigate inside this skill.

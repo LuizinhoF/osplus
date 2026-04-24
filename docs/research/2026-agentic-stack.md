@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-04-04 (original), 2026-04-23 (refresh) |
 | Scope | How OSPlus structures always-loaded context, on-demand expertise, and behavioral rules so AI coding agents (Cursor, Codex, Copilot, etc.) work productively across sessions. |
-| Status | Decisions locked. Implementation in `AGENTS.md`, `.cursor/rules/`, `.cursor/skills/`, `.cursor/hooks.json`. |
+| Status | Decisions locked. Implementation in `AGENTS.md`, `cursor/rules/`, `cursor/skills/`, `cursor/hooks.json`, `docs/product.md`, `docs/decisions/`, `docs/dev-cycle.md`, `docs/features/`. |
 | Re-evaluate when | Cursor's rule / hook / skill format changes meaningfully, AGENTS.md spec gets a v2, or a tool we use drops/adds support. |
 
 This doc exists so the structure of OSPlus's agent-facing files is **defensible**, not just "the way it is." If a future agent (or future me) wants to change it, they should be arguing against this doc, not against vibes.
@@ -128,8 +128,8 @@ This is the failure mode: agent starts a fresh chat, doesn't know about `build_d
 ## Adopted layout (concrete, post-refresh 2026-04-23)
 
 ```
-AGENTS.md                          ← always-loaded project briefing (~80 lines)
-.cursor/
+AGENTS.md                          ← always-loaded project briefing (~95 lines)
+cursor/                            ← renamed from .cursor/ to keep auto-context clean
   hooks.json                       ← v1 hooks: beforeShellExecution, afterFileEdit, stop
   hooks/
     block-mcp-commit.ps1           ← deny git commands that would commit mcp.json
@@ -138,6 +138,7 @@ AGENTS.md                          ← always-loaded project briefing (~80 lines
   rules/
     harnesses.mdc                  ← alwaysApply: true, "use existing scripts"
     learnings-discipline.mdc       ← alwaysApply: true, "log findings before done"
+    decision-discipline.mdc        ← alwaysApply: true, "ADR before architectural commit"
     code-conventions.mdc           ← alwaysApply: true, project-wide style
     git-workflow.mdc               ← alwaysApply: true, branches + commit style
     mod-architecture.mdc           ← globs: mod/**/*.lua (Lua/BP contract + three-bucket model)
@@ -145,9 +146,15 @@ AGENTS.md                          ← always-loaded project briefing (~80 lines
     node-conventions.mdc           ← globs: sidecar/**, server/**
     powershell-conventions.mdc     ← globs: **/*.ps1
   skills/
-    feature-design/SKILL.md        ← design axes + trade-offs before code
-    bug-investigate/SKILL.md       ← prior-art → reproduce → falsify → fix → learning
-    release-checklist/SKILL.md     ← end-to-end build, validate, ship
+    discover/                      ← Stage 3: feasibility / RE
+      SKILL.md                     ← orchestration + when-to-use
+      references/
+        playbook.md                ← 6-step playbook (search → unknowns → technique → execute → verdict → promote)
+        standalone-mode.md         ← RE work outside features (writes to learnings / KNOWLEDGEBASE)
+        spike-pattern.md           ← Low-confidence sub-loop (throwaway branch per assumption)
+    feature-design/SKILL.md        ← Stage 4: design axes + trade-offs before code; precondition checks Stage 3
+    bug-investigate/SKILL.md       ← bug-fix lane; prior-art → reproduce → falsify → fix → learning
+    release-checklist/SKILL.md     ← Stage 6: end-to-end build, validate, ship
     ue4ss-modding/
       SKILL.md                     ← compact overview + decisions
       references/
@@ -156,7 +163,12 @@ AGENTS.md                          ← always-loaded project briefing (~80 lines
         pitfalls.md                ← crash matrix + debugging
 docs/
   product.md                       ← product north star (audience/problem/wedge/anti-goals)
+  dev-cycle.md                     ← the 6-stage feature lifecycle (canonical "how we work")
   ROADMAP.md                       ← what's next, filtered through the product lens
+  features/                        ← per-feature paper trail
+    README.md                      ← policy + index of features
+    _TEMPLATE.md                   ← single-file template (Brief / Feasibility / Design / Outcome)
+    <slug>.md                      ← one per feature, filled progressively across stages
   decisions/                       ← ADR-based architectural deliberation
     README.md                      ← index + "when an ADR is required"
     _TEMPLATE.md                   ← ADR template (≥2 options required)
@@ -165,6 +177,7 @@ docs/
   research/
     2026-agentic-stack.md          ← this file
     cold-start-scenarios.md        ← canonical validation prompts
+    cold-start-log.md              ← results of validation runs
   learnings/                       ← findings discipline lands here
   architecture/
     state-contract.md              ← Lua/BP boundary deep dive
@@ -192,7 +205,7 @@ A content-level audit found the structure sound but individual files bloated pas
 
 ### Hooks — deterministic backstops
 
-New layer: `.cursor/hooks.json` with three project-level hooks. These are the *enforcement* layer that survives even when the agent's context is stripped:
+New layer: `cursor/hooks.json` with three project-level hooks. These are the *enforcement* layer that survives even when the agent's context is stripped:
 
 - `beforeShellExecution` → `block-mcp-commit.ps1` — returns `permission: deny` for any `git add/commit/stash/checkout` that references `mcp.json`. The gitignore is the default defense; this is the belt.
 - `afterFileEdit` → `warn-hardcoded-path.ps1` — logs a warning to Cursor's Hooks output channel when an edit adds an `F:\Omegamod|UE510|SteamLibrary` reference to a file outside the known scope-debt allowlist. Informational by design — surfacing the signal is the whole point; it doesn't block.
@@ -213,12 +226,44 @@ The original 2026-04-04 research validated that the *layout* was correct (AGENTS
 A follow-up pass diagnosed that the agentic stack was healthy *structurally* but the project it served was **poorly defined at the product layer**, and architectural choices had been written as "locks" without recorded alternatives. Structure fix: separate the two concerns.
 
 - **`docs/product.md` (new)** — product north star. Audience / problem / wedge / anti-goals / success / hard constraints. One screen. Read at session start.
-- **`docs/decisions/` (new)** — architectural deliberation via ADRs. Each ADR requires ≥2 honest options — single-option ADRs are blocked. Enforced by `.cursor/rules/decision-discipline.mdc`.
+- **`docs/decisions/` (new)** — architectural deliberation via ADRs. Each ADR requires ≥2 honest options — single-option ADRs are blocked. Enforced by `cursor/rules/decision-discipline.mdc`.
 - **`docs/vision.md` → `docs/decisions/_archive/vision-v1-superseded.md`** — the prior "v1 locks" doc is archived, preserved so future agents can see what was tried (and why it was retired).
 - **`feature-design/SKILL.md` gains Phase 2.5** — ADR checkpoint. If a feature forces an architectural decision in any open-queue area, feature design stops and an ADR is drafted first.
 - **`AGENTS.md` and `ROADMAP.md` rewritten** through the product lens. Both now point to `docs/product.md` as canon.
 
 The meta-lesson: *the agentic stack compounds findings about the code (`docs/learnings/`) and choices about the architecture (`docs/decisions/`) as two different disciplines with two different writing modes.* Findings are post-hoc ("we learned X"); decisions are pre-lock ("we compared X and Y, chose Y because Z"). Prior state conflated them.
+
+## 2026-04-23 — workflow design & feasibility skill
+
+A follow-up pass diagnosed that the agentic stack now had a clean *what* (product) and *how-architecturally* (decisions), but no canonical *how-procedurally*: how does an idea actually become a shipped feature? Skills existed (`feature-design`, `bug-investigate`, `release-checklist`) but nothing tied them into a lifecycle, and Stage 3-equivalent reverse-engineering work was mixed into feature design — where it doesn't belong, because designing on top of unverified assumptions is the canonical Build-stage wall.
+
+### Decisions
+
+- **6-stage lifecycle.** Capture → Frame → Feasibility → Design → Build → Land, documented in [`docs/dev-cycle.md`](../dev-cycle.md). Stage definitions, what produces what output, what triggers each.
+- **Back-edges are first-class.** Build → Feasibility, Build → Design, Design → Feasibility, Feasibility → Frame, Anything → Capture-as-shelved. Linear lifecycle would be a lie for RE-heavy work; the back-edges are the workflow doing its job when reality contradicts prediction.
+- **Default-paired stance.** Agent stops at every non-trivial decision point inside a stage and at every stage transition. Documented as a top-level principle alongside "no fabrication" and "Lua/BP boundary respected." Mechanical work autonomous; judgment work paired.
+- **Confidence tiers replace binary feasibility.** Stage 3 emits `High | Medium | Low | Not feasible` plus an explicit assumption list. Tier maps to recommended Stage 5 path: full feature / thin slice / spike-first / shelve. Optimistic Medium (that should have been Low) is the failure mode being prevented.
+- **Per-feature paper trail.** Single file per feature: `docs/features/<slug>.md` with `## Brief` / `## Feasibility` / `## Design` / `## Outcome` sections, filled progressively. Shelved features stay (their value is *why* they didn't pan out).
+- **`discover` skill (new)** — Stage 3 orchestration. Six-step playbook (search prior knowledge → name unknowns → pick technique → execute → verdict → promote findings) with explicit ask points at each step. Two modes: feature-driven (writes to `## Feasibility`) and standalone (writes directly to `docs/learnings/` or `KNOWLEDGEBASE.md`).
+- **Spike pattern** for Low-confidence verdicts. Throwaway branch (`spike/<feature>/<one-assumption>`), one assumption per spike, hard rule: if the spike turns into the implementation, hard-stop and start a real branch. Result is a spike report appended to the feature doc; the branch gets deleted.
+- **Knowledge accumulation policy.** Generally reusable findings auto-promote to `docs/learnings/`; judgment-call promotions ask first; `KNOWLEDGEBASE.md` writes are always ask-first (high-stakes, high-readership).
+- **`feature-design` skill gains Phase 0.** Precondition check: feature doc must exist with `## Brief` and `## Feasibility` filled, verdict tier must be High or Medium. If not, route to `discover` (or shelve if Not feasible). Closes the loop where Stage 4 used to barrel into design without verified Stage 3 output.
+
+### What this rules out
+
+- Skipping Stage 3 for "obvious" features (the precondition check makes it impossible to silently skip).
+- Designing on top of Low-confidence verdicts (precondition rejects them; spike is mandatory).
+- Standalone RE work that produces no durable artifact (standalone-mode forces output to learnings or KNOWLEDGEBASE).
+- Spikes that grow into shipping code (spike-pattern.md hard rule + paired stance catches the drift).
+- Mixing the bug-fix lane with the feature lifecycle (`bug-investigate` is a separate workflow with its own discipline).
+
+### What this commits us to
+
+- Maintaining `docs/dev-cycle.md` as the canonical lifecycle reference. If the lifecycle changes (a stage gets added, a back-edge gets formalized), this doc updates first.
+- Keeping the per-feature template aligned with the dev-cycle stages — they're paired surfaces.
+- The promotion discipline in Step 6 of `discover` — feature-local findings stay local; general findings get auto-promoted; judgment calls get asked. The compounding model only works if Step 6 is non-skippable.
+
+The meta-lesson is captured in [`docs/learnings/lifecycle-design-back-edges-and-confidence-tiers.md`](../learnings/lifecycle-design-back-edges-and-confidence-tiers.md): *RE-heavy modding has unknowns that surface only during Build, so the lifecycle must encode loop-backs as first-class rather than treating them as failures of the linear plan.*
 
 ## What we're committing to maintain
 
@@ -227,9 +272,12 @@ Each of these is a recurring cost. Accepted deliberately:
 1. **`AGENTS.md` Toolchain section ↔ `harnesses.mdc` parity.** When a script is added/changed/removed, both files update. Two places, both short, both next to the change.
 2. **`docs/learnings/` entries before "done."** Every non-trivial finding lands here. Enforced by `learnings-discipline.mdc` + the `stop`-hook reminder.
 3. **`docs/decisions/` ADRs before architectural commitment.** Every "this is now how we do X" earns an ADR with ≥2 real options. Enforced by `decision-discipline.mdc` + the `feature-design` Phase 2.5 checkpoint.
-4. **Cold-start validation after meaningful `AGENTS.md`, `harnesses.mdc`, product/decision, or toolchain changes.** See `docs/research/cold-start-scenarios.md`. If a scenario fails, the docs failed.
-5. **Hook scripts stay short (< 40 lines each).** Hooks run on every tool use / edit / stop — PowerShell startup is non-zero. If a hook grows complex, rethink whether the guidance belongs as a rule instead.
-6. **Re-evaluate this research yearly** or when a triggering signal appears (see header).
+4. **`docs/features/<slug>.md` paper trail.** Every non-trivial feature gets one. Sections fill progressively across the lifecycle. Shelved features stay; their value is documented *why*. Enforced by the `feature-design` Phase 0 precondition check (no Brief / Feasibility = no design).
+5. **Lifecycle ↔ skill alignment.** `docs/dev-cycle.md`, the four workflow skills, and the feature template are paired surfaces. When the lifecycle changes (stage added, back-edge formalized), all four update in the same commit.
+6. **`discover` Step 6 promotion discipline.** Generally-reusable findings get promoted to `docs/learnings/` or `KNOWLEDGEBASE.md`; judgment calls get asked. The compounding model breaks if Step 6 is silently skipped.
+7. **Cold-start validation after meaningful `AGENTS.md`, `harnesses.mdc`, product/decision, lifecycle, or toolchain changes.** See `docs/research/cold-start-scenarios.md`. If a scenario fails, the docs failed.
+8. **Hook scripts stay short (< 40 lines each).** Hooks run on every tool use / edit / stop — PowerShell startup is non-zero. If a hook grows complex, rethink whether the guidance belongs as a rule instead.
+9. **Re-evaluate this research yearly** or when a triggering signal appears (see header).
 
 ## Sources cited
 
