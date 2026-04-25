@@ -90,6 +90,26 @@ function M.writeRoomLeave()
     end
 end
 
+-- Profile upsert (Lua -> sidecar -> relay's PUT /api/profiles/{pid}).
+--
+-- payload is a flat table; nil-valued fields are silently dropped by the
+-- json encoder (Lua's pairs() doesn't visit unset keys), which exactly
+-- matches the sidecar's `optStr` / `optInt` validators that treat absent
+-- and explicit-null the same. Required: prometheusId, displayName.
+-- Optional: steamId, currentPlatform, logoId, nameplateId, emoticonId,
+-- titleId, masteryLevel.
+function M.writeProfileUpsertToOutbox(payload)
+    if type(payload) ~= "table" then return end
+    payload.type = "profile_upsert"
+    payload.ts   = os.time()
+    local msg = json.encode(payload)
+    local f = io.open(cfg.OUTBOX_FILE, "a")
+    if f then
+        f:write(msg .. "\n")
+        f:close()
+    end
+end
+
 -- ---------------------------------------------------------------------------
 -- Inbox (sidecar -> Lua)
 -- ---------------------------------------------------------------------------

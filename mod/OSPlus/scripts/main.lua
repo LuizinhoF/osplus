@@ -17,11 +17,19 @@ local utils  = require("utils")
 -- local wheel  = require("wheel")
 local ipc    = require("ipc")
 local chat   = require("chat")
--- identity: required at module load so its PMIdentitySubsystem:GetIdentityState
--- RegisterHook installs during cold-start engine init (BEFORE login completes).
--- Per ADR 0001 R-B substrate + ue4ss-cold-start-hook-install-pattern learning,
--- a keypress-driven or lazy install would miss the identity-flow window.
-local identity = require("identity")
+-- identity: required at module load (statement form — no local binding
+-- needed since main.lua doesn't call into it directly anymore; profile.lua
+-- is the consumer). The require triggers identity.lua's load-time
+-- RegisterHook on PMIdentitySubsystem:GetIdentityState during cold-start
+-- engine init (BEFORE login completes). Per ADR 0001 R-B substrate +
+-- ue4ss-cold-start-hook-install-pattern learning, a keypress-driven or
+-- lazy install would miss the identity-flow window.
+require("identity")
+-- profile: subscribes to identity.onPrometheusIdResolved at init() time and
+-- emits a single profile_upsert IPC message once display name is also
+-- resolved. The sidecar then PUTs /api/profiles/{pid} on the relay. Per
+-- ADR 0002 + in-game-profile-mvp Slice 1-C.
+local profile = require("profile")
 
 -- Wire cross-module callbacks
 -- DISABLED: ping callbacks
@@ -33,13 +41,12 @@ chat.onRoomChange     = function(room, username) ipc.writeRoomChange(room, usern
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
 ipc.onPresenceReceived = function(members) chat.setPresence(members) end
 
--- Smoke-test subscriber for the R-B identity resolver. Until storage / IPC
--- integration lands (next feature increments), this is the only consumer —
--- presence of one [IDENTITY] resolution log line on cold start is the
--- end-to-end-validation gate for ADR 0001 R-B.
-identity.onPrometheusIdResolved(function(pid)
-    log.log("[IDENTITY] subscriber notified: prometheusId=" .. tostring(pid))
-end)
+-- profile.init() subscribes to identity.onPrometheusIdResolved so the
+-- profile module sees the PID the moment identity.lua resolves it (which
+-- happens during cold-start engine init, well before this module's init
+-- runs). The late-subscriber path in identity.onPrometheusIdResolved
+-- handles either ordering.
+profile.init()
 
 -- ============================================================================
 -- Input
@@ -187,6 +194,7 @@ LoopAsync(30, function()
 
     pcall(chat.tickMatchProbe)
     pcall(chat.pollPending)
+    pcall(profile.tick)
     ipc.poll()
     return false
 end)
