@@ -4,65 +4,75 @@
 |---|---|
 | Status | `proposed` \| `accepted` \| `superseded` \| `deprecated` |
 | Date | YYYY-MM-DD |
-| Forcing feature | <branch name or feature description that made this decision necessary — "none, background cleanup" is a valid answer but requires extra justification below> |
+| Forcing feature | <branch name or feature description that made this decision necessary — "none, background cleanup" requires extra justification below> |
 | Supersedes | <ADR number or `—`> |
 | Superseded by | <ADR number or `—`> |
 
-## Context
-
-What problem, constraint, or conflict forced this decision? Keep it to what is *actually* forcing a choice right now, not general background on the subsystem.
-
-- What couldn't we do before this?
-- What are we being asked to do that requires this?
-- What prior decision does this interact with? (If any, link the ADR or `docs/decisions/_archive/` entry.)
-
-## Options considered
-
-**At least two real options are required.** An ADR with only one option is not a decision — it's a note. If you genuinely see only one path, write that up as a short note instead of using this template.
-
-### Option A — <name>
-
-- **What it is** — 1–3 sentences of concrete description. Not "use a database"; "add SQLite table `X(col1, col2)` indexed on `col1`."
-- **Pros** — what this gets right.
-- **Cons** — what this gets wrong, including the honest ones (cost, complexity, migration debt, future lock-in).
-- **Cost to build** — how expensive is v1 of this?
-- **Cost to change later** — how expensive is it to migrate off if we outgrow it or it fails?
-
-### Option B — <name>
-
-(Same structure.)
-
-### Option C — <name>, if applicable
-
-(Same structure.)
-
 ## Decision
 
-The option we chose, stated as a single directive sentence. Then ≤5 sentences of rationale covering *why this option* and *why not the others*.
+What was picked, in 2–4 sentences. Then a tight bulleted list naming the option codes (e.g. **A-1**, **S-B**) and what each one concretely is in one line.
 
-If the decision carries any conditions (e.g. "chosen for v1, revisit at N users"), name them explicitly — they become revisit triggers.
+If the decision interacts with a prior ADR (extends, narrows, or amends), name that here in one sentence. Don't bury it.
 
-## Consequences
+## Why these picks
 
-Be honest about both sides.
+One paragraph per pick. Name the runner-up and why we didn't take it. **Do not** repeat full pros/cons of every rejected option here — those go under *Considered and rejected* as one-liners.
 
-**What this commits us to:**
-- Concrete behaviors, structures, or obligations this creates.
-- Anything that becomes harder or forbidden as a result.
+- **Pick X over Y.** One paragraph. The honest reason, not a marketing reason.
+- **Pick Z over W.** Same.
 
-**What this rules out — at least until a future ADR supersedes this:**
-- Features or capabilities we're foreclosing.
-- Architectural moves we're preventing.
+## What this commits us to
 
-**Revisit triggers:**
-- Specific conditions that should cause this ADR to be re-opened. Examples: "user count crosses 200," "Odyssey ships official API," "we add our second persistence-requiring feature."
+Concrete, scannable. Schema, routes, file paths, runtime obligations, code-comment commitments, deploy-script changes. Anything an implementer should be able to read this and execute without re-reading the rest of the doc.
+
+- Schema: `table_name(col1 PK, col2, ...)` — one line per table.
+- Routes: `METHOD /path` + auth posture + one-line behavior.
+- File paths the user-facing client touches.
+- Code-comment guarantees at specific call sites.
+- Deploy-script or operational changes.
+
+## What this rules out (until superseded)
+
+What features, architectural moves, or future ADRs this forecloses. Tight bullets.
+
+## Revisit when
+
+Specific triggers that should reopen this ADR. Not vague ("when it gets bad") — concrete ("user count > 150 sustained", "second schema-changing feature lands", "first incident of X in production").
+
+## Considered and rejected
+
+One line per option that didn't make it. Format: `**Option-code** — name. One-clause reason.`
+
+The "real options" requirement (≥ 2 honestly considered) is satisfied by this section, not by writing an essay on each. If you don't have at least one entry here, you don't have a decision — you have a note.
+
+- **X-1** — Option name. Reason rejected in ≤15 words.
+- **X-2** — Option name. Reason rejected in ≤15 words.
 
 ## Related
 
-- Relevant `docs/learnings/` entries.
-- Code locations that implement this.
-- Prior ADRs in the same area.
+- **Forced by:** link to feature doc.
+- **Relies on:** ADRs this ADR depends on.
+- **Supersedes:** ADRs (or archive entries) this replaces.
+- **Code locations** (post-acceptance):
+  - `path/to/module` — what gets built/changed.
 
 ## Notes
 
-Free-form. Anything that would help a future agent (or future you) understand why this document exists in this shape. Delete if empty.
+Optional. Short. For lessons captured during this ADR's drafting that should outlive the doc — what almost tripped us up, what a future agent should know that isn't in the Decision/Why sections. Delete if empty.
+
+---
+
+## Length guidance
+
+A typical ADR following this template lands around **80–120 lines**. If it's pushing 200+, you're probably re-litigating the options inside the body — move to the *Considered and rejected* one-liners and trust the reader.
+
+Sections that **should be tight**:
+- *Decision* — picks visible at a glance.
+- *Why these picks* — one paragraph per pick, no quad-bulleted Pros/Cons/Cost-build/Cost-change.
+- *Considered and rejected* — one line each.
+
+Sections that **may grow** when the decision genuinely warrants it:
+- *What this commits us to* — schemas, routes, and file paths take space; that's fine.
+- *Notes* — only if there's a real lesson; don't pad.
+
+If the decision has multiple sub-decisions (e.g. ADR 0002 has S/T/M/R/A), keep the same shape — bullets within sections, one paragraph per pick under *Why these picks*. Resist the urge to write a dedicated subsection per sub-decision.

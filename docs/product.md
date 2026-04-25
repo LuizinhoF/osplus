@@ -104,12 +104,12 @@ OSPlus explicitly does NOT:
 
 ## Current architectural choices under re-examination
 
-The prior `docs/vision.md` encoded four "v1 locks" without deliberation. That approach has been superseded. Three of the four are flagged as **first-priority ADR work** — they carry architectural consequences that compound if deferred:
+The prior `docs/vision.md` encoded four "v1 locks" without deliberation. That approach has been superseded. Three of the four were flagged as **first-priority ADR work** — they carry architectural consequences that compound if deferred:
 
 | Current choice | Status | Forcing consideration |
 |---|---|---|
-| Identity = trust-on-claim SteamID | **Needs ADR.** | Community events with earned credit make spoofing a real problem. |
-| Profile storage = in-process SQLite + single OCI VM | **Needs ADR.** | Fine at ~25; escape-hatch "extract later" is the kind of work that never happens if not deliberated. |
+| Identity = Prometheus ID PK, SteamID secondary, trust-on-claim | **Closed** by [ADR 0001](./decisions/0001-identity-model.md) (accepted 2026-04-25). | Community events with earned credit make spoofing a real problem. Resolved with platform-agnostic identity + trust-on-claim posture; cryptographic verification deferred to a future ADR if/when Stage-5+ features force it. |
+| Profile + capture storage = server-side SQLite (two files) on the OCI VM, in the relay process, with HTTP REST + per-install bearer-token auth | **Closed** by [ADR 0002](./decisions/0002-profile-storage.md) (accepted 2026-04-25). | Fine at ~25; "extract later" is the kind of work that never happens unless deliberated. Resolved with module-boundary commitment so S-A → S-B extraction stays mechanical when scale forces it. |
 | Ephemeral state = in-memory on relay | **Needs ADR.** | Same scaling shape as above. |
 | Schema grows on demand | **Kept as policy.** | Not an architectural lock, just how we work. No ADR needed. |
 

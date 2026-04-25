@@ -34,12 +34,35 @@ A one-option ADR is not an ADR. If you can't name two real alternatives with hon
 ## What to do
 
 1. Copy `docs/decisions/_TEMPLATE.md` → `docs/decisions/NNNN-<kebab-slug>.md` (next 4-digit number, newest first). The slug is what someone will grep for in six months.
-2. Fill in every section. **Minimum two real options** with honest pros/cons/cost-to-change.
+2. Fill in every section. **Minimum two real options** — captured as one-line entries under *Considered and rejected*, not as quad-bulleted essays.
 3. Mark `Status: proposed` while open for discussion. Move to `accepted` only after sign-off.
 4. Add an index row in `docs/decisions/README.md` (newest first).
 5. If the ADR supersedes a prior one: mark the prior ADR `Status: superseded` and fill its `Superseded by` field.
 6. If the ADR invalidates claims in `AGENTS.md`, `docs/product.md`, `KNOWLEDGEBASE.md`, or any other doc, **update those docs in the same branch.** The ADR is additive; fixing the stale source is separate and required.
 7. If the ADR points to specific code sites, add a code comment: `-- See docs/decisions/NNNN-slug.md` (Lua) / `// See docs/decisions/NNNN-slug.md` (JS/PS1).
+
+## Be terse. ADRs are decision records, not white papers.
+
+A maintainer who has to skim three ADRs to make a decision today does not benefit from each one being 250 lines. Tightness is a feature.
+
+**Target: ~80–120 lines per ADR.** The template is shaped to make this the natural outcome:
+
+- *Decision* and *Why these picks* are paragraph-form, not quad-bulleted-per-option.
+- *Considered and rejected* satisfies the "≥ 2 real options" requirement with one-line entries — not full pros/cons/cost-build/cost-change for each rejected option.
+- *Notes* is optional. Only write it if there's a lesson that should outlive the doc.
+
+**Anti-patterns** that have shown up and should not recur:
+
+- Writing every option (chosen and rejected) with the same depth. The chosen ones get a paragraph; the rejected ones get a line. The asymmetry is the point.
+- Restating the option's full description inside the *Decision* section. The Decision names what was picked; the description belongs at the option's first appearance.
+- Essay-length *Notes* sections that re-litigate the body. If a thought matters enough to be in the doc, it belongs in *Why these picks* or *What this commits us to*. If it's a lesson, keep it to ≤3 lines.
+- Sub-decision-per-section subdivisions when an ADR bundles multiple sub-decisions. Use bullets within the existing sections instead — see ADR 0002 for the shape.
+
+**When verbosity is acceptable:**
+
+- *What this commits us to* may grow when schemas, route tables, or operational specifics genuinely require it. That's the section the implementer reads to do work; padding here is justified by use.
+
+If a draft is pushing 200 lines, the honest fix is usually to move repeated reasoning into *Considered and rejected* one-liners and trust the reader. The maintainer reading sign-off needs to be able to decide in 5 minutes, not 30.
 
 ## What "done" means
 
@@ -62,7 +85,7 @@ If you start feature-design and realize mid-way that the work hits this rule's t
 
 ## First-priority queue (context, not enforcement)
 
-Three areas from the archived `vision.md` are already flagged as ADR-needed: **identity model**, **profile storage architecture**, **ephemeral state ownership**. See `docs/decisions/README.md` → "First-priority deliberation queue" for the rationale. Any feature work touching these areas **must** force the ADR; don't build on top of the archived "locks" without going through deliberation first.
+Three areas from the archived `vision.md` were flagged as ADR-needed: **identity model** (closed by ADR 0001), **profile + capture storage architecture** (closed by ADR 0002), **ephemeral state ownership** (still open). See `docs/decisions/README.md` → "First-priority deliberation queue" for current status. Any feature work touching the open area **must** force the ADR; don't build on top of the archived "locks" without going through deliberation first.
 
 ## What this rule does NOT do
 
