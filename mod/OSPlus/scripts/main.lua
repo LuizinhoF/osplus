@@ -17,6 +17,11 @@ local utils  = require("utils")
 -- local wheel  = require("wheel")
 local ipc    = require("ipc")
 local chat   = require("chat")
+-- identity: required at module load so its PMIdentitySubsystem:GetIdentityState
+-- RegisterHook installs during cold-start engine init (BEFORE login completes).
+-- Per ADR 0001 R-B substrate + ue4ss-cold-start-hook-install-pattern learning,
+-- a keypress-driven or lazy install would miss the identity-flow window.
+local identity = require("identity")
 
 -- Wire cross-module callbacks
 -- DISABLED: ping callbacks
@@ -27,6 +32,14 @@ ipc.onChatReceived    = function(sender, text) chat.addMessage(sender, text) end
 chat.onRoomChange     = function(room, username) ipc.writeRoomChange(room, username) end
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
 ipc.onPresenceReceived = function(members) chat.setPresence(members) end
+
+-- Smoke-test subscriber for the R-B identity resolver. Until storage / IPC
+-- integration lands (next feature increments), this is the only consumer —
+-- presence of one [IDENTITY] resolution log line on cold start is the
+-- end-to-end-validation gate for ADR 0001 R-B.
+identity.onPrometheusIdResolved(function(pid)
+    log.log("[IDENTITY] subscriber notified: prometheusId=" .. tostring(pid))
+end)
 
 -- ============================================================================
 -- Input

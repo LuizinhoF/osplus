@@ -8,6 +8,43 @@ globs:
 
 For the Lua/BP boundary contract, see `mod-architecture.mdc`. For cross-cutting logging format, wire naming, and error shape, see `code-conventions.mdc`.
 
+## UE4SS build
+
+**OSPlus targets UE4SS 3.0.1.** Anchor every UE4SS docs / GitHub-issue lookup to this version. The Lua marshaling layer (UFunction call shapes, out-param conventions, delegate binding) changes between releases — quoting newer-version threads as if their fixes apply to us is the single highest-cost mistake in this codebase's history (see the v33→v34→v35 chain in `mod/OSPlus/scripts/identity.lua`'s `readAuthenticatedPlayerId` — three rounds of failed calls because the upstream issue threads I was reading didn't gate on version). Authoritative version pin: `AGENTS.md` "Engine constraints" → `KNOWLEDGEBASE.md` "UE4SS Lua API" → both updated on upgrade.
+
+When in doubt about a UE4SS API shape, in priority order:
+1. Find a working call in `mod/OSPlus/scripts/` and copy its shape.
+2. Check `KNOWLEDGEBASE.md` "UE4SS Lua API — Key Functions" + `.cursor/skills/ue4ss-modding/references/lua-api.md` + `docs/learnings/ue4ss-*.md` (each carries its own version pin).
+3. Search UE4SS GitHub issues, filtering for "repros on 3.0.1" or no-fix-newer-than-3.0.1. A fix that landed in 3.1+ does **not** help us.
+4. Probe in-game. Don't ship a guess to the user as if it were verified.
+
+## Lua-not-C++ reflex
+
+UE4SS exposes UE C++ functions to Lua *through a Lua-flavored binding layer* — the calling convention is **Lua's**, not C++'s. The two are not interchangeable, and the differences silently look like "the API is broken" when they're really "you're using C++ semantics on a Lua surface."
+
+Concrete differences that have bitten OSPlus and will bite again:
+
+| C++ semantic | UE4SS Lua reality |
+|---|---|
+| `void Fn(bool& OutValid, FString& OutId)` — caller passes references; reads back from those locals after the call | Pass an empty Lua table `{}` per out-param; UE4SS uses tables as by-reference containers (the only by-ref type in Lua) and writes results into `bucket.<ParamName>` for base types, or *into the bucket itself* for struct/TArray out-params. Per [UE4SS Issue #920](https://github.com/UE4SS-RE/RE-UE4SS/issues/920), [#368](https://github.com/UE4SS-RE/RE-UE4SS/issues/368). |
+| `Fn(x, y = default)` — unspecified args take their default value | UE4SS does **not** support default parameter values. Every declared param must be passed at the call site (KNOWLEDGEBASE.md note 12 calls this out for `PlaySound2D`; it generalizes). Trailing `nil`s are dropped by Lua before reaching the marshaler — `Fn(x, nil)` reaches UE4SS as `Fn(x)` and gets "expected 2 received 1." |
+| Reference parameters are transparent | UE4SS distinguishes between in-params (pass the value) and out-params (pass a table bucket). Passing the *value* into an out-param slot errors with "Tried storing reference to a Lua table for an 'Out' parameter but no table was on the stack." |
+| `FText`, `FName`, `FString` are conversion-compatible | They are **not** in UE4SS Lua. `SetText` on a TextBlock crashes natively if you pass a Lua string instead of an `FText` userdata; `FName` reads return `FNameUserdata` that you must `:ToString()`; `FString` similarly. Wrap text-setting in a BP function that converts. |
+| `pcall` / `try/catch` catches everything | `pcall` catches Lua errors only. Native C++ access violations (freed UObject, GC-collected widget, map-transition stale ref) crash the game — `pcall` is silent on them. See "pcall + ref-drop discipline" below. |
+
+**Reflex when calling a UFunction whose shape you're not 100% sure of:**
+
+1. Stop. Don't guess from the C++ signature.
+2. Look for an existing call in OSPlus or `mod/OmegaStrikersExplorer/`. Match its shape.
+3. If none exists, consult upstream issues filtered to UE4SS 3.1.0 *before* writing the call. Three fast guesses cost more than one correct lookup.
+4. Wrap the call in `pcall` and log the actual error verbatim — UE4SS error messages are diagnostic ("expected N received M", "no table was on the stack") and tell you what the next call shape should be.
+
+**Out-param status on UE4SS 3.0.1 specifically — RESOLVED.** The canonical multi-out-param call shape is `inst:Fn({}, {})` — pass one empty Lua table per declared out-param. UE4SS writes results into `bucket.<ParamName>` for base-type out-params; on 3.0.1 specifically, multiple base-type out-params collapse into the **first** bucket (per [Issue #971](https://github.com/UE4SS-RE/RE-UE4SS/issues/971)) but you still must pass a bucket per declared param to satisfy the marshaler's argument count. End-to-end-validated against `PMIdentitySubsystem:GetAuthenticatedPlayerId` in `mod/OSPlus/scripts/identity.lua` → `readAuthenticatedPlayerId` (v36, production-shipping). **Worked reference + canonical convention + the v33→v35 failure-ladder evolution: `docs/learnings/ue4ss-ufunction-out-param-marshaling-3-0-1.md`.** Read it first when calling any UFunction with `(Out X, Out Y)` shape.
+
+- **Default to the Lua call shape with `({}, {})`** — that's the validated path. Copy `readAuthenticatedPlayerId`'s structure (especially the `pluckOutParam` helper that defensively iterates buckets so a future UE4SS that splits params correctly across buckets keeps working).
+- The BP-wrapper escape hatch in `mod-actor-pattern.md` workaround #2 remains valid as a fallback if the `({}, {})` shape fails on a specific UFunction for an orthogonal reason (e.g., `PMPlayerModel`-specific lifecycle quirks — those `GetCached*V1` UFunctions were *not* re-tested with the new shape; probe before assuming).
+- The older `docs/learnings/ue4ss-outparam-marshaling-failure.md` is partially superseded — its call-shape conclusion is wrong, but its per-shape-error catalog and the wording-as-diagnostic discipline it exemplifies are still load-bearing. Read both learnings together for complete coverage.
+
 ## Module shape
 
 Every module under `mod/OSPlus/scripts/`:

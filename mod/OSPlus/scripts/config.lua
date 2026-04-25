@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "v23-defer-room-join-on-name"
+M.VERSION = "v36-identity-stable"
 M.DEBUG = false
 
 M.LOG_DIR  = os.getenv("LOCALAPPDATA") .. "\\OSPlus"

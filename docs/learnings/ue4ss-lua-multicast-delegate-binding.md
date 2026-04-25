@@ -5,7 +5,20 @@
 | Date | 2026-04-25 |
 | Area | re |
 | Tags | ue4ss, lua, delegates, multicast-delegate, modactor, native-crash, introspection |
-| Status | confirmed |
+| Status | confirmed (API surface) — see *2026-04-25 update* below: the documented `Add(uobject, fname)` API is non-functional on this UE4SS build for `MulticastInlineDelegateProperty`. For active delegate work, see `ue4ss-multicast-delegate-add-silent-noop.md` instead. |
+
+## 2026-04-25 update — API surface is correct but non-functional on this build
+
+The Pass-5 spike (F1/E8 v2 + F10/E8.D triangulation) found that on this UE4SS build, the documented `prop:Add(uobject, fname)` API silently no-ops for `MulticastInlineDelegateProperty` — `Add` returns ok, `GetBindings()` reports 0 across all bind shapes (cross-actor, same-actor, FName variant, all 6 callable methods exhausted), and `Broadcast()` succeeds at marshaling but invokes nothing because the `InvocationList` is empty. Likely root cause is a vtable-offset mismatch in UE4SS's parser for Omega Strikers' shipped `FMulticastInlineDelegateProperty` binary layout.
+
+**Practical impact:** the *Fix* section below documents the *correct API per UE4SS docs*. That API exists and is callable on this build, but the resulting binding is never registered. For OSPlus's identity path (and anything else needing cross-actor BP↔Lua delegate signaling), use **`RegisterHook` on the originating engine UFunction** instead — the maintainer-recommended workaround per [UE4SS Issue #455](https://github.com/UE4SS-RE/RE-UE4SS/issues/455).
+
+This learning remains valid for:
+- The *false-friend `__index` trap* (still applies to all UE4SS userdata, not just delegates).
+- The *crash-survivable `flog()` logging pattern* (still mandatory for any unfamiliar-native-API spike).
+- The *Lua-function-as-target native crash* (still true — passing a Lua function as the target is still a crash, even though the correct UObject-target form is itself non-functional).
+
+This learning is **no longer load-bearing for ADR 0001**. The new sibling `ue4ss-multicast-delegate-add-silent-noop.md` documents the silent-no-op finding and the pivot.
 
 ## Symptom
 
