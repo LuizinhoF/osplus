@@ -1,33 +1,84 @@
-local cfg   = require("config")
-local log   = require("log")
-local utils = require("utils")
+local cfg = require("config")
+local log = require("log")
 
 local M = {}
 
+-- ---------------------------------------------------------------------------
+-- Local-player display-name resolution (v42 — three-path UPMPlayerUIData read)
+-- ---------------------------------------------------------------------------
+-- The local player's friendly display name lives on UPMPlayerUIData, the
+-- UI data model the in-game widget binds to. Every player visible in any
+-- Prometheus UI surface (friends list, leaderboard, lobby, the local
+-- player's own profile header) gets a UPMPlayerUIData instance. Discovered
+-- by grepping the UE4SS type-stub dump at:
+--
+--     <game>/Binaries/Win64/Mods/shared/types/Prometheus.lua
+--
+-- (UE4SS's UHT-Compatible-Header-Generator dumps every UClass it loads.
+-- Always check those stubs FIRST before crashing the game with reflection
+-- — see docs/learnings/ue4ss-type-stubs-as-canonical-source.md.)
+--
+-- The relevant fields on UPMPlayerUIData (Prometheus.lua line ~13679):
+--   PlayerId      : FString             -- the Prometheus ID (disambiguator)
+--   Username      : FOdyUITextBinding   -- friendly display name (binding wrapper)
+--   Profile       : FPlayerPublicProfile -- embedded struct (has direct Username FString)
+--   IsLocalPlayer : FOdyUIBoolBinding   -- true on the local player's row
+--
+-- FPlayerPublicProfile (Prometheus.lua line ~6747) has a direct
+-- `Username : FString` field — no binding indirection. This is the cheapest
+-- read and the v42 primary path.
+--
+-- FOdyUITextBinding (OdyUI.lua line 121-123) is a struct with one reflected
+-- field `InitialValue : FText`. The struct's *live* current value is held
+-- in non-reflected C++ members, reachable only via the BlueprintFunctionLibrary
+-- accessor `UOdyUITextBindingFunctionLibrary:TextBinding_GetValue(binding)`
+-- (OdyUI.lua line 633). v41 assumed `InitialValue` would carry the live
+-- value; v41 telemetry showed `username-binding-InitialValue-empty` because
+-- the BP sets the binding via `TextBinding_SetValue(...)` post-construction
+-- rather than as a struct constructor default — `InitialValue` literally
+-- means "the value the binding was constructed with."
+--
+-- Resolver flow (three paths, cheapest first):
+--   1. ui.Profile.Username                       — direct FString. v42 primary.
+--   2. ui.Username.InitialValue                  — binding compile-time default.
+--   3. TextBinding_GetValue(ui.Username)         — canonical live accessor.
+--
+-- Path 1 should succeed in nearly all cases since the embedded struct is
+-- populated when the UPMPlayerUIData instance is constructed. Paths 2-3 are
+-- belt-and-suspenders for the case where Profile.Username is somehow empty
+-- but the binding-driven UI text is populated.
+--
+-- Why NOT walk by IsLocalPlayer instead of PlayerId:
+--   IsLocalPlayer is a binding too — same indirection risk. PlayerId is a
+--   plain FString set before any UI is shown.
+--
+-- Previously-tried paths and why they failed:
+--   v25-v34: PlayerState.PlayerNamePrivate → Windows hostname during cold
+--            start; falsified.
+--   v35-v36: Walk PMPlayerPublicProfile cache → cache stayed empty for
+--            2+ minutes at main menu in v37 session.
+--   v37: PMPlayerModel:GetCachedMeResponseV1 / GetCachedPlayerPublicProfile
+--            → WasCached=false for 2+ minutes; the menu never warms those
+--            caches at all.
+--   v38: NotifyOnNewObject "first PMPlayerPublicProfile constructed = local
+--            player" → captured "Greedom" (a friend in the cache).
+--   v41: ui.Username.InitialValue alone → InitialValue empty (the BP uses
+--            SetValue, not a struct constructor default). Falsified by
+--            user-machine telemetry: `username-binding-InitialValue-empty`.
+--
+-- See: docs/learnings/identity-display-name-substrate-replaces-heuristics.md
+-- See: docs/learnings/ue4ss-type-stubs-as-canonical-source.md
+-- See: docs/learnings/ody-ui-binding-initialvalue-vs-live.md (v42 — to write
+--      after the path-1 read confirms successful resolution; the InitialValue-
+--      vs-live distinction is a transferable Prometheus-UI fact)
+
 local cachedPlayerName = nil
-local didProfileDiagnosticDump = false
-local didRejectMachineName = false
-local localMachineName = (os.getenv("COMPUTERNAME") or os.getenv("HOSTNAME") or ""):upper()
 
-local function looksLikeAccountId(s)
-    -- Pure lowercase hex, 20+ chars. Real friendly names contain non-hex
-    -- characters (most usernames have at least one letter outside [a-f] or
-    -- a digit / symbol) or are shorter than 20 chars.
-    return type(s) == "string" and #s >= 20 and s:match("^[0-9a-f]+$") ~= nil
-end
-
-local function looksLikeMachineName(s)
-    if type(s) ~= "string" or localMachineName == "" then return false end
-    return s:upper() == localMachineName
-end
-
-local function isUsableDisplayName(s)
-    return type(s) == "string"
-        and s ~= ""
-        and s ~= "None"
-        and not looksLikeAccountId(s)
-        and not looksLikeMachineName(s)
-end
+-- Forward declarations for helpers defined further down (next to the
+-- Prometheus-ID resolver that originally introduced them). The display-name
+-- resolver above needs to call them through these upvalue slots.
+local pluckOutParam
+local toLuaString
 
 local function makeFallbackName()
     local steamId = M.resolveSteamId()
@@ -35,21 +86,6 @@ local function makeFallbackName()
         return "Player-" .. steamId:sub(-4)
     end
     return cfg.CHAT_PLAYER_NAME
-end
-
-function M.getLocalAccountId()
-    local id = nil
-    pcall(function()
-        local pc = utils.getPlayerController()
-        if pc and pc:IsValid() then
-            local ps = pc.PlayerState
-            if ps and ps:IsValid() then
-                id = ps.PlayerNamePrivate:ToString()
-            end
-        end
-    end)
-    if id == "" then return nil end
-    return id
 end
 
 function M.resolveSteamId()
@@ -92,25 +128,121 @@ local function readProfileField(struct, fieldName)
     return nil
 end
 
-local function findFriendlyNameByAccountId(localId)
-    if not localId then return nil end
-    local ok, profiles = pcall(FindAllOf, "PMPlayerPublicProfile")
-    if not ok or not profiles then return nil end
-    for _, prof in ipairs(profiles) do
-        if prof:IsValid() then
-            local sok, struct = pcall(function() return prof.PlayerPublicProfile end)
-            if sok and struct then
-                local pid = readProfileField(struct, "PlayerId")
-                if pid == localId then
-                    for _, field in ipairs({ "Username", "DisplayName", "PlayerName" }) do
-                        local v = readProfileField(struct, field)
-                        if v then return v, field end
-                    end
+-- Read an FString or FText userdata into a plain Lua string.
+-- Returns nil for empty / "None" / unreadable values.
+local function userdataToString(v)
+    if v == nil then return nil end
+    if type(v) == "string" then
+        if v == "" or v == "None" then return nil end
+        return v
+    end
+    if type(v) == "userdata" then
+        local ok, s = pcall(function() return v:ToString() end)
+        if ok and type(s) == "string" and s ~= "" and s ~= "None" then return s end
+    end
+    return nil
+end
+
+-- Cached BlueprintFunctionLibrary CDO for the live-binding fallback path.
+-- Resolved lazily on first use, then reused. Reading the CDO via
+-- StaticFindObject (preferred — exact path) or FindFirstOf (fallback) is
+-- cheap, but we still cache because the resolver runs on every tick.
+local cachedTextBindingLib = nil
+
+local function getTextBindingFunctionLibrary()
+    if cachedTextBindingLib and cachedTextBindingLib:IsValid() then
+        return cachedTextBindingLib
+    end
+    local lib
+    pcall(function()
+        lib = StaticFindObject("/Script/OdyUI.Default__OdyUITextBindingFunctionLibrary")
+    end)
+    if not lib or not lib:IsValid() then
+        pcall(function() lib = FindFirstOf("OdyUITextBindingFunctionLibrary") end)
+    end
+    if lib and lib:IsValid() then
+        cachedTextBindingLib = lib
+        return lib
+    end
+    return nil
+end
+
+-- Read the LIVE FText value from an FOdyUITextBinding struct via the
+-- canonical BP accessor `UOdyUITextBindingFunctionLibrary:TextBinding_GetValue`.
+-- Used when the binding's `InitialValue` field is empty — which happens when
+-- the BP set the value via `TextBinding_SetValue(binding, NewText)` post-
+-- construction rather than as the struct's compile-time default.
+local function readTextBindingViaAccessor(binding)
+    local lib = getTextBindingFunctionLibrary()
+    if not lib then return nil, "no-OdyUITextBindingFunctionLibrary-CDO" end
+
+    local result
+    local ok, err = pcall(function() result = lib:TextBinding_GetValue(binding) end)
+    if not ok then return nil, "TextBinding_GetValue-call-failed:" .. tostring(err) end
+    return userdataToString(result)
+end
+
+-- Walk UPMPlayerUIData instances and find the one whose PlayerId matches
+-- the supplied Prometheus ID — that's the local player's UI data row.
+-- Returns (nameStr, sourceLabel) on success or (nil, reason) on failure.
+--
+-- Three read paths in order of cost (cheapest first):
+--   1. ui.Profile.Username          — embedded FPlayerPublicProfile struct,
+--                                     plain FString, no indirection.
+--   2. ui.Username.InitialValue     — binding's compile-time default; only
+--                                     populated for bindings whose value was
+--                                     set as a constructor argument.
+--   3. TextBinding_GetValue(ui.Username) — canonical live accessor via the
+--                                     BlueprintFunctionLibrary CDO; works
+--                                     even when the binding was updated via
+--                                     SetValue after construction.
+--
+-- See header docstring for the full discovery story (v41/v42).
+local function readLocalPlayerUIData(prometheusId)
+    if not prometheusId then return nil, "no-prometheusId" end
+
+    local instances
+    pcall(function() instances = FindAllOf("PMPlayerUIData") end)
+    if not instances or #instances == 0 then
+        return nil, "no-PMPlayerUIData-instances"
+    end
+
+    for _, ui in ipairs(instances) do
+        if ui and ui:IsValid() then
+            local pidVal
+            pcall(function() pidVal = ui.PlayerId end)
+            local pidStr = userdataToString(pidVal)
+            if pidStr == prometheusId then
+                -- Path 1: embedded Profile struct's Username field (FString).
+                local profile
+                pcall(function() profile = ui.Profile end)
+                if profile then
+                    local uname
+                    pcall(function() uname = profile.Username end)
+                    local s = userdataToString(uname)
+                    if s then return s, "PMPlayerUIData.Profile.Username" end
                 end
+
+                -- Path 2 & 3: the Username binding (FOdyUITextBinding struct).
+                local binding
+                pcall(function() binding = ui.Username end)
+                if not binding then
+                    return nil, "no-Profile.Username-and-no-Username-binding"
+                end
+
+                local initVal
+                pcall(function() initVal = binding.InitialValue end)
+                local sInit = userdataToString(initVal)
+                if sInit then return sInit, "PMPlayerUIData.Username.InitialValue" end
+
+                local sLive, liveErr = readTextBindingViaAccessor(binding)
+                if sLive then return sLive, "PMPlayerUIData.Username.TextBinding_GetValue" end
+
+                return nil, "username-binding-empty-on-all-paths(GetValue=" .. tostring(liveErr) .. ")"
             end
         end
     end
-    return nil
+    return nil, "no-PMPlayerUIData-instance-matched-our-pid"
 end
 
 function M.findPlayerIdByDisplayName(displayName)
@@ -137,68 +269,35 @@ function M.findPlayerIdByDisplayName(displayName)
     return nil, nil
 end
 
-local function dumpProfileDiagnostics(localId)
-    if didProfileDiagnosticDump then return end
-    didProfileDiagnosticDump = true
-    log.log("[IDENTITY] === Player profile diagnostic (one-shot) ===")
-    log.log("[IDENTITY] localId (PlayerState.PlayerNamePrivate): " .. tostring(localId))
-    local ok, profiles = pcall(FindAllOf, "PMPlayerPublicProfile")
-    if not ok or not profiles then
-        log.log("[IDENTITY] PMPlayerPublicProfile: FindAllOf returned nothing")
-        return
-    end
-    log.log("[IDENTITY] PMPlayerPublicProfile instance count: " .. #profiles)
-    local probeFields = { "PlayerId", "Username", "DisplayName", "PlayerName", "Name", "AccountId" }
-    for i, prof in ipairs(profiles) do
-        if prof:IsValid() then
-            local sok, struct = pcall(function() return prof.PlayerPublicProfile end)
-            if sok and struct then
-                local parts = {}
-                for _, f in ipairs(probeFields) do
-                    local v = readProfileField(struct, f)
-                    if v then parts[#parts + 1] = f .. "=" .. v end
-                end
-                log.log("[IDENTITY]   [" .. i .. "] " .. (parts[1] and table.concat(parts, ", ") or "(no probe fields populated)"))
-            else
-                log.log("[IDENTITY]   [" .. i .. "] PlayerPublicProfile struct unreadable")
-            end
-        end
-    end
-end
+-- Track whether we've already logged the "looking for PID, no UI data yet"
+-- breadcrumb. Without this, profile.tick at 30 Hz would spam the log with
+-- the same waiting message every frame while the UPMPlayerUIData instance
+-- is still being constructed by the post-login UI bootstrap.
+local loggedWaitingReason = nil
 
 function M.resolveDisplayName()
     if cachedPlayerName then return cachedPlayerName end
-    local localId = M.getLocalAccountId()
-    if not localId then return nil end
 
-    -- Fast path: PlayerNamePrivate already holds the friendly name.
-    if isUsableDisplayName(localId) then
-        cachedPlayerName = localId
-        log.log("[IDENTITY] Resolved display name: " .. localId)
-        return localId
-    end
+    local pid = M.getLocalPrometheusId()
+    if not pid then return nil end
 
-    if looksLikeMachineName(localId) and not didRejectMachineName then
-        didRejectMachineName = true
-        log.log("[IDENTITY] Ignoring local machine name from PlayerNamePrivate: " .. localId)
-    end
-
-    -- Slow path: PlayerNamePrivate is currently the account ID. Try the
-    -- profile cache (usually a miss for the local player but cheap to check).
-    local friendly, sourceField = findFriendlyNameByAccountId(localId)
-    if isUsableDisplayName(friendly) then
+    local friendly, source = readLocalPlayerUIData(pid)
+    if friendly then
         cachedPlayerName = friendly
-        log.log("[IDENTITY] Resolved display name: " .. friendly
-            .. " (PMPlayerPublicProfile." .. sourceField .. ", accountId=" .. localId .. ")")
+        log.log("[IDENTITY] Resolved display name: " .. friendly .. " (" .. source .. ")")
         return friendly
     end
 
-    -- Profile not loaded yet, or the field currently holds a non-game value
-    -- (account ID or local machine name). Return nil so callers can fall back
-    -- to a synthetic runtime label without ever persisting/broadcasting the
-    -- bad value. See docs/learnings/playernameprivate-transient-account-id.md
-    -- and docs/learnings/playernameprivate-machine-name-out-of-match.md.
-    if cfg.DEBUG then dumpProfileDiagnostics(localId) end
+    -- Log the failure reason once per distinct reason — gives visibility
+    -- into the "still waiting" state without per-frame spam. The reason
+    -- transitions naturally as bootstrap progresses: typically
+    -- no-PMPlayerUIData-instances → no-PMPlayerUIData-instance-matched-our-pid
+    -- (UI data exists but local player's row hasn't been added yet) →
+    -- resolved.
+    if source ~= loggedWaitingReason then
+        loggedWaitingReason = source
+        log.log("[IDENTITY] [waiting] resolveDisplayName: " .. tostring(source))
+    end
     return nil
 end
 
@@ -212,12 +311,11 @@ end
 
 function M.reset()
     cachedPlayerName = nil
-    didProfileDiagnosticDump = false
-    didRejectMachineName = false
+    loggedWaitingReason = nil
     -- NOTE: cachedPrometheusId is intentionally NOT reset on map transitions.
-    -- The local player's Prometheus ID is session-stable and the hook that
-    -- resolves it self-unregisters on first success — re-resetting would
-    -- leave the value permanently nil for the rest of the session.
+    -- It's session-stable and the RegisterHook producer self-unregisters on
+    -- first PID resolve, so a wipe here would leave it permanently nil for
+    -- the rest of the session.
 end
 
 -- ---------------------------------------------------------------------------
@@ -280,7 +378,7 @@ local hookPostId = nil
 -- Normalize a UFunction return value into a Lua string. Handles both shapes
 -- UE4SS produces: a Lua string (already unwrapped) or an FString userdata
 -- (must call :ToString()). Returns nil for empty / "None" / anything else.
-local function toLuaString(val)
+function toLuaString(val)  -- assigns to the forward-declared upvalue at the top of the file
     if val == nil then return nil end
     if type(val) == "string" then
         if val == "" or val == "None" then return nil end
@@ -300,7 +398,7 @@ end
 -- ParamName; the second bucket stays empty. Issue #971 documents the
 -- collapse. We iterate both buckets so the code stays correct if a future
 -- UE4SS build splits them across buckets as the docs imply.
-local function pluckOutParam(buckets, paramName, expectedType)
+function pluckOutParam(buckets, paramName, expectedType)  -- forward-declared upvalue
     for _, bucket in ipairs(buckets) do
         if type(bucket) == "table" then
             local v = bucket[paramName]
@@ -404,17 +502,28 @@ function M.onPrometheusIdResolved(cb)
     resolveListeners[#resolveListeners + 1] = cb
 end
 
--- ---- Module-load hook install ----
--- Direct RegisterHook on the known UFunction path. UFunctions exist in the
--- class table from /Script/Prometheus package load (engine startup) — no
--- instance required, no defer required. Mirrors the existing
--- /Script/Engine.GameState:OnRep_MatchState hook pattern in main.lua.
+-- ---- Module-load installs ----
+-- One install: RegisterHook on PMIdentitySubsystem:GetIdentityState as the
+-- read trigger for the Prometheus ID via GetAuthenticatedPlayerId.
+--
+-- Must install at module load (NOT on a user keypress) — the cold-start
+-- identity flow fires before any user interaction is possible. See
+-- docs/learnings/ue4ss-cold-start-hook-install-pattern.md.
+--
+-- The previous revision also installed NotifyOnNewObject on
+-- PMPlayerPublicProfile to "capture the first instance constructed = local
+-- player" per os-runtime-data-model.md's R-B v27 documented pattern. That
+-- pattern was empirically falsified — for accounts with non-empty friend
+-- lists, the first PMPlayerPublicProfile constructed is a friend, not the
+-- local player. The display-name resolver now goes through PMPlayerModel
+-- (path 1) and a PID-matched cache walk (path 2) instead. See
+-- docs/learnings/identity-display-name-substrate-replaces-heuristics.md.
 
-local ok, preId, postId = pcall(RegisterHook, PROMETHEUS_HOOK_PATH, onIdentityHookFire)
-if not ok then
-    log.log("[IDENTITY] [!] RegisterHook failed: " .. tostring(preId))
+local hookOk, hookPre, hookPost = pcall(RegisterHook, PROMETHEUS_HOOK_PATH, onIdentityHookFire)
+if not hookOk then
+    log.log("[IDENTITY] [!] RegisterHook failed: " .. tostring(hookPre))
 else
-    hookPreId, hookPostId = preId, postId
+    hookPreId, hookPostId = hookPre, hookPost
 end
 
 return M

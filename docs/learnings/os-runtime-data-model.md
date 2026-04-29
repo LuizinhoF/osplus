@@ -5,7 +5,10 @@
 | Date | 2026-04-24 |
 | Area | re |
 | Tags | prometheus, identity, match-stats, ue4ss, ufunction, scriptstruct, redirect, ge-runtime |
-| Status | confirmed |
+| Status | partially-superseded |
+
+> **2026-04-28 update — construction-order claim falsified.** The "first `PMPlayerPublicProfile` constructed = local player" rule (line 78, 87) was empirically wrong on accounts with a populated friends list. v38 of `identity.lua` deployed `NotifyOnNewObject` per the prescription here and captured `Greedom` (an inactive friend) instead of the local player. Friend list profiles can be constructed before the local player's, and the cache subsequently stays empty at the menu for 2+ minutes — `PMPlayerPublicProfile` is not the substrate for the local-player display name at all. The local Prometheus ID resolution via `RegisterHook` on `GetIdentityState` (line 84-86) still works and is in production. The display-name half is replaced by the `UPMPlayerUIData.Username` path — see `docs/learnings/ue4ss-type-stubs-as-canonical-source.md` and `mod/OSPlus/scripts/identity.lua` v41. The `MeResponseV1` super-struct claim (line 39) is still correct as a static dump fact; it just isn't reachable from the menu in this game's actual cache-warming behavior.
+
 
 ## Symptom
 

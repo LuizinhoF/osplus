@@ -5,7 +5,11 @@
 | Date | 2026-04-19 |
 | Area | mod |
 | Tags | chat, player-identity, ue4ss, playerstate, replication-timing |
-| Status | confirmed |
+| Status | confirmed (observation) / **superseded for local-player display name** by `identity-display-name-substrate-replaces-heuristics.md` (2026-04-28) |
+
+> **Update 2026-04-28:** the *observation* below — that `PlayerState.PlayerNamePrivate` transiently holds an account-ID-shaped value during the early replication window — is still accurate. The *prescribed fix* (heuristic shape-rejection + cache-after-friendly-name) is no longer how OSPlus resolves the **local** player's display name. The R-B substrate from ADR 0001 gives us an authoritative local Prometheus ID, and the canonical display name is read from `PMPlayerPublicProfile.Username` keyed by that ID — no heuristic involved. See `identity-display-name-substrate-replaces-heuristics.md` for the substrate path and why the heuristic blocklist was wrong-shaped.
+>
+> The heuristics described below ARE still in use in `chat.lua` for **remote** player disambiguation (sender names from inbound chat replication, where no local-Prometheus-ID equivalent exists). That use is unchanged.
 
 ## Symptom
 
