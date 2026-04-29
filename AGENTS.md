@@ -12,11 +12,12 @@ Entry point for any AI coding agent in this repo. If you need depth, link to a d
 4. `docs/research/2026-agentic-stack.md` — why the agentic file structure looks the way it does.
 5. `KNOWLEDGEBASE.md` — engine + game internals reference. Long; use as a reference, not a narrative.
 6. `docs/architecture/state-contract.md` — Lua/BP boundary contract. Mandatory before touching `mod/**/*.lua` or designing a feature.
-7. `docs/UE_PROJECT_MIGRATION.md` — cooked-content paths after the OmegaStrikersMod → OSPlus rename.
-8. `docs/ops/deploy-relay.md` — runbook for the OCI relay VM.
-9. `docs/learnings/` — skim before solving anything that smells familiar.
-10. `docs/decisions/` — scan for relevant ADRs before making any architectural choice.
-11. `docs/features/` — per-feature paper trails. Check for prior work in the same area before designing.
+7. `docs/architecture/mod-scripts.md` — Lua-script-internal architecture: what each script does, the per-tick discipline buckets, the "feature owns its engine integration" rule. Mandatory before touching `mod/**/*.lua` or adding a new feature module. Companion to `state-contract.md`: that doc is the cross-context contract; this one is the in-context structure.
+8. `docs/UE_PROJECT_MIGRATION.md` — cooked-content paths after the OmegaStrikersMod → OSPlus rename.
+9. `docs/ops/deploy-relay.md` — runbook for the OCI relay VM.
+10. `docs/learnings/` — skim before solving anything that smells familiar.
+11. `docs/decisions/` — scan for relevant ADRs before making any architectural choice.
+12. `docs/features/` — per-feature paper trails. Check for prior work in the same area before designing.
 
 ## Workflow skills
 
