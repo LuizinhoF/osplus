@@ -1,5 +1,5 @@
 ---
-description: Architecture conventions for the OSPlus UE4SS mod — Lua/BP boundary, state ownership, cooker settings
+description: Architecture conventions for the OSPlus UE4SS mod — Lua/BP boundary, Lua-script ownership of engine integration, per-tick discipline, cooker settings
 globs:
   - mod/**/*.lua
   - ue-assets/**/*
@@ -82,6 +82,96 @@ chat.lua (Lua-owned):
 
 See `docs/architecture/state-contract.md` for the full chat audit and the
 "designing a new feature" template.
+
+## Lua script ownership: features own their engine integration
+
+The Lua/BP boundary (above) is one architectural axis; this is the other.
+Both apply to every change that touches `mod/**/*.lua`.
+
+**Rule:** every UE registration (`RegisterKeyBind`, `RegisterHook`,
+`RegisterLoadMapPostHook` for feature-internal events, `NotifyOnNewObject`,
+multicast-delegate `Add`) that exists *in service of a specific feature*
+lives in that feature's module, registered from a single `M.init()`
+exposed by the module. `main.lua` calls `M.init()` once and never thinks
+about that feature's engine wiring again.
+
+| | | |
+|---|---|---|
+| **Where it goes** | **Why** | **Example** |
+| Feature module's `M.init()` | One module = one feature contract; engine wiring is part of the contract | `chat.init()` registers Enter/Esc keybinds + `OnRep_MatchState` hook |
+| `main.lua` body | Cross-cutting infrastructure (logging dirs, sidecar launch, banner print, the tick orchestrator, the engine-global lifecycle multiplexer) | `LoopAsync(30, ...)` calls `chat.tick`, `profile.tick`, etc. |
+| `main.lua` body (one allowed exception) | Engine-global lifecycle that legitimately crosses features (map load resets chat AND truncates IPC inbox AND fires future-feature hooks) — register once, fan out by delegation | `RegisterLoadMapPostHook(function() chat.reset(); ipc.truncateInbox(); chat.onMapLoaded(); end)` |
+
+**Why this matters beyond aesthetics:** when a keybind doesn't fire or a
+hook misses an event, the first place a debugger looks is the file that
+owns the feature. If the registration is in `main.lua` instead, you've
+forced every reader to learn the wiring layout before they can debug the
+feature. The OSPlus chat module had keybinds + hooks scattered across
+`main.lua` for three feature-cycles before the cost of that drift was
+named ([git: refactor/chat-owns-engine-hooks](#)).
+
+**The init() shape:**
+```lua
+function M.init()
+    RegisterKeyBind(cfg.<KEY>, function() ... end)
+    pcall(function()
+        RegisterHook("/Script/<Path>:<Func>", function() ... end)
+    end)
+    -- log on success / failure for triage
+end
+```
+
+`main.lua` then does:
+```lua
+chat.init()
+profile.init()
+-- ... future features ...
+```
+
+If you find yourself adding a `RegisterKeyBind` or `RegisterHook` to
+`main.lua` for a specific feature, **stop** — that registration belongs
+in the feature module's `init()`. The only valid `main.lua` registrations
+are the engine-global lifecycle multiplexer (above) and infrastructure
+the mod-as-a-whole cares about.
+
+## Per-tick discipline
+
+The `LoopAsync(30, ...)` loop in `main.lua` runs every callee at ~30 Hz
+forever. Anything you do per-tick costs roughly 30,000 invocations per
+17 minutes of play. This compounds in two ways the Lua-side reading
+doesn't make obvious:
+
+1. **Every UE-reflected call (`FindFirstOf`, `FindAllOf`, `StaticFindObject`,
+   any `:UFunctionCall(...)`, any `obj.Property` read on userdata)
+   allocates UE4SS-tracked userdata wrappers** that UE4SS GC'd later.
+   At 30 Hz over a long session this is tens of thousands of short-lived
+   allocations. UE4SS's userdata-tracking table is not infinitely
+   robust to this churn — we crashed it doing exactly this from
+   `profile.tick` (see `docs/learnings/profile-tick-userdata-allocation-leak.md`).
+2. **Lua-side `pcall` + table allocation per tick** is cheap individually
+   but real over hours of play.
+
+**Rule:** classify every per-tick callee into one of these three buckets
+and gate it accordingly. If the call doesn't fit any bucket, redesign.
+
+| Bucket | What it can do per tick | Examples |
+|---|---|---|
+| **Session-immutable result** (PID, display name, Steam ID, Steam logged-in flag) | Cache once, short-circuit to `if cached then return end` thereafter. Zero UE calls after the first resolve. | `profile.tick` short-circuits on `lastSnapshot`; `identity.cachedPlayerName` early-returns from `resolveDisplayName` |
+| **Slow-changing state** (whether you're in a match, current room, current widget reference) | Self-throttle to ~1 Hz with a tick counter (`if timer % 30 ~= 0 then return end`); cache the result and only re-call when the cache is invalid. | `chat.tickMatchProbe` self-throttles to `MATCH_PROBE_TICKS = 30`; `chat.M.widget` is cached, only re-found when `IsValid()` returns false |
+| **Genuinely per-frame** (typing-state poll, IPC inbox check, anything driving 30 Hz UI feedback) | Cheap operations only — pure Lua compares, file reads (small + fast), cached-userdata property reads. **No `FindFirstOf` / `FindAllOf` / new UFunction calls that allocate.** | `chat.pollPending` reads cached `M.widget.PendingMessage`; `ipc.poll` reads inbox file |
+
+**The trap to avoid:** code that "looks cheap" but allocates inside.
+`identity.resolveSteamId()` is two lines of Lua but those two lines do
+`FindFirstOf` + a UFunction call + a userdata-to-string conversion. The
+caller can't tell from the call site that it's expensive — that's why
+the *callee* must cache (the function should return the cached value
+immediately if already resolved). When in doubt, push caching down into
+the resolver, never expect the caller to remember.
+
+**Architectural map:** `docs/architecture/mod-scripts.md` is the
+canonical readable answer to "what does each Lua script do?" — read it
+before adding a new feature, before refactoring an existing one, and
+whenever your mental model and the code disagree.
 
 ## Cooker Settings
 
