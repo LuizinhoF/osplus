@@ -24,20 +24,12 @@
     with the new fields populated. Discovering the right UE objects is a
     standalone RE task tracked separately.
 
-    Why "one shot per change" instead of polling every tick:
-      - The friendly display name is session-stable in practice (the OS
-        client doesn't expose a rename mid-match path). Re-emitting on
-        every tick would burn a scrypt verify on the relay every 30 frames.
-      - If the user DOES somehow change their name mid-session, the next
-        tick where the resolved name differs from `lastSnapshot` will
-        emit a fresh upsert.
-
-    Why not subscribe to a "display name resolved" event instead of polling:
-      - identity.lua doesn't expose one (it's a transient cache walk, not
-        a callback-driven flow).
-      - tick() is called at 30 Hz from main.lua's LoopAsync; once the PID
-        is in, the per-tick cost is two function calls and a table compare.
-        That's cheaper than the machinery a callback would require.
+    Per-tick discipline:
+      Every snapshot field is session-immutable (Prometheus ID, display
+      name, Steam ID, platform — see the LoadingFlow notes for each). After
+      the first successful emit there is no work left to do this session.
+      `M.tick` short-circuits on `lastSnapshot` for that reason — see the
+      function-level comment for why this is load-bearing, not just nice.
 --]]
 
 local identity = require("identity")
@@ -46,18 +38,11 @@ local log      = require("log")
 
 local M = {}
 
--- Last successfully-emitted snapshot, keyed on the fields we actually send.
--- nil means "never emitted." Tracked so we don't re-emit unchanged rows on
--- every tick. Reset is intentionally NOT exposed — see profile.tick rationale.
+-- The snapshot we successfully emitted (or nil if we haven't yet). Doubles
+-- as the "have we emitted?" sentinel that gates `M.tick`. Kept around as
+-- the snapshot itself (rather than a bare boolean) for forensic value when
+-- inspecting state from a debugger or log dump.
 local lastSnapshot = nil
-
-local function snapshotsEqual(a, b)
-    if a == nil or b == nil then return false end
-    return a.prometheusId    == b.prometheusId
-       and a.displayName     == b.displayName
-       and a.steamId         == b.steamId
-       and a.currentPlatform == b.currentPlatform
-end
 
 local function buildSnapshot(pid, displayName, steamId)
     return {
@@ -68,11 +53,25 @@ local function buildSnapshot(pid, displayName, steamId)
     }
 end
 
--- Per-tick attempt. Cheap exits when nothing has changed; emits at most
--- once per snapshot delta. No internal logging on the early-exit paths so
--- production logs don't get flooded — the [PROFILE] emit line is the only
--- per-session marker callers need.
+-- Per-tick attempt. After the first successful emit this short-circuits
+-- to a single comparison and returns — nothing else to do for the rest
+-- of the session.
+--
+-- LOAD-BEARING: the early return at the top is not just an optimization.
+-- The pre-snapshot path calls `identity.resolveSteamId()`, which under
+-- the hood is `FindFirstOf("PMIdentitySubsystem"):GetSteamId():ToString()`
+-- — three UE-reflected operations that each allocate UE4SS-tracked
+-- userdata wrappers. At 30 Hz over a long session that is tens of
+-- thousands of short-lived UE allocations, and we crashed UE4SS itself
+-- this way (a stale-slot dereference inside UE4SS's userdata-tracking
+-- table — exception 0xC0000005 reading 0xFFFFFFFFFFFFFFFF, faulting at
+-- UE4SS.dll+0x9211B2 after ~17 minutes idle in lobby). See:
+--   docs/learnings/profile-tick-userdata-allocation-leak.md
+-- The fix is not to make the polling cheaper; it is to stop polling
+-- for a value that cannot change.
 function M.tick()
+    if lastSnapshot then return end
+
     local pid = identity.getLocalPrometheusId()
     if not pid then return end
 
@@ -91,23 +90,19 @@ function M.tick()
     -- open without another rewrite.
     local steamId = identity.resolveSteamId()
 
-    local snap = buildSnapshot(pid, displayName, steamId)
-    if snapshotsEqual(snap, lastSnapshot) then return end
-
-    lastSnapshot = snap
+    lastSnapshot = buildSnapshot(pid, displayName, steamId)
     log.log(string.format(
         "[PROFILE] emit profile_upsert pid=%s displayName=%s steamId=%s",
         pid, displayName, tostring(steamId)
     ))
-    -- shallow-copy snap so the IPC writer's `payload.type = ...` mutation
-    -- doesn't poison our snapshot equality check on the next tick.
-    local payload = {
-        prometheusId    = snap.prometheusId,
-        displayName     = snap.displayName,
-        steamId         = snap.steamId,
-        currentPlatform = snap.currentPlatform,
-    }
-    pcall(ipc.writeProfileUpsertToOutbox, payload)
+    -- shallow-copy lastSnapshot so the IPC writer's `payload.type = ...`
+    -- mutation doesn't bleed into the stored snapshot.
+    pcall(ipc.writeProfileUpsertToOutbox, {
+        prometheusId    = lastSnapshot.prometheusId,
+        displayName     = lastSnapshot.displayName,
+        steamId         = lastSnapshot.steamId,
+        currentPlatform = lastSnapshot.currentPlatform,
+    })
 end
 
 -- Module-load wiring. Subscribing here (rather than at the first tick)

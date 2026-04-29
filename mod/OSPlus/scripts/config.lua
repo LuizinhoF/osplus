@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "v36-identity-stable"
+M.VERSION = "v43-profile-tick-stop"
 M.DEBUG = false
 
 M.LOG_DIR  = os.getenv("LOCALAPPDATA") .. "\\OSPlus"
