@@ -44,23 +44,24 @@ If you find yourself writing a one-option ADR, the honest fix is usually: this i
 
 ## First-priority deliberation queue
 
-Three ADRs are named as the first expected entries. They cover decisions previously locked in `vision.md` without options — carried into the archive, now due for honest deliberation. See [`_archive/vision-v1-superseded.md`](./_archive/vision-v1-superseded.md) for the prior state.
+Three ADRs were named as the first expected entries. They cover decisions previously locked in `vision.md` without options — carried into the archive, then due for honest deliberation. See [`_archive/vision-v1-superseded.md`](./_archive/vision-v1-superseded.md) for the prior state.
 
-| Area | Prior position (now archived) | Why it needs an ADR |
-|---|---|---|
-| Identity model | Trust-on-claim SteamID | Community events with earned credit make spoofing real. Viable at ~25 known users; probably broken at public-mod scale. Alternatives worth examining include Steam Web API ticket validation, OAuth-via-Steam, game-observed-handshake tokens. |
-| Profile storage architecture | In-process SQLite in the relay, single OCI VM | Fine at current scale. "Designed to extract later" without an actual plan is the kind of work that never happens. Alternatives worth examining: keep as-is; extract to separate service now; different storage engine. |
-| Ephemeral state ownership | In-memory on the relay, no persistence | Same scaling shape as above. Alternatives: keep as-is; introduce a small in-memory store abstraction; persist selectively. |
+| Area | Prior position (now archived) | Why it needs an ADR | Status |
+|---|---|---|---|
+| Identity model | Trust-on-claim SteamID | Community events with earned credit make spoofing real. Viable at ~25 known users; probably broken at public-mod scale. Alternatives worth examining include Steam Web API ticket validation, OAuth-via-Steam, game-observed-handshake tokens. | **Closed** by [ADR 0001](./0001-identity-model.md) (accepted 2026-04-25). |
+| Profile storage architecture | In-process SQLite in the relay, single OCI VM | Fine at current scale. "Designed to extract later" without an actual plan is the kind of work that never happens. Alternatives worth examining: keep as-is; extract to separate service now; different storage engine. | **Closed** by [ADR 0002](./0002-profile-storage.md) (accepted 2026-04-25). |
+| Ephemeral state ownership | In-memory on the relay, no persistence | Same scaling shape as above. Alternatives: keep as-is; introduce a small in-memory store abstraction; persist selectively. | Open. Forced by the next feature that depends on persistent ephemeral state. |
 
-None of these are being written *in this folder-creation commit* — they're substantive architectural work that deserves dedicated focus. They are the first items that get ADRs once a feature forces the conversation or once deliberate deliberation time is set aside. Feature work that touches any of these three areas **must** force the ADR first; feature-design skill Phase 2 has a checkpoint for this.
+Feature work that touches any of these three areas **must** force the ADR first; feature-design skill Phase 2 has a checkpoint for this.
 
 ## Index
 
-Newest first. Empty until the first ADR lands.
+Newest first.
 
 | # | Status | Title | Date |
 |---|---|---|---|
-| _(none yet)_ | | | |
+| [0002](0002-profile-storage.md) | `accepted` | Profile + capture storage and per-request auth | 2026-04-25 |
+| [0001](0001-identity-model.md) | `accepted` | Bind OSPlus profiles to the Odyssey (Prometheus) account ID | 2026-04-24 |
 
 ## Related
 

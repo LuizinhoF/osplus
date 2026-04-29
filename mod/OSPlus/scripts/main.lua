@@ -17,6 +17,19 @@ local utils  = require("utils")
 -- local wheel  = require("wheel")
 local ipc    = require("ipc")
 local chat   = require("chat")
+-- identity: required at module load (statement form — no local binding
+-- needed since main.lua doesn't call into it directly anymore; profile.lua
+-- is the consumer). The require triggers identity.lua's load-time
+-- RegisterHook on PMIdentitySubsystem:GetIdentityState during cold-start
+-- engine init (BEFORE login completes). Per ADR 0001 R-B substrate +
+-- ue4ss-cold-start-hook-install-pattern learning, a keypress-driven or
+-- lazy install would miss the identity-flow window.
+require("identity")
+-- profile: subscribes to identity.onPrometheusIdResolved at init() time and
+-- emits a single profile_upsert IPC message once display name is also
+-- resolved. The sidecar then PUTs /api/profiles/{pid} on the relay. Per
+-- ADR 0002 + in-game-profile-mvp Slice 1-C.
+local profile = require("profile")
 
 -- Wire cross-module callbacks
 -- DISABLED: ping callbacks
@@ -27,6 +40,13 @@ ipc.onChatReceived    = function(sender, text) chat.addMessage(sender, text) end
 chat.onRoomChange     = function(room, username) ipc.writeRoomChange(room, username) end
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
 ipc.onPresenceReceived = function(members) chat.setPresence(members) end
+
+-- profile.init() subscribes to identity.onPrometheusIdResolved so the
+-- profile module sees the PID the moment identity.lua resolves it (which
+-- happens during cold-start engine init, well before this module's init
+-- runs). The late-subscriber path in identity.onPrometheusIdResolved
+-- handles either ordering.
+profile.init()
 
 -- ============================================================================
 -- Input
@@ -174,6 +194,7 @@ LoopAsync(30, function()
 
     pcall(chat.tickMatchProbe)
     pcall(chat.pollPending)
+    pcall(profile.tick)
     ipc.poll()
     return false
 end)

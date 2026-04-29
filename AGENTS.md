@@ -61,6 +61,7 @@ Always check this before writing any script. If a workflow seems missing, ask be
 ## Engine constraints (the ones that bite)
 
 - Unreal Engine **5.1.0** runtime. Cook with the source-built 5.1.0 editor (not 5.1.1 from Epic launcher) — schema mismatches silently corrupt complex widgets.
+- **UE4SS 3.0.1** runtime. Anchor every UE4SS docs/issues lookup to this version — the Lua marshaling layer changes between releases (e.g. UFunction out-param shapes, multicast-delegate binding) and quoting newer-version threads at face value has burned us before (issues fixed in 3.1+ may *not* be fixed for us). Bump this line on upgrade and re-run any spike that depended on the old version's behavior. See `.cursor/rules/lua-conventions.mdc` "UE4SS build" + "Lua-not-C++ reflex".
 - `DefaultEngine.ini` MUST have `CanUseUnversionedPropertySerialization=False` under `[Core.System]`. Without it, ScrollBox and other complex widgets crash on deserialization.
 - DX11 / SM5 only. No Lumen, no virtual shadow maps, no mesh distance fields.
 - BPModLoaderMod hardcodes `ModActor` at `/Game/Mods/<ModName>/ModActor`. Do not rename or move.
@@ -84,7 +85,7 @@ Always check this before writing any script. If a workflow seems missing, ask be
 - **[`docs/product.md`](./docs/product.md)** — the north star. Audience, problem, wedge, anti-goals, success criteria, hard constraints. Everything else in the project is downstream of this doc. Read at session start; read before designing a feature; read before arguing for a new direction.
 - **[`docs/dev-cycle.md`](./docs/dev-cycle.md)** — the 6-stage lifecycle (Capture → Frame → Feasibility → Design → Build → Land), back-edges, default-paired stance. The "how we work" doc.
 - **[`docs/features/`](./docs/features/)** — per-feature paper trails. Each feature gets one file with Brief / Feasibility / Design / Outcome sections, filled progressively as it moves through the lifecycle. Shelved features stay; their value is *why* they didn't pan out.
-- **[`docs/decisions/`](./docs/decisions/)** — architectural decisions. ADRs carry options-considered + rationale. Three areas (identity model, profile storage, ephemeral state) are flagged as first-priority ADR work per the README — feature work touching those areas forces the ADR first. Enforced by `.cursor/rules/decision-discipline.mdc`.
+- **[`docs/decisions/`](./docs/decisions/)** — architectural decisions. ADRs carry options-considered + rationale. Three areas were flagged as first-priority ADR work per the README — identity model (closed by ADR 0001) and profile + capture storage (closed by ADR 0002) are now decided; ephemeral state ownership remains open and is forced by the next feature that depends on persistent ephemeral state. Enforced by `.cursor/rules/decision-discipline.mdc`.
 - **[`docs/ROADMAP.md`](./docs/ROADMAP.md)** — Now / Next / Later / Won't-do, filtered through the product lens. "Next" is not a priority queue. Read before picking up new work.
 
 The prior `docs/vision.md` — which encoded four "v1 locks" without recorded alternatives — has been archived to [`docs/decisions/_archive/vision-v1-superseded.md`](./docs/decisions/_archive/vision-v1-superseded.md) with a header explaining why. Do not treat the choices in that archive as current commitments; the ADR queue in `docs/decisions/README.md` supersedes them.

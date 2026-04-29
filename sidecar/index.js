@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
+const { createProfileClient } = require("./profile");
 
 // ---------------------------------------------------------------------------
 // Persistent log
@@ -83,6 +84,14 @@ const WS_PONG_TIMEOUT_MS  = 10000;
 if (!fs.existsSync(IPC_DIR)) fs.mkdirSync(IPC_DIR, { recursive: true });
 if (!fs.existsSync(OUTBOX)) fs.writeFileSync(OUTBOX, "");
 if (!fs.existsSync(INBOX)) fs.writeFileSync(INBOX, "");
+
+// ---------------------------------------------------------------------------
+// Profile client — owns the per-install bearer token and pushes profile
+// upserts to the relay's REST API. Initialized at startup so token-file
+// generation failures surface in the boot log, not at first profile_upsert.
+// ---------------------------------------------------------------------------
+
+const profileClient = createProfileClient({ log: console.log, relayUrl: RELAY_URL });
 
 // ---------------------------------------------------------------------------
 // Outbox tracking — read offset so we only process new lines
@@ -270,6 +279,17 @@ fs.watchFile(OUTBOX, { interval: 50 }, () => {
     }
     if (msg.type === "room_leave") {
       leaveCurrentRoom();
+      continue;
+    }
+    if (msg.type === "profile_upsert") {
+      // profile_upsert never goes over the WS — it crosses the REST
+      // boundary instead. Fire-and-forget: the profile client owns its
+      // own retry queue for transient HTTP failures and logs failure
+      // modes in detail. We don't await so a slow scrypt call on the
+      // relay can't backpressure the IPC dispatch loop.
+      profileClient.handleProfileUpsert(msg).catch((err) => {
+        console.error(`[PROFILE] [ERR] handleProfileUpsert threw: ${err && err.stack ? err.stack : String(err)}`);
+      });
       continue;
     }
 

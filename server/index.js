@@ -1,16 +1,23 @@
 /**
- * OSPlus chat/ping relay
- * ----------------------
- * In-memory WebSocket relay for room-scoped message broadcast.
- * State: ephemeral (rooms vanish on process restart). No persistence by design;
- * the future profile system will live in a separate process.
+ * OSPlus chat/ping relay + profile persistence
+ * --------------------------------------------
+ * Two responsibilities under one process (per ADR 0002 S-A):
+ *
+ *   1. WebSocket chat/ping fanout — room-scoped, ephemeral, no persistence.
+ *      Rooms vanish on process restart by design.
+ *
+ *   2. REST API (`/api/*`) for per-install profile rows + auth tokens. Backed
+ *      by `data/osplus.sqlite3` via the persistence module in `server/api/`.
+ *      Boundary discipline: only `api.handleHttp(req, res)` is called from
+ *      this file; the DB instance is owned by that module.
  *
  * Deployment:
  *   - Bound to 127.0.0.1; reverse-proxied by Caddy on the public TLS endpoint.
  *   - systemd unit at server/deploy/osplus-relay.service.
  *   - Runs as the unprivileged `osplus` user.
+ *   - SQLite DB at $OSPLUS_DATA_DIR/osplus.sqlite3 (default: ./data).
  *
- * Hardening (baseline; not a substitute for real auth):
+ * WS hardening (baseline; not a substitute for real auth):
  *   - 4 KB max payload (ws-level)
  *   - 5 connections per source IP
  *   - 5 messages/sec per connection (drop on violation)
@@ -19,10 +26,16 @@
  *     and longer mod-derived codes like `<seed>T<team>`)
  *   - Chat text: control chars stripped, capped at 500 chars
  *   - Optional shared-secret token via RELAY_TOKEN env var
+ *
+ * REST auth (`/api/*`): per-install bearer tokens TOFU-bound to a Prometheus ID
+ * at first contact; see `server/api/middleware/auth.js` and ADR 0002 A-2. The
+ * `RELAY_TOKEN` above is unrelated to REST auth — it gates WS connections only.
  */
 
 const http = require("http");
+const path = require("path");
 const { WebSocketServer } = require("ws");
+const { createApi } = require("./api");
 
 // === Configuration ============================================================
 
@@ -30,6 +43,7 @@ const PORT          = parseInt(process.env.PORT || "3000", 10);
 const HOST          = process.env.HOST || "127.0.0.1";
 const RELAY_TOKEN   = process.env.RELAY_TOKEN || "";
 const TRUST_PROXY   = process.env.TRUST_PROXY === "1";
+const DATA_DIR      = process.env.OSPLUS_DATA_DIR || path.join(__dirname, "data");
 
 // === Limits ===================================================================
 
@@ -143,9 +157,29 @@ function removeFromRoom(ws) {
   ws._room = null;
 }
 
+// === Persistence (REST /api/*) ================================================
+
+const api = createApi({ dataDir: DATA_DIR, log });
+
 // === HTTP server ==============================================================
 
-const httpServer = http.createServer((req, res) => {
+const httpServer = http.createServer(async (req, res) => {
+  // /api/* is owned by the persistence module. handleHttp returns true if it
+  // responded; we only fall through to /health and the 404 default on false.
+  // Async errors inside the dispatcher are caught there and turned into 500
+  // JSON; this outer try/catch is belt-and-suspenders so a bug can't take
+  // the relay down on a malformed request.
+  try {
+    if (await api.handleHttp(req, res)) return;
+  } catch (err) {
+    log(`[ERR] HTTP dispatch crashed: ${err && err.stack ? err.stack : String(err)}`);
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "internal error" }));
+    }
+    return;
+  }
+
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
@@ -281,16 +315,19 @@ wss.on("connection", (ws, req) => {
 
 httpServer.listen(PORT, HOST, () => {
   log(`[RELAY] Listening on ${HOST}:${PORT}`);
-  log(`[RELAY] Auth:                ${RELAY_TOKEN ? "ON (token required)" : "OFF (open)"}`);
+  log(`[RELAY] WS auth:             ${RELAY_TOKEN ? "ON (token required)" : "OFF (open)"}`);
   log(`[RELAY] Trust X-Forwarded-For: ${TRUST_PROXY ? "yes" : "no"}`);
-  log(`[RELAY] Limits:              ${MAX_PAYLOAD_BYTES}B/msg, ${MAX_CONNS_PER_IP} conns/ip, ${MAX_MSG_RATE} msg/s`);
+  log(`[RELAY] WS limits:           ${MAX_PAYLOAD_BYTES}B/msg, ${MAX_CONNS_PER_IP} conns/ip, ${MAX_MSG_RATE} msg/s`);
+  log(`[RELAY] Data dir:            ${DATA_DIR}`);
 });
 
 function shutdown(sig) {
   log(`[SHUTDOWN] ${sig} received, closing ${wss.clients.size} client(s)`);
   for (const ws of wss.clients) ws.close(1001, "server shutting down");
   httpServer.close(() => {
-    log(`[SHUTDOWN] HTTP closed, exiting`);
+    log(`[SHUTDOWN] HTTP closed, closing DB`);
+    api.close();
+    log(`[SHUTDOWN] DB closed, exiting`);
     process.exit(0);
   });
   setTimeout(() => { log("[SHUTDOWN] hard exit"); process.exit(1); }, 5000);

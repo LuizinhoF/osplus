@@ -45,7 +45,7 @@ Newest first. Empty until the first feature gets a doc.
 
 | Status | Slug | One-line summary |
 |---|---|---|
-| _(none yet)_ | | |
+| `feasibility` | [`in-game-profile-mvp`](./in-game-profile-mvp.md) | v1 wedge substrate — plumbing only: identity binding + raw per-match state capture. Feasibility Pass 1 done (identity High; tracker ecosystem mapped; Prometheus-ID-vs-SteamID distinction surfaced). Pass 2 (capture-surface live probes) pending. ADR-gated on identity model + profile storage. |
 
 `Status` values: `framed` (Stage 2 done), `feasibility` (Stage 3 done), `designed` (Stage 4 done), `building` (Stage 5 in progress), `shipped`, `shelved`.
 

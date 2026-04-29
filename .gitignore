@@ -15,6 +15,15 @@ node_modules/
 *.jsonl
 heartbeat.txt
 explorer_output.txt
+# Server-side SQLite (profile + auth, captures). Per ADR 0002 the relay
+# creates `server/data/osplus.sqlite3` (and the captures DB later) on first
+# run; the directory is created lazily by the persistence module. Ignore
+# the DB files + WAL/SHM sidecars at any depth so a local smoke test can't
+# accidentally commit a real player's row.
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+server/data/
 
 # ─── Logs ────────────────────────────────────────────────────────────────────
 *.log
