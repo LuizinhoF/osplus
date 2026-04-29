@@ -665,4 +665,51 @@ function M.reset()
     didProfileDiagnosticDump = false
 end
 
+-- ---------------------------------------------------------------------------
+-- Init: chat owns its engine integration
+-- ---------------------------------------------------------------------------
+-- Per .cursor/rules/mod-architecture.mdc "feature owns its engine
+-- integration": every UE registration (keybind, UFunction hook, native
+-- delegate) that exists in service of this feature is registered here, by
+-- this module, not in main.lua. Callers wire chat by calling M.init() once
+-- at module load and never thinking about it again.
+--
+-- Engine-global lifecycle triggers (RegisterLoadMapPostHook) remain in
+-- main.lua as a multiplexer because they cross multiple features (map load
+-- resets chat AND truncates the IPC inbox); main fans out to each
+-- feature's M.onMapLoaded / M.reset hooks from there.
+function M.init()
+    RegisterKeyBind(cfg.CHAT_KEY, function()
+        ExecuteInGameThread(function()
+            if not M.isTyping() then
+                M.open()
+            end
+        end)
+    end)
+
+    RegisterKeyBind(cfg.CHAT_CANCEL_KEY, function()
+        ExecuteInGameThread(function()
+            if M.isTyping() then
+                M.close()
+            end
+        end)
+    end)
+
+    -- OnRep_MatchState fires when the GameState's MatchState replicates
+    -- from server. Covers match-end transitions that don't come with a
+    -- map change (return-to-lobby flows where the lobby is the same map).
+    local hookOk, hookErr = pcall(function()
+        RegisterHook("/Script/Engine.GameState:OnRep_MatchState", function()
+            ExecuteInGameThread(function()
+                M.onMatchStateChanged()
+            end)
+        end)
+    end)
+    if hookOk then
+        log.log("[HOOK] OnRep_MatchState registered")
+    else
+        log.log("[HOOK] OnRep_MatchState failed: " .. tostring(hookErr))
+    end
+end
+
 return M

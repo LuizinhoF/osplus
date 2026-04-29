@@ -41,72 +41,13 @@ chat.onRoomChange     = function(room, username) ipc.writeRoomChange(room, usern
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
 ipc.onPresenceReceived = function(members) chat.setPresence(members) end
 
--- profile.init() subscribes to identity.onPrometheusIdResolved so the
--- profile module sees the PID the moment identity.lua resolves it (which
--- happens during cold-start engine init, well before this module's init
--- runs). The late-subscriber path in identity.onPrometheusIdResolved
--- handles either ordering.
+-- Wire each feature's engine integration. Per .cursor/rules/mod-architecture.mdc
+-- "feature owns its engine integration": each module's M.init() registers
+-- its own keybinds, UFunction hooks, and native delegates — main.lua just
+-- triggers them once. Engine-global lifecycle (map load, below) is the one
+-- exception, multiplexed here because it crosses features.
+chat.init()
 profile.init()
-
--- ============================================================================
--- Input
--- ============================================================================
-
--- DISABLED: ping wheel keybind
---[[
-RegisterKeyBind(cfg.WHEEL_KEY, function()
-    ExecuteInGameThread(function()
-        if not wheel.open then
-            assets.ensureLoaded()
-            wheel.open = true
-            wheel.selectedIndex = 1
-            if wheel.show() then
-                log.log("Wheel opened")
-            else
-                log.log("Wheel open failed, firing default ping")
-                wheel.open = false
-                wheel.fireSelected()
-            end
-        else
-            local pt = cfg.PING_TYPES[wheel.selectedIndex]
-            log.log("Wheel fire: " .. (pt and pt.name or "?"))
-            wheel.fireSelected()
-            wheel.hide()
-            wheel.open = false
-        end
-    end)
-end)
-]]
-
-RegisterKeyBind(cfg.CHAT_KEY, function()
-    ExecuteInGameThread(function()
-        if not chat.isTyping() then
-            chat.open()
-        end
-    end)
-end)
-
-RegisterKeyBind(cfg.CHAT_CANCEL_KEY, function()
-    ExecuteInGameThread(function()
-        if chat.isTyping() then
-            chat.close()
-        end
-    end)
-end)
-
--- Hook: match state changes (covers match end without map transition)
-local hookOk, hookErr = pcall(function()
-    RegisterHook("/Script/Engine.GameState:OnRep_MatchState", function()
-        ExecuteInGameThread(function()
-            chat.onMatchStateChanged()
-        end)
-    end)
-end)
-if hookOk then
-    log.log("[HOOK] OnRep_MatchState registered")
-else
-    log.log("[HOOK] OnRep_MatchState failed: " .. tostring(hookErr))
-end
 
 -- ============================================================================
 -- Sidecar auto-launch
