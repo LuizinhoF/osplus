@@ -33,6 +33,14 @@ mkdir -p "$DST_DIR"
 cp -f "$SRC_DIR/index.js"            "$DST_DIR/index.js"
 cp -f "$SRC_DIR/package.json"        "$DST_DIR/package.json"
 cp -f "$SRC_DIR/package-lock.json"   "$DST_DIR/package-lock.json" 2>/dev/null || true
+
+# Module subdirectories. `index.js` requires `./api` (the persistence module).
+# We rm-then-cp so that files removed in the source don't linger in the dest.
+# When new sibling module dirs appear under server/, add them here AND in
+# ship.ps1's upload block per .cursor/rules/harnesses.mdc.
+rm -rf "$DST_DIR/api"
+cp -rf "$SRC_DIR/api" "$DST_DIR/api"
+
 chown -R osplus:osplus "$DST_DIR"
 
 # --- npm install (production deps only) --------------------------------------

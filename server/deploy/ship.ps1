@@ -64,6 +64,16 @@ Invoke-External "scp deploy/" {
     & scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" -r "$serverDir\deploy" "${User}@${VmHost}:$RemoteStaging/server/"
 }
 
+# 3a. Copy the api/ subfolder (persistence module — `index.js` requires
+#     `./api`). When new sibling subdirectories are added under server/ in
+#     the future, add them here AND in install-relay.sh's copy block, OR
+#     refactor both to a single rsync-style sync. Both files must stay in
+#     sync per .cursor/rules/harnesses.mdc.
+Write-Step "Uploading api/"
+Invoke-External "scp api/" {
+    & scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" -r "$serverDir\api" "${User}@${VmHost}:$RemoteStaging/server/"
+}
+
 # 3b. Normalize line endings on the remote side. Even with .gitattributes
 #     enforcing LF on *.sh / *.service / Caddyfile, files can still end up
 #     with CRLF if they were edited outside Git's normalization (e.g.
