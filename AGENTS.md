@@ -9,15 +9,17 @@ Entry point for any AI coding agent in this repo. If you need depth, link to a d
 1. This file.
 2. [`docs/product.md`](./docs/product.md) — product definition. Audience, problem, wedge, anti-goals, hard constraints. Read at the start of every session.
 3. [`docs/dev-cycle.md`](./docs/dev-cycle.md) — how features get from idea to shipped. The 6-stage lifecycle, back-edges, default-paired stance. Read before any feature work.
-4. `docs/research/2026-agentic-stack.md` — why the agentic file structure looks the way it does.
-5. `KNOWLEDGEBASE.md` — engine + game internals reference. Long; use as a reference, not a narrative.
-6. `docs/architecture/state-contract.md` — Lua/BP boundary contract. Mandatory before touching `mod/**/*.lua` or designing a feature.
-7. `docs/architecture/mod-scripts.md` — Lua-script-internal architecture: what each script does, the per-tick discipline buckets, the "feature owns its engine integration" rule. Mandatory before touching `mod/**/*.lua` or adding a new feature module. Companion to `state-contract.md`: that doc is the cross-context contract; this one is the in-context structure.
-8. `docs/UE_PROJECT_MIGRATION.md` — cooked-content paths after the OmegaStrikersMod → OSPlus rename.
-9. `docs/ops/deploy-relay.md` — runbook for the OCI relay VM.
-10. `docs/learnings/` — skim before solving anything that smells familiar.
-11. `docs/decisions/` — scan for relevant ADRs before making any architectural choice.
-12. `docs/features/` — per-feature paper trails. Check for prior work in the same area before designing.
+4. [`docs/game/`](./docs/game/) — **player-side reality of Omega Strikers**: screens, navigation, match lifecycle, in-match UX, player systems, design principles. The *what does the game look and feel like to the player* layer. Mandatory before designing any feature whose acceptance criteria mention what the player will see, do, or perceive — i.e. nearly all of them. Cross-references engine-internal names via `docs/glossary.md` but does not duplicate `KNOWLEDGEBASE.md` / `docs/engine/`. Currently the canonical source is the monolithic [`OMEGA_STRIKERS_GAME.md`](./docs/game/OMEGA_STRIKERS_GAME.md) inside that folder; topic-by-topic migration into per-topic files is in progress — see [`docs/game/README.md`](./docs/game/README.md).
+5. [`docs/glossary.md`](./docs/glossary.md) — bidirectional concept catalog bridging `docs/game/` (player-side) and `KNOWLEDGEBASE.md` / `docs/engine/` (engine-side). Reference, not a narrative — consult when you encounter a term and want the canonical mapping (player concept ↔ engine class names + identity key + open questions). Small. Read once to know what's in it; deep-link into specific entries during work.
+6. `docs/research/2026-agentic-stack.md` — why the agentic file structure looks the way it does.
+7. `KNOWLEDGEBASE.md` — engine + game internals reference. Long; use as a reference, not a narrative. **Being migrated** topic-by-topic into [`docs/engine/`](./docs/engine/) — until each topic lands there, KB remains canonical for that topic. See [`docs/engine/README.md`](./docs/engine/README.md) for the migration status table.
+8. `docs/architecture/state-contract.md` — Lua/BP boundary contract. Mandatory before touching `mod/**/*.lua` or designing a feature.
+9. `docs/architecture/mod-scripts.md` — Lua-script-internal architecture: what each script does, the per-tick discipline buckets, the "feature owns its engine integration" rule. Mandatory before touching `mod/**/*.lua` or adding a new feature module. Companion to `state-contract.md`: that doc is the cross-context contract; this one is the in-context structure.
+10. `docs/UE_PROJECT_MIGRATION.md` — cooked-content paths after the OmegaStrikersMod → OSPlus rename.
+11. `docs/ops/deploy-relay.md` — runbook for the OCI relay VM.
+12. `docs/learnings/` — skim before solving anything that smells familiar.
+13. `docs/decisions/` — scan for relevant ADRs before making any architectural choice.
+14. `docs/features/` — per-feature paper trails. Check for prior work in the same area before designing.
 
 ## Workflow skills
 
@@ -34,7 +36,7 @@ Four skills in `.cursor/skills/` auto-activate by description match. If your cur
 - UE editor project: `F:\Omegamod\OmegaStonkers 5.1\`
 - Source-built UE 5.1.0: `F:\UE510\UnrealEngine-5.1.0-release\`
 
-In-repo structure is discoverable via `ls`. `KNOWLEDGEBASE.md` (root) is the engine/game-internals reference.
+In-repo structure is discoverable via `ls`. `KNOWLEDGEBASE.md` (root) is the engine/game-internals reference; it is being migrated topic-by-topic into [`docs/engine/`](./docs/engine/) — read both until migration is complete.
 
 ## Toolchain — use these, don't reinvent
 
@@ -94,7 +96,8 @@ The prior `docs/vision.md` — which encoded four "v1 locks" without recorded al
 ## When in doubt
 
 - How do I work on a feature? → [`docs/dev-cycle.md`](./docs/dev-cycle.md).
-- Engine question → `KNOWLEDGEBASE.md` → `docs/architecture/` → `.cursor/skills/ue4ss-modding/`.
+- Term doesn't make sense / "what does X map to in code?" → [`docs/glossary.md`](./docs/glossary.md).
+- Engine question → [`docs/glossary.md`](./docs/glossary.md) (concept ↔ engine bridge) → `KNOWLEDGEBASE.md` / [`docs/engine/`](./docs/engine/) → `docs/architecture/` → `.cursor/skills/ue4ss-modding/`.
 - Is X possible in OS? → `.cursor/skills/discover/`.
 - Build/deploy → Toolchain above → `docs/ops/`.
 - Past gotcha → `docs/learnings/`.
