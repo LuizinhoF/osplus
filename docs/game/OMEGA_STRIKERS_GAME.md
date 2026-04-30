@@ -4,214 +4,68 @@ This document explains what it is like to play **Omega Strikers** from the persp
 
 The goal is to help an agent understand the *game context* behind the code it is modifying.
 
+> **Migration in progress.** Per [ADR 0003](../decisions/0003-knowledge-substrate-structure.md),
+> this monolithic doc is being decomposed into per-topic files under
+> `docs/game/`. Sections that have moved are stubbed (heading retained,
+> body replaced with a redirect). Untouched sections remain canonical
+> here until they too are migrated.
+>
+> **Where to start instead:**
+>
+> - New agent / first-time read → [`overview.md`](./overview.md)
+> - Player ↔ engine concept bridge → [`docs/glossary.md`](../glossary.md)
+> - Full topic index + status table → [`docs/game/README.md`](./README.md)
+>
+> **Migrated so far (batch 1, 2026-04-29):** §1, §2, §3, §4, §5, §6,
+> §18, §19, §23, §25, §29, §30.
+
 ---
 
 # 1. Baseline Assumption
 
-Use the **current official Omega Strikers format** as the baseline.
-
-Important correction:
-
-```text
-Do not assume players create a full pre-match build before entering a game.
-That was more relevant to earlier/beta versions.
-
-In the current official version, build-making happens primarily inside the match through Awakening selection.
-```
-
-Pre-match choices are mainly:
-
-```text
-Mode
-Role/position context
-Striker
-Gear
-Skin/cosmetics
-Emotes/loadout cosmetics
-Party state
-```
-
-In-match build choices are mainly:
-
-```text
-Starting Awakening selection
-Awakening drafts between sets
-Adaptation to map, team composition, enemy composition, and match state
-```
-
-For OSPlus, do not design systems as if the player has a traditional pre-match item/build editor unless the mod is intentionally adding that as a new system.
+> **Migrated → [`overview.md` → "Current-version baseline"](./overview.md#current-version-baseline-required-reading).**
+> Section retained as a stub so existing references (Sec 1) still resolve.
 
 ---
 
 # 2. One-Sentence Identity
 
-Omega Strikers is a fast, top-down, 3v3 competitive sports-brawler where two teams fight over a puck-like object called the **Core**, using character abilities to score goals, defend, control space, collect resources, draft in-match upgrades, and knock opponents out of the arena.
-
-Think of it as:
-
-```text
-air hockey + MOBA abilities + arena fighter ring-outs + sports positioning
-```
-
-It is not normal soccer.
-It is not only a fighting game.
-It is not only a MOBA.
-It is a hybrid where the Core is the central objective.
+> **Migrated → [`overview.md` → "One-sentence identity"](./overview.md#one-sentence-identity).**
+> Section retained as a stub so existing references (Sec 2) still resolve.
 
 ---
 
 # 3. Core Player Session Flow
 
-A typical current-version session looks like this:
-
-```text
-1. Open game
-2. Enter lobby / main menu
-3. Choose mode
-4. Queue
-5. Match found
-6. Enter Striker select / draft
-7. Choose Striker
-8. Choose gear and cosmetics
-9. Load into arena
-10. Select starting Awakening
-11. Play active goal rounds
-12. Score, concede, reset, and continue rounds
-13. Win or lose a set
-14. Draft additional Awakenings between sets
-15. Repeat until match ends
-16. See victory or defeat
-17. View post-match stats, rank/progression, and rewards
-18. Queue again, change Striker/cosmetics/mode, party up, inspect progression, or leave
-```
-
-Important:
-
-```text
-There is no current official pre-match full build creation step.
-The player's build evolves during the match through Awakenings.
-```
+> **Migrated → [`match-lifecycle.md` → "Session flow"](./match-lifecycle.md#session-flow).**
+> Section retained as a stub so existing references (Sec 3) still resolve.
 
 ---
 
 # 4. Main Gameplay Objective
 
-The objective is to score by sending the Core into the enemy goal while preventing the enemy team from scoring on your goal.
-
-Every system should be interpreted through how it affects:
-
-```text
-Core control
-Goal pressure
-Defense
-Positioning
-Cooldown timing
-Stagger / KO pressure
-Awakening scaling
-Map control
-Team coordination
-```
-
-The Core is the most important object in the game.
+> **Migrated → [`overview.md` → "Main gameplay objective"](./overview.md#main-gameplay-objective).**
+> Section retained as a stub so existing references (Sec 4) still resolve.
 
 ---
 
 # 5. The Core Is the Main Gameplay Object
 
-The Core is the puck/ball-like object both teams fight over.
-
-Players use basic strikes and abilities to:
-
-```text
-Redirect the Core
-Clear the Core from danger
-Pass the Core to teammates
-Stuff the Core through a goalie
-Break goal barriers
-Score goals
-Deny enemy clears
-Create rebounds
-Force bad enemy strikes
-```
-
-For reverse engineering, many systems likely revolve around the Core:
-
-```text
-Core movement
-Core velocity
-Core collision
-Core ownership / last hit
-Core knockback
-Core redirection
-Core hit priority
-Core interaction with abilities
-Core interaction with barriers
-Core interaction with goals
-Core interaction with terrain
-Core interaction with Energy Burst
-Scoring attribution
-Assist attribution
-Save attribution
-Replay / highlight events
-```
-
-Design rule:
-
-```text
-If a feature makes the Core harder to read, harder to track, or less predictable, it is probably bad for gameplay.
-```
+> **Migrated → [`overview.md` → "The Core is the main gameplay object"](./overview.md#the-core-is-the-main-gameplay-object).**
+> Engine-side bridge: [`docs/glossary.md` → "Core (a.k.a. Rock)"](../glossary.md#core-aka-rock).
+> Section retained as a stub so existing references (Sec 5) still resolve.
 
 ---
 
 # 6. Match Structure
 
-A match is not a single continuous soccer-like game.
-
-It has rounds, goals, sets, and between-set upgrades.
-
-A useful abstract state machine:
-
-```text
-GameLaunch
-→ Lobby
-→ Queue
-→ MatchFound
-→ StrikerSelect
-→ ArenaLoading
-→ StartingAwakeningDraft
-→ SetStart
-→ GoalRoundActive
-→ GoalScored
-→ RoundReset
-→ GoalRoundActive
-→ SetWon
-→ AwakeningDraft
-→ NextSetStart
-→ MatchWon / MatchLost
-→ PostMatch
-→ Lobby / Requeue
-```
-
-Important gameplay states:
-
-```text
-PlayerAlive
-PlayerCastingAbility
-PlayerEvading
-PlayerEnergyBursting
-PlayerStaggered
-PlayerKOd
-PlayerRespawning
-CoreNeutral
-CoreThreateningOwnGoal
-CoreThreateningEnemyGoal
-GoalBarrierUp
-GoalBarrierBroken
-GoalOpen
-SetPoint
-MatchPoint
-OvertimeOrHighPressureState
-```
+> **Migrated → [`match-lifecycle.md`](./match-lifecycle.md).**
+> Specifically: ["Match structure"](./match-lifecycle.md#match-structure-sets-rounds-goals),
+> ["State machine"](./match-lifecycle.md#state-machine),
+> ["Player states"](./match-lifecycle.md#player-states-in-match),
+> ["Core states"](./match-lifecycle.md#core-states-in-match),
+> ["High-pressure states"](./match-lifecycle.md#high-pressure--endgame-states).
+> Section retained as a stub so existing references (Sec 6) still resolve.
 
 ---
 
@@ -793,59 +647,17 @@ Visual clutter hides important state
 
 # 18. What the Player Tracks During Gameplay
 
-During active play, the player constantly tracks:
-
-```text
-Core position
-Core velocity
-Their own position
-Their own cooldowns
-Their own stagger
-Their own Energy
-Their own role responsibility
-Teammate positions
-Enemy positions
-Enemy cooldown threats
-Goal barrier state
-Open goal state
-Power Orb spawns
-KO threats
-Map hazards
-Set score
-Match score
-Timer / pacing
-```
-
-The player has limited attention.
-
-A UI or VFX change should reduce cognitive load, not increase it.
+> **Migrated → [`in-match-hud.md` → "What the player tracks (perception load)"](./in-match-hud.md#what-the-player-tracks-perception-load).**
+> Section retained as a stub so existing references (Sec 18) still resolve.
 
 ---
 
 # 19. Lobby UX
 
-In the lobby, the player wants to know:
-
-```text
-What mode can I play?
-Am I in a party?
-Who is online?
-What is my rank?
-What missions/rewards are available?
-Can I customize my Striker?
-Can I queue quickly?
-Are there events or announcements?
-```
-
-Lobby features should prioritize:
-
-```text
-Fast queue access
-Clear party state
-Clear progression access
-Clear customization access
-Low friction
-```
+> **Migrated → [`lobby.md`](./lobby.md).**
+> Specifically: ["What the player wants here"](./lobby.md#what-the-player-wants-here)
+> and ["What's on screen"](./lobby.md#whats-on-screen).
+> Section retained as a stub so existing references (Sec 19) still resolve.
 
 ---
 
@@ -931,38 +743,11 @@ Whether it helps the current match state
 
 # 23. Gameplay HUD UX
 
-During gameplay, the HUD should communicate:
-
-```text
-Score
-Set count
-Goal barrier state
-Timer / match pacing
-Ability cooldowns
-Energy state
-Stagger state
-Buffs/debuffs
-KO feed
-Goal announcements
-Orb state
-Core-related alerts
-```
-
-The HUD should not distract from:
-
-```text
-Core visibility
-Player position
-Ability telegraphs
-Goal defense
-Enemy threats
-```
-
-OSPlus UI rule:
-
-```text
-Extra information is only useful if it does not make the Core harder to track.
-```
+> **Migrated → [`in-match-hud.md`](./in-match-hud.md).**
+> Specifically: ["HUD elements"](./in-match-hud.md#hud-elements),
+> ["Reaction wheel"](./in-match-hud.md#reaction-wheel-emotes--emoticons),
+> ["HUD discipline rules"](./in-match-hud.md#hud-discipline-rules).
+> Section retained as a stub so existing references (Sec 23) still resolve.
 
 ---
 
@@ -1007,44 +792,12 @@ Review map/team/enemy interaction
 
 # 25. Screens / States a Player May See
 
-A player can encounter many UI screens and gameplay states.
-
-Useful screen categories:
-
-```text
-Startup / login
-Main lobby
-Play mode selection
-Queue state
-Match found
-Striker select / draft
-Gear/cosmetic selection
-Arena loading
-Starting Awakening draft
-Versus / intro
-Active gameplay HUD
-Goal scored state
-Round reset
-Set result
-Between-set Awakening draft
-Victory / defeat
-Post-match stats
-Rewards / progression
-Rank update
-Missions
-Striker roster
-Striker details
-Cosmetics collection
-Shop / store
-Battle pass / striker pass / progression track, depending version
-Friends / party
-Custom lobby
-Settings
-Error / reconnect / maintenance states
-```
-
-For reverse engineering, screen names in code may not match these exactly.
-Search by concepts, not just visible UI names.
+> **Migrated → [`screens.md`](./screens.md).**
+> Specifically: ["At a glance"](./screens.md#at-a-glance) (categorized
+> inventory with engine-class hooks),
+> ["Per-screen detail"](./screens.md#per-screen-detail), and
+> ["Navigation graph"](./screens.md#navigation-graph) (Mermaid).
+> Section retained as a stub so existing references (Sec 25) still resolve.
 
 ---
 
@@ -1349,65 +1102,15 @@ Features that make the Core harder to read
 
 # 29. Agent Memory Summary
 
-Use this compact summary as persistent agent context:
-
-```text
-Omega Strikers is a fast 3v3 top-down sports-brawler centered on controlling the Core. Players use Strikers with unique abilities to score goals, defend, break barriers, collect orbs, draft Awakenings, and KO enemies by knocking them out of the arena.
-
-Use the current official version as baseline: players do not create a full pre-match build like in beta. Pre-match choices are mainly Striker, gear, cosmetics, mode, and party state. The actual build evolves inside the match through starting and between-set Awakening selections.
-
-Gameplay quality depends on Core readability, cooldown timing, goalie/forward interaction, stagger and KO pressure, Energy/Evade/Energy Burst decisions, map hazards, goal barrier state, and set-based adaptation.
-
-When modifying code or designing OSPlus features, prioritize:
-1. Core readability
-2. Fair goalie/forward interaction
-3. Low visual clutter
-4. Clear match state transitions
-5. Respect for Striker identity
-6. Awareness of Awakening-based in-match builds
-7. Predictable collision, knockback, and barrier/goal behavior
-8. UI that helps decision-making without hiding gameplay
-
-Do not treat Omega Strikers as normal soccer, and do not assume beta-era pre-match build systems unless intentionally designing a new OSPlus feature around them.
-```
+> **Migrated → [`overview.md`](./overview.md).**
+> The entire `overview.md` doc *is* the agent memory summary; the eight
+> design priorities live in
+> [overview.md → "OSPlus design principles (compact)"](./overview.md#osplus-design-principles-compact).
+> Section retained as a stub so existing references (Sec 29) still resolve.
 
 ---
 
 # 30. Instruction for Coding Agents
 
-When working on OSPlus, always ask:
-
-```text
-Which part of the Omega Strikers player experience does this code affect?
-
-Lobby?
-Queue?
-Striker select?
-Gear choice?
-Starting Awakening draft?
-Core gameplay?
-Goal/barrier state?
-Energy/Evade/Burst?
-Stagger/KO?
-Map hazards?
-Between-set Awakening draft?
-Post-match stats?
-Progression?
-Cosmetics?
-Custom lobby?
-Networking?
-```
-
-Then evaluate:
-
-```text
-Does this preserve Core readability?
-Does this preserve fair goalie/forward interaction?
-Does this respect the current Awakening-based build system?
-Does this help the player make better decisions?
-Does this add unnecessary visual or cognitive load?
-Does this preserve Striker identity?
-Does this behave correctly across sets, not just one goal?
-```
-
-If the answer is unclear, prefer a smaller, more readable, less invasive feature.
+> **Migrated → [`overview.md` → "OSPlus design principles (compact)"](./overview.md#osplus-design-principles-compact).**
+> Section retained as a stub so existing references (Sec 30) still resolve.
