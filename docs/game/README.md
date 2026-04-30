@@ -37,14 +37,14 @@ still resolve to the source monolith until promoted.
 |---|---|---|
 | [`overview.md`](./overview.md) | **migrated** (batch 1, 2026-04-29) | Sec 1-2, 4-5, 29-30 (distilled identity + agent memory summary) |
 | [`match-lifecycle.md`](./match-lifecycle.md) | **migrated** (batch 1, 2026-04-29) | Sec 3, 6 (session flow + state machine) |
-| `core-and-strike.md` | **TBD** | Sec 4-5, 11 (Core mechanics + basic Strike) |
-| `goals-and-barriers.md` | **TBD** | Sec 7 |
+| [`core-and-strike.md`](./core-and-strike.md) | **migrated** (batch 2, 2026-04-30) | Sec 4-5, 11 (Core mechanics + basic Strike) |
+| [`goals-and-barriers.md`](./goals-and-barriers.md) | **migrated** (batch 2, 2026-04-30) | Sec 7 |
 | `roles.md` | **TBD** | Sec 8 (goalie / forward / flexible) |
 | `strikers-and-abilities.md` | **TBD** | Sec 9-10 |
 | `combat.md` | **TBD** | Sec 12 (stagger / KO / damage) |
 | `energy-evade-burst.md` | **TBD** | Sec 13 |
 | `power-orbs.md` | **TBD** | Sec 14 |
-| `awakenings.md` | **TBD** | Sec 15 (gameplay system) + Sec 21-22 (draft UX) |
+| [`awakenings.md`](./awakenings.md) | **migrated** (batch 2, 2026-04-30) | Sec 15 (gameplay system) + Sec 21-22 (draft UX) |
 | `gear.md` | **TBD** | Sec 16 |
 | `maps.md` | **TBD** | Sec 17 |
 | [`lobby.md`](./lobby.md) | **migrated** (batch 1, 2026-04-29) | Sec 19 |

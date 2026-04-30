@@ -16,8 +16,10 @@ The goal is to help an agent understand the *game context* behind the code it is
 > - Player ↔ engine concept bridge → [`docs/glossary.md`](../glossary.md)
 > - Full topic index + status table → [`docs/game/README.md`](./README.md)
 >
-> **Migrated so far (batch 1, 2026-04-29):** §1, §2, §3, §4, §5, §6,
-> §18, §19, §23, §25, §29, §30.
+> **Migrated so far:**
+>
+> - **Batch 1 (2026-04-29):** §1, §2, §3, §4, §5, §6, §18, §19, §23, §25, §29, §30
+> - **Batch 2 (2026-04-30):** §7, §11, §15, §21, §22
 
 ---
 
@@ -51,7 +53,8 @@ The goal is to help an agent understand the *game context* behind the code it is
 
 # 5. The Core Is the Main Gameplay Object
 
-> **Migrated → [`overview.md` → "The Core is the main gameplay object"](./overview.md#the-core-is-the-main-gameplay-object).**
+> **Migrated.** High-level take: [`overview.md` → "The Core is the main gameplay object"](./overview.md#the-core-is-the-main-gameplay-object).
+> Player-side mechanic depth: [`core-and-strike.md`](./core-and-strike.md).
 > Engine-side bridge: [`docs/glossary.md` → "Core (a.k.a. Rock)"](../glossary.md#core-aka-rock).
 > Section retained as a stub so existing references (Sec 5) still resolve.
 
@@ -71,35 +74,9 @@ The goal is to help an agent understand the *game context* behind the code it is
 
 # 7. Goals and Barriers
 
-Goals are not simply open nets at all times.
-
-The game uses goal barriers/gates that must usually be broken before the goal is fully open.
-
-The player constantly tracks:
-
-```text
-Which enemy barriers are still up
-Which friendly barriers are still up
-Whether the goal is open
-Which barrier is vulnerable
-Whether a shot should target the barrier or the open goal
-```
-
-Gameplay implications:
-
-```text
-Breaking a barrier is often a major strategic step before scoring.
-A team can be under pressure even before conceding if its barriers are broken.
-Goalies defend both the barriers and the goal itself.
-Forwards often coordinate pressure to break barriers, then score afterward.
-```
-
-For agents:
-
-```text
-Goal barrier state is not cosmetic.
-It affects tactical decisions, scoring routes, UI priority, camera attention, and player stress.
-```
+> **Migrated → [`goals-and-barriers.md`](./goals-and-barriers.md).**
+> Engine-side bridge: [`docs/glossary.md` → "Goal & Barrier"](../glossary.md#goal--barrier).
+> Section retained as a stub so existing references (Sec 7) still resolve.
 
 ---
 
@@ -350,41 +327,9 @@ How does this interact with Awakenings?
 
 # 11. Strike
 
-The basic Strike is one of the most important actions in the game.
-
-Strike is used to hit the Core and redirect it.
-
-Strike timing matters because:
-
-```text
-Players can bait each other's Strike
-A wasted Strike can open a scoring window
-Goalies often lose goals after mistimed Strikes
-Forwards can stuff the Core through defenders after forcing Strike
-Cooldown timing creates mind games
-```
-
-For agents:
-
-```text
-Strike is not just a simple input.
-It is a timing-based interaction with high tactical importance.
-```
-
-Potential related systems:
-
-```text
-Strike cooldown
-Strike direction
-Strike hitbox
-Strike priority
-Core ownership
-Input buffering
-Aim assist
-Controller behavior
-Latency compensation
-Prediction
-```
+> **Migrated → [`core-and-strike.md` → "The basic Strike"](./core-and-strike.md#the-basic-strike).**
+> Engine-side bridge: [`docs/glossary.md` → "Core (a.k.a. Rock)"](../glossary.md#core-aka-rock).
+> Section retained as a stub so existing references (Sec 11) still resolve.
 
 ---
 
@@ -503,76 +448,11 @@ Orb spawn timing, location, pickup rules, and rewards affect match pacing and co
 
 # 15. Awakenings
 
-Awakenings are the current official version's main in-match build system.
-
-Players select Awakenings:
-
-```text
-At the start of the match
-Between sets
-```
-
-Awakenings can modify things like:
-
-```text
-Ability size
-Projectile size
-Cooldown rate
-Speed
-Power
-Damage
-Knockback
-Range
-Creation/deployable size
-Energy behavior
-Orb effects
-Special ability availability
-Survivability
-Scaling over the match
-```
-
-Awakenings are not just passive stats.
-They are a draft-based adaptation system.
-
-They create questions like:
-
-```text
-What does my Striker need?
-What does my role need?
-What does this map reward?
-What is the enemy team building?
-What does my team lack?
-Should I draft for scoring, survival, cooldowns, size, or utility?
-```
-
-For OSPlus:
-
-```text
-Awakening systems are central to current Omega Strikers build expression.
-Do not replace them accidentally with beta-era pre-match build assumptions.
-```
-
-Feature ideas should be framed as:
-
-```text
-Awakening draft assistance
-Awakening recommendation logic
-Post-match Awakening analysis
-Practice-mode Awakening simulation
-Awakening balance experiments
-New Awakening design
-Awakening UI improvements
-```
-
-Not as:
-
-```text
-Traditional pre-match item build editor
-Full pre-match loadout planner
-Static build selection before queue
-```
-
-Unless OSPlus is intentionally adding that as a new system.
+> **Migrated → [`awakenings.md`](./awakenings.md).**
+> Specifically: ["What an Awakening is"](./awakenings.md#what-an-awakening-is)
+> and ["OSPlus framing rules"](./awakenings.md#osplus-framing-rules).
+> Engine-side bridge: [`docs/glossary.md` → "Awakening"](../glossary.md#awakening).
+> Section retained as a stub so existing references (Sec 15) still resolve.
 
 ---
 
@@ -689,55 +569,15 @@ Striker select is not a full build editor in the current official format.
 
 # 21. Starting Awakening Draft UX
 
-At the start of a match, players select an initial Awakening.
-
-The player wants to know:
-
-```text
-What options are available?
-What does each Awakening do?
-Which one works with my Striker?
-Which one works with my role?
-Which one works on this map?
-Which one counters or complements team compositions?
-How much time remains?
-```
-
-For agents:
-
-```text
-This is the start of the player's actual build path.
-```
+> **Migrated → [`awakenings.md` → "Starting Awakening (match start)"](./awakenings.md#1-starting-awakening-match-start).**
+> Section retained as a stub so existing references (Sec 21) still resolve.
 
 ---
 
 # 22. Between-Set Awakening Draft UX
 
-Between sets, players draft more Awakenings.
-
-The player wants to know:
-
-```text
-Who won the last set?
-What went wrong or right?
-What Awakenings are available now?
-What has my team already drafted?
-What have enemies drafted?
-What does my Striker need next?
-Do I need offense, defense, cooldowns, size, speed, survival, or utility?
-How much time remains?
-```
-
-This is a strategic adaptation moment.
-
-A good OSPlus feature could help the player understand:
-
-```text
-Why an Awakening is good
-Whether it fits the Striker
-Whether it fits the map
-Whether it helps the current match state
-```
+> **Migrated → [`awakenings.md` → "Between-set Awakening drafts"](./awakenings.md#2-between-set-awakening-drafts).**
+> Section retained as a stub so existing references (Sec 22) still resolve.
 
 ---
 
