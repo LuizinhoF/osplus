@@ -35,8 +35,8 @@ still resolve to the source monolith until promoted.
 
 | Doc | Status | Source section in `OMEGA_STRIKERS_GAME.md` |
 |---|---|---|
-| `overview.md` | **TBD** | Sec 1-2, 4-5, 29-30 (distilled identity + agent memory summary) |
-| `match-lifecycle.md` | **TBD** | Sec 3, 6 (session flow + state machine) |
+| [`overview.md`](./overview.md) | **migrated** (batch 1, 2026-04-29) | Sec 1-2, 4-5, 29-30 (distilled identity + agent memory summary) |
+| [`match-lifecycle.md`](./match-lifecycle.md) | **migrated** (batch 1, 2026-04-29) | Sec 3, 6 (session flow + state machine) |
 | `core-and-strike.md` | **TBD** | Sec 4-5, 11 (Core mechanics + basic Strike) |
 | `goals-and-barriers.md` | **TBD** | Sec 7 |
 | `roles.md` | **TBD** | Sec 8 (goalie / forward / flexible) |
@@ -47,11 +47,11 @@ still resolve to the source monolith until promoted.
 | `awakenings.md` | **TBD** | Sec 15 (gameplay system) + Sec 21-22 (draft UX) |
 | `gear.md` | **TBD** | Sec 16 |
 | `maps.md` | **TBD** | Sec 17 |
-| `lobby.md` | **TBD** | Sec 19 |
+| [`lobby.md`](./lobby.md) | **migrated** (batch 1, 2026-04-29) | Sec 19 |
 | `striker-select.md` | **TBD** | Sec 20 |
-| `in-match-hud.md` | **TBD** | Sec 18, 23 (player attention + HUD UX) |
+| [`in-match-hud.md`](./in-match-hud.md) | **migrated** (batch 1, 2026-04-29) | Sec 18, 23 (player attention + HUD UX) |
 | `post-match.md` | **TBD** | Sec 24 |
-| `screens.md` | **TBD** | Sec 25 (screen inventory + per-screen detail) |
+| [`screens.md`](./screens.md) | **migrated** (batch 1, 2026-04-29) | Sec 25 (screen inventory + per-screen detail) |
 | `design-principles.md` | **TBD** | Sec 27 |
 
 Items marked **TBD** are slots reserved by intent, not yet drafted.
