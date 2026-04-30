@@ -39,11 +39,11 @@ still resolve to the source monolith until promoted.
 | [`match-lifecycle.md`](./match-lifecycle.md) | **migrated** (batch 1, 2026-04-29) | Sec 3, 6 (session flow + state machine) |
 | [`core-and-strike.md`](./core-and-strike.md) | **migrated** (batch 2, 2026-04-30) | Sec 4-5, 11 (Core mechanics + basic Strike) |
 | [`goals-and-barriers.md`](./goals-and-barriers.md) | **migrated** (batch 2, 2026-04-30) | Sec 7 |
-| `roles.md` | **TBD** | Sec 8 (goalie / forward / flexible) |
+| [`roles.md`](./roles.md) | **migrated** (batch 3, 2026-04-30) | Sec 8 (goalie / forward / flexible) |
 | `strikers-and-abilities.md` | **TBD** | Sec 9-10 |
-| `combat.md` | **TBD** | Sec 12 (stagger / KO / damage) |
-| `energy-evade-burst.md` | **TBD** | Sec 13 |
-| `power-orbs.md` | **TBD** | Sec 14 |
+| [`combat.md`](./combat.md) | **migrated** (batch 3, 2026-04-30) | Sec 12 (stagger / KO / damage) |
+| [`energy-evade-burst.md`](./energy-evade-burst.md) | **migrated** (batch 3, 2026-04-30) | Sec 13 |
+| [`power-orbs.md`](./power-orbs.md) | **migrated** (batch 3, 2026-04-30) | Sec 14 |
 | [`awakenings.md`](./awakenings.md) | **migrated** (batch 2, 2026-04-30) | Sec 15 (gameplay system) + Sec 21-22 (draft UX) |
 | `gear.md` | **TBD** | Sec 16 |
 | `maps.md` | **TBD** | Sec 17 |
