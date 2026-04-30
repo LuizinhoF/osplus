@@ -20,6 +20,7 @@ The goal is to help an agent understand the *game context* behind the code it is
 >
 > - **Batch 1 (2026-04-29):** §1, §2, §3, §4, §5, §6, §18, §19, §23, §25, §29, §30
 > - **Batch 2 (2026-04-30):** §7, §11, §15, §21, §22
+> - **Batch 3 (2026-04-30):** §8 (incl. §8.1-8.3), §12, §13, §14
 
 ---
 
@@ -82,120 +83,13 @@ The goal is to help an agent understand the *game context* behind the code it is
 
 # 8. Player Roles
 
-Omega Strikers has role-like behavior, especially goalie and forward.
-
-These roles are not completely rigid, but they strongly shape player expectations.
-
----
-
-## 8.1 Goalie
-
-The goalie usually plays closer to their own goal.
-
-The goalie cares about:
-
-```text
-Clearing the Core safely
-Blocking shots
-Protecting goal barriers
-Defending an open goal
-Avoiding enemy stuffing
-Avoiding wasted Strike timing
-Managing cooldowns defensively
-Tracking enemy forwards
-Using Energy Burst for clutch saves
-Preventing rebounds near the goal
-```
-
-Goalie gameplay is about discipline and reaction.
-
-A goalie feature should prioritize:
-
-```text
-Core readability
-Threat readability
-Cooldown visibility
-Clear direction feedback
-Barrier state visibility
-Energy availability
-Enemy pressure awareness
-```
-
-A change is dangerous if it:
-
-```text
-Makes close-range stuffing unavoidable
-Makes the Core visually unclear near the goal
-Removes the goalie's ability to react
-Punishes correct defensive positioning too hard
-Adds visual clutter in the goal area
-```
-
----
-
-## 8.2 Forward
-
-Forwards usually play farther upfield and pressure the enemy side.
-
-A forward cares about:
-
-```text
-Scoring
-Breaking barriers
-Pressuring the enemy goalie
-Passing
-Controlling midfield
-KOing or staggering enemies
-Denying clears
-Creating Core angles
-Collecting or denying Power Orbs
-Punishing enemy cooldowns
-```
-
-Forward gameplay is about pressure, timing, positioning, and opportunity creation.
-
-A forward feature should prioritize:
-
-```text
-Aim feedback
-Core angle readability
-Enemy stagger information
-Cooldown combo clarity
-Barrier targeting
-Orb awareness
-Passing lane readability
-```
-
-A change is dangerous if it:
-
-```text
-Makes scoring too automatic
-Removes defensive counterplay
-Over-rewards blind aggression
-Makes KO pressure too dominant
-Makes midfield control irrelevant
-```
-
----
-
-## 8.3 Flexible / Rotational Play
-
-Good players often rotate between offense and defense.
-
-Do not assume:
-
-```text
-Goalie always stays inside goal
-Forwards never defend
-The same player always touches the Core
-The map has fixed lanes like a MOBA
-```
-
-Omega Strikers is fluid.
-
-A forward may rotate back to save.
-A goalie may step forward to clear or pressure.
-Teams constantly shift based on Core position, cooldowns, barrier state, and stagger state.
+> **Migrated → [`roles.md`](./roles.md).**
+> Subsections 8.1 (Goalie), 8.2 (Forward), 8.3 (Flexible / Rotational
+> Play) are all in that file. Engine-side bridge:
+> [`docs/glossary.md` → "Goalie / Forward (role)"](../glossary.md#goalie--forward-role)
+> — note that there is **no engine class for role**; roles are
+> emergent.
+> Section retained as a stub so existing references (Sec 8) still resolve.
 
 ---
 
@@ -335,114 +229,37 @@ How does this interact with Awakenings?
 
 # 12. Stagger and KO
 
-Players can take damage and become vulnerable to knockback.
-
-As pressure builds, a player can be knocked out of the arena and temporarily removed from play.
-
-This creates temporary advantage.
-
-Important concepts:
-
-```text
-Damage does not only mean killing.
-Damage increases positional danger.
-Low stagger makes edges and corners more dangerous.
-KOs create scoring windows.
-KO pressure can force enemies to retreat or waste resources.
-```
-
-For gameplay design:
-
-```text
-A KO is not just a reward.
-It changes team numbers, map control, and Core pressure.
-```
-
-Dangerous changes:
-
-```text
-Too much unavoidable KO pressure
-Too little KO threat, making combat irrelevant
-Unclear knockback direction
-Unclear stagger state
-Effects that hide ring-out danger
-```
+> **Migrated → [`combat.md`](./combat.md).**
+> Specifically: ["What 'damage' actually means"](./combat.md#what-damage-actually-means),
+> ["Stagger as accumulated pressure"](./combat.md#stagger-as-accumulated-pressure),
+> ["KO as a match-state shift"](./combat.md#ko-as-a-match-state-shift).
+> Engine-side bridge for knockback: [`docs/glossary.md` → "Core (a.k.a. Rock)"](../glossary.md#core-aka-rock)
+> (`EKnockBackType` enum applies to player knockback as well).
+> Section retained as a stub so existing references (Sec 12) still resolve.
 
 ---
 
 # 13. Energy, Evade, and Energy Burst
 
-Players have an Energy resource.
-
-Energy-related actions are extremely important for survival and clutch plays.
-
-Broadly:
-
-```text
-Evade = defensive avoidance / survival tool
-Energy Burst = high-impact Core control and emergency reversal tool
-```
-
-Energy affects:
-
-```text
-Goalie clutch saves
-Forward stuffing
-Survival against KO pressure
-Core priority
-Late-set comeback potential
-High-pressure defensive plays
-```
-
-For agents:
-
-```text
-Do not change Energy lightly.
-Energy affects both combat survivability and Core control.
-```
-
-A mod feature involving Energy should consider:
-
-```text
-Does this make goalies too safe?
-Does this make forwards too oppressive?
-Does this remove clutch saves?
-Does this make KO pressure meaningless?
-Does this create too much Core priority?
-```
+> **Migrated → [`energy-evade-burst.md`](./energy-evade-burst.md).**
+> Specifically: ["The Energy resource"](./energy-evade-burst.md#the-energy-resource),
+> ["Evade"](./energy-evade-burst.md#evade--defensive-avoidance),
+> ["Energy Burst"](./energy-evade-burst.md#energy-burst--high-impact-core-control--emergency-reversal),
+> ["Why they share a meter"](./energy-evade-burst.md#why-they-share-a-meter).
+> The five-question Energy-feature evaluation checklist from this section
+> is preserved verbatim in
+> [energy-evade-burst.md → "Sec 13's checklist"](./energy-evade-burst.md#sec-13s-checklist-preserved).
+> Section retained as a stub so existing references (Sec 13) still resolve.
 
 ---
 
 # 14. Power Orbs
 
-Power Orbs are neutral pickups that appear during play.
-
-They typically matter because they can provide value such as:
-
-```text
-Stagger recovery
-Experience
-Energy gain
-Map control incentives
-```
-
-Power Orbs create micro-objectives.
-
-Players may fight over them because they can:
-
-```text
-Keep a low-stagger player alive
-Enable Energy Burst sooner
-Help players level
-Create positional bait
-Pull teams toward contested space
-```
-
-For agents:
-
-```text
-Orb spawn timing, location, pickup rules, and rewards affect match pacing and comeback potential.
-```
+> **Migrated → [`power-orbs.md`](./power-orbs.md).**
+> Specifically: ["What an Orb gives the player"](./power-orbs.md#what-an-orb-gives-the-player),
+> ["Why Orbs distort positioning"](./power-orbs.md#why-orbs-distort-positioning),
+> ["Orbs as the comeback engine"](./power-orbs.md#orbs-as-the-comeback-engine).
+> Section retained as a stub so existing references (Sec 14) still resolve.
 
 ---
 
