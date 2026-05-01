@@ -60,6 +60,7 @@ Newest first.
 
 | # | Status | Title | Date |
 |---|---|---|---|
+| [0004](0004-emote-loadout-as-osplus-layer.md) | `accepted` | Emote loadout as an OSPlus-canonical parallel layer | 2026-05-01 |
 | [0003](0003-knowledge-substrate-structure.md) | `accepted` | Knowledge substrate structure: multi-file subtrees + canonical glossary | 2026-04-29 |
 | [0002](0002-profile-storage.md) | `accepted` | Profile + capture storage and per-request auth | 2026-04-25 |
 | [0001](0001-identity-model.md) | `accepted` | Bind OSPlus profiles to the Odyssey (Prometheus) account ID | 2026-04-24 |
