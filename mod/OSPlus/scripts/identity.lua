@@ -313,9 +313,11 @@ function M.reset()
     cachedPlayerName = nil
     loggedWaitingReason = nil
     -- NOTE: cachedPrometheusId is intentionally NOT reset on map transitions.
-    -- It's session-stable and the RegisterHook producer self-unregisters on
-    -- first PID resolve, so a wipe here would leave it permanently nil for
-    -- the rest of the session.
+    -- It's session-stable; the RegisterHook stays registered for the session
+    -- but its body short-circuits cheaply once cachedPrometheusId is set, so
+    -- there's no benefit to forcing a re-resolve here — and a wipe would
+    -- leave it permanently nil for the rest of the session anyway since the
+    -- engine empirically stops calling GetIdentityState post-authentication.
 end
 
 -- ---------------------------------------------------------------------------
@@ -355,10 +357,18 @@ end
 --     ~30ms (subsystem constructed → callback fires → defer to next tick →
 --     install runs → already too late).
 --
--- Why self-unhook on first resolution:
+-- Why we DON'T self-unhook on first resolution (changed in v46):
 --   - PlayerId is stable for the session — re-resolving has zero value
---   - GetIdentityState fires multiple times during/after login; without
---     unhooking we'd re-run readAuthenticatedPlayerId on every fire forever
+--   - GetIdentityState fires multiple times during the cold-start identity
+--     flow, but the engine empirically stops calling it once the local
+--     player is authenticated (v45 instrumented session: hookFires held
+--     at 2 across 93 minutes), so leaving the hook registered is free.
+--   - Calling UnregisterHook (even via ExecuteInGameThread) mutates
+--     UE4SS's m_engine_tick_actions vector, which UE4SS Issue #1180 and
+--     our own bisection pin as the cause of an access-violation crash
+--     ~60-90 minutes into a session in this codebase.
+--   - The hook callback (onIdentityHookFire) early-returns on the cached
+--     PID, so any rare post-resolution fire is essentially free.
 --
 -- See:
 --   - docs/decisions/0001-identity-model.md (R-B substrate definition)
@@ -367,6 +377,8 @@ end
 --   - docs/learnings/ue4ss-ufunction-out-param-marshaling-3-0-1.md (the
 --     empty-table out-param convention used by readAuthenticatedPlayerId,
 --     pinned to UE4SS 3.0.1)
+--   - docs/learnings/ue4ss-execute-in-game-thread-unregister-hook-corruption.md
+--     (why we removed the self-unregister; UE4SS Issue #1180 alignment)
 
 local PROMETHEUS_HOOK_PATH = "/Script/Prometheus.PMIdentitySubsystem:GetIdentityState"
 
@@ -452,26 +464,19 @@ local function fireResolvedListeners(pid)
     end
 end
 
-local function deferredUnregisterHook()
-    if hookPreId == nil and hookPostId == nil then return end
-    local preId, postId = hookPreId, hookPostId
-    hookPreId, hookPostId = nil, nil
-    -- Defer to next tick to avoid mutating the RegisterHook dispatcher
-    -- mid-fire. UnregisterHook from inside a hook callback IS supported
-    -- (ConsoleEnablerMod precedent + UE4SS Issue #455), but deferring is
-    -- the safer pattern when we don't need an immediate stop.
-    ExecuteInGameThread(function()
-        local ok, err = pcall(function()
-            UnregisterHook(PROMETHEUS_HOOK_PATH, preId, postId)
-        end)
-        if not ok then
-            log.log("[IDENTITY] [!] UnregisterHook failed: " .. tostring(err))
-        end
-    end)
-end
-
 local function onIdentityHookFire(...)
     if select("#", ...) == 0 then return end
+    -- Cheap early-return for any post-resolution fire. The hook stays
+    -- registered for the session lifetime — no UnregisterHook call,
+    -- because UE4SS Issue #1180 (ExecuteInGameThread→UnregisterHook can
+    -- corrupt UE4SS's m_engine_tick_actions vector via mid-iteration
+    -- reallocation, surfacing as access violations 60-90 minutes later).
+    -- Leaving the hook registered is the chat-only build's pattern for
+    -- OnRep_MatchState, which has been stable for hundreds of player-
+    -- hours. The engine empirically stops calling GetIdentityState once
+    -- the local player is authenticated, so this branch is taken at most
+    -- a handful of times per session anyway. See
+    -- docs/learnings/ue4ss-execute-in-game-thread-unregister-hook-corruption.md.
     if cachedPrometheusId then return end
 
     local pid = readAuthenticatedPlayerId()
@@ -484,7 +489,6 @@ local function onIdentityHookFire(...)
     log.log("[IDENTITY] resolved local Prometheus ID: " .. pid)
 
     fireResolvedListeners(pid)
-    deferredUnregisterHook()
 end
 
 function M.getLocalPrometheusId()
