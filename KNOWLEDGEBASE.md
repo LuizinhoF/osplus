@@ -1,317 +1,142 @@
 # Omega Strikers Modding — Knowledgebase
 
-Everything learned through trial and error while building the custom ping system mod.
-This document is the single source of truth for "how things work" in this game's modding context.
+> **Migration in progress.** Per [ADR 0003](docs/decisions/0003-knowledge-substrate-structure.md),
+> this monolithic doc is being decomposed into per-topic files
+> under [`docs/engine/`](docs/engine/). Sections that have moved
+> are stubbed (heading retained, body replaced with a redirect).
+> Untouched sections remain canonical here until they too are
+> migrated.
+>
+> **Where to start instead:**
+>
+> - New agent / first-time engine read → [`docs/engine/overview.md`](docs/engine/overview.md)
+> - Engine ↔ player concept bridge → [`docs/glossary.md`](docs/glossary.md)
+> - Full topic index + status table → [`docs/engine/README.md`](docs/engine/README.md)
+>
+> **Migrated so far:**
+>
+> - **Batch 1 (2026-05-01):** §"Game Engine Facts", §"Game Paths",
+>   §"UE Project Settings (Critical)", §"HUD System", §"Asset
+>   Loading", §"Actor Spawning", §"Material Setup", §"Pak
+>   Packaging", §"UE4SS Lua API", §"Common Pitfalls", §"Flipbook
+>   Animation", and the "Engine & Modules" + "Maps" sub-sections of
+>   §"Omega Strikers — Game Internals".
+
+This was originally the single source of truth for "how things
+work" in this game's modding context. Most of that knowledge has
+moved or is moving to [`docs/engine/`](docs/engine/) per the
+banner above. The historical context — *"everything learned
+through trial and error while building the custom ping system
+mod"* — explains why some of the early prototype-era patterns
+(ping markers, sprite materials, `CustomPings_P.pak`) appear
+throughout: that work *paid forward* the cooked-pak + UE4SS +
+sidecar pipeline OSPlus runs on today.
 
 ---
 
 ## Game Engine Facts
 
-- **Engine**: Unreal Engine 5.1 (built with UE 5.1.0 or 5.1.1)
-- **Game modules**: `Prometheus` (gameplay), `OdyUI` (UI framework)
-- **Rendering**: DX11 at runtime (DX12 may be available but shaders must target SM5)
-- **UI system**: UMG widgets via `OdyUI.OdyHUD` with a `UIRouter` — the game does NOT use Canvas-based HUD drawing
+> **Migrated → [`docs/engine/overview.md`](docs/engine/overview.md).**
+> Specifically: ["The engine pin"](docs/engine/overview.md#the-engine-pin)
+> and ["The two gameplay modules"](docs/engine/overview.md#the-two-gameplay-modules).
+> Section retained as a stub so existing references still resolve.
+
+---
 
 ## Game Paths
 
-| What | Path |
-|------|------|
-| Game install | `F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\` |
-| Game executable | `Binaries\Win64\OmegaStrikers-Win64-Shipping.exe` |
-| UE4SS root | `Binaries\Win64\ue4ss\` |
-| Mod scripts | `ue4ss\Mods\OSPlus\scripts\` |
-| Pak directory | `Content\Paks\` |
-| Mod pak | `Content\Paks\CustomPings_P.pak` |
-| UE project | `F:\Omegamod\OmegaStonkers\` |
-| Cooked content | `F:\Omegamod\OmegaStonkers\Saved\Cooked\Windows\OmegaStonkers\Content\` |
+> **Migrated → [`docs/engine/setup.md` → "Game install layout"](docs/engine/setup.md#game-install-layout-players-machine).**
+> The KB's prototype-era paths (`CustomPings_P.pak`, `OmegaStonkers`
+> minus the ` 5.1` suffix) were updated to current OSPlus paths
+> during migration. Section retained as a stub so existing
+> references still resolve.
+
+---
 
 ## UE Project Settings (Critical)
 
-These settings in the UE project are required for materials to render correctly in-game.
-
-### DefaultEngine.ini
-```ini
-[Core.System]
-CanUseUnversionedPropertySerialization=False  # CRITICAL — without this, complex widgets (ScrollBox, etc.) crash on load
-
-[/Script/Engine.RendererSettings]
-r.DefaultFeature.AutoExposure=False
-r.Lumen.Supported=False
-r.Shadow.Virtual.Enable=False
-r.GenerateMeshDistanceFields=False
-
-[/Script/WindowsTargetPlatform.WindowsTargetSettings]
-DefaultGraphicsRHI=DefaultGraphicsRHI_DX11
-TargetedRHIs=PCD3D_SM5
-
-[/Script/HardwareTargeting.HardwareTargetingSettings]
-TargetedHardwareClass=Desktop
-AppliedTargetedHardwareClass=Desktop
-DefaultGraphicsPerformance=Maximum
-AppliedDefaultGraphicsPerformance=Maximum
-```
-
-### DefaultGame.ini
-```ini
-[/Script/UnrealEd.ProjectPackagingSettings]
-bShareMaterialShaderCode=False
-bSharedMaterialNativeLibraries=False
-```
-
-**Why**: `bShareMaterialShaderCode=False` forces shader bytecode to be embedded directly in each material's `.uasset` file. Without this, shaders go into a separate ShaderArchive that may not load correctly in the game.
+> **Migrated → [`docs/engine/setup.md` → "DefaultEngine.ini"](docs/engine/setup.md#defaultengineini)
+> and [→ "DefaultGame.ini"](docs/engine/setup.md#defaultgameini).**
+> Both INI files are documented in full, including the
+> "schema-stability cluster" (the `CanUseUnversionedPropertySerialization`
+> trap, with the wrong-key-name false-friend called out) and the
+> "renderer cluster" (DX11 / SM5 requirements).
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## HUD System — What Works and What Doesn't
 
-### The HUD class hierarchy (Practice mode)
-```
-HUD_Practice_C (Blueprint, 2 UFunctions)
-  └─ PMHUDBase (/Script/Prometheus, 2 UFunctions: AddOffscreenIndicator, RemoveOffscreenIndicator)
-      └─ OdyHUD (/Script/OdyUI, 2 UFunctions: OnUIRouterCreated, GetUIRouter)
-          └─ AHUD (/Script/Engine, 29 UFunctions including DrawRect, DrawText, ReceiveDrawHUD, etc.)
-              └─ AActor (/Script/Engine, 134 UFunctions including ReceiveTick)
-                  └─ UObject
-```
-
-### ReceiveDrawHUD does NOT fire
-- `ReceiveDrawHUD` is a `BlueprintImplementableEvent` — it only fires if a Blueprint subclass implements it
-- The game's HUD Blueprint (`HUD_Practice_C`) does NOT implement it
-- The C++ class (`OdyHUD` or `PMHUDBase`) overrides `DrawHUD()` in C++ without calling `Super::DrawHUD()`, so the event is never dispatched
-- Hooking `/Script/Engine.HUD:ReceiveDrawHUD` registers successfully but the callback never fires
-
-### Canvas drawing functions are never called
-- `DrawRect`, `DrawText`, `DrawLine`, `DrawTexture`, `DrawMaterial`, etc. on AHUD are never called by the game
-- The game uses UMG widgets exclusively — Canvas is never set up during gameplay
-
-### What DOES work for UI
-- **Widget Blueprints (UMG)**: Create a `UserWidget` Blueprint in the UE project, cook it, pak it, load from Lua
-- **World-space actors**: Spawn `BP_PingMarker` actors for in-world visuals (proven working)
+> **Migrated → [`docs/engine/widgets.md` → "The cooked-pak rendering model"](docs/engine/widgets.md#the-cooked-pak-rendering-model).**
+> Specifically: ["HUD class hierarchy"](docs/engine/widgets.md#hud-class-hierarchy),
+> ["ReceiveDrawHUD does NOT fire"](docs/engine/widgets.md#receivedrawhud-does-not-fire),
+> ["Canvas drawing functions are never called"](docs/engine/widgets.md#canvas-drawing-functions-are-never-called),
+> ["What DOES work for UI"](docs/engine/widgets.md#what-does-work-for-ui).
+> The engine reasoning ("UMG-only HUD") also lives in
+> [`docs/engine/overview.md` → "UMG-only HUD"](docs/engine/overview.md#umg-only-hud).
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## Asset Loading — Proven Pattern
 
-```lua
-local function findAsset(assetPath)
-    local assetName = assetPath:match("[^/]+$")
-
-    -- Try StaticFindObject with multiple path formats
-    local tryPaths = {
-        assetPath .. "." .. assetName,
-        "MaterialInstanceConstant " .. assetPath .. "." .. assetName,
-        "Texture2D " .. assetPath .. "." .. assetName,
-    }
-    for _, path in ipairs(tryPaths) do
-        local ok, obj = pcall(StaticFindObject, path)
-        if ok and obj and type(obj) == "userdata" then
-            local validOk, isValid = pcall(function() return obj:IsValid() end)
-            if validOk and isValid then return obj end
-        end
-    end
-
-    -- Fallback: AssetRegistryHelpers
-    local arh = StaticFindObject("/Script/AssetRegistry.Default__AssetRegistryHelpers")
-    if not arh or not arh:IsValid() then return nil end
-
-    local ok, result = pcall(function()
-        local assetData = {
-            ["PackageName"] = UEHelpers.FindOrAddFName(assetPath),
-            ["AssetName"] = UEHelpers.FindOrAddFName(assetName),
-        }
-        return arh:GetAsset(assetData)
-    end)
-    if ok and result then
-        local validOk, isValid = pcall(function() return result:IsValid() end)
-        if validOk and isValid then return result end
-    end
-    return nil
-end
-```
-
-### Loading a Blueprint class
-```lua
--- For Blueprint classes, try loading BP_Name_C (the generated class)
-local arh = StaticFindObject("/Script/AssetRegistry.Default__AssetRegistryHelpers")
-local assetData = {
-    ["PackageName"] = UEHelpers.FindOrAddFName("/Game/CustomPings/VFX/BP_PingMarker"),
-    ["AssetName"] = UEHelpers.FindOrAddFName("BP_PingMarker_C"),
-}
-local cls = arh:GetAsset(assetData)
-
--- Fallback: load the Blueprint, then get .GeneratedClass
-local assetData2 = {
-    ["PackageName"] = ...,
-    ["AssetName"] = UEHelpers.FindOrAddFName("BP_PingMarker"),  -- without _C
-}
-local bp = arh:GetAsset(assetData2)
-local cls = bp.GeneratedClass
-
--- Last resort: StaticFindObject with full path
-local cls = StaticFindObject("BlueprintGeneratedClass /Game/CustomPings/VFX/BP_PingMarker.BP_PingMarker_C")
-```
+> **Migrated → [`docs/engine/widgets.md` → "Asset loading from cooked paks"](docs/engine/widgets.md#asset-loading-from-cooked-paks).**
+> Includes the `findAsset` helper, the three-pattern Blueprint
+> class loading recipe, and the rationale for falling back through
+> multiple path formats. KB's prototype-era examples
+> (`/Game/CustomPings/VFX/BP_PingMarker`) were replaced with the
+> current OSPlus equivalents (`/Game/Mods/OSPlus/Chat/WBP_ModChat`)
+> during migration, with a note about the rename.
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## Actor Spawning — Proven Pattern
 
-```lua
-local world = UEHelpers.GetWorld()
-local actor = world:SpawnActor(cachedBPClass, {}, {})
-actor:K2_SetActorLocation(makeVec(x, y, z), false, {}, false)
-actor:SetLifeSpan(10.0)  -- auto-destroy after 10 seconds
-
--- Access Blueprint components by name
-local meshComp = actor.PingMesh
-meshComp:SetMaterial(0, materialInstance)
-meshComp.bVisible  -- read visibility
-
--- Scale
-actor:SetActorScale3D(makeVec(scaleX, scaleY, scaleZ))
-
--- Destroy
-actor:K2_DestroyActor()
-```
+> **Migrated → [`docs/engine/widgets.md` → "Actor spawning from cooked paks"](docs/engine/widgets.md#actor-spawning-from-cooked-paks).**
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## Material Setup — Lessons Learned
 
-### M_PingSprite (Master Material)
-- **Material Domain**: Surface
-- **Blend Mode**: Translucent
-- **Shading Model**: Unlit
-- **Two Sided**: checked
-- **Graph**: `TextureSample(PingIcon).RGB * PingColor.RGB` → Emissive Color, `TextureSample(PingIcon).A * PingColor.A` → Opacity
-
-### Material Instance overrides (each MI_PingSprite_*)
-Must enable **Material Property Overrides** for:
-- Blend Mode → Translucent
-- Shading Model → Unlit
-- Two Sided → override checkbox ON, actual value OFF (unchecked)
-
-### Common material bugs
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| Black squares | Shader incompatibility (SM6 vs SM5) or missing shader archives | Set `bShareMaterialShaderCode=False`, target SM5/DX11 |
-| Invisible/transparent | Alpha channel multiplied by 0 in material graph | Verify `PingIcon.A * PingColor.A` wiring to Opacity is correct |
-| White squares | Material not assigned | Check `meshComp:SetMaterial(0, mat)` is called with valid material |
+> **Migrated → [`docs/engine/widgets.md` → "Material setup"](docs/engine/widgets.md#material-setup).**
+> Includes the master material requirements, the material instance
+> override pattern (with the "override checkbox ON, value OFF"
+> trap explained), and the common material bugs table.
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## Pak Packaging
 
-### Script: `package_pak.ps1`
-- Uses `UnrealPak.exe` from `F:\UE_5.1\Engine\Binaries\Win64\`
-- Input: cooked content from `F:\Omegamod\OmegaStonkers\Saved\Cooked\Windows\OmegaStonkers\Content\CustomPings\`
-- Output: `CustomPings_P.pak` in the game's `Content\Paks\` directory
-- The `_P` suffix is important — it tells UE to mount this pak after the base game paks
-
-### What to include
-- All files under `CustomPings/` from cooked content
-- Skip: `ShaderArchive-Global`, `ShaderAssetInfo-Global`, `HLOD` files
-
-### After cooking & paking
-Always restart the game fully — "Reload All Mods" does NOT reload pak files.
+> **Migrated → [`docs/engine/setup.md` → "Pak packaging"](docs/engine/setup.md#pak-packaging).**
+> The KB's reference to a `package_pak.ps1` script is from the
+> prototype era (`CustomPings_P.pak`); the current canonical
+> harness is [`ue-assets/package_logicmod.ps1`](../../ue-assets/package_logicmod.ps1)
+> per [`.cursor/rules/harnesses.mdc`](../../.cursor/rules/harnesses.mdc).
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## UE4SS Lua API — Key Functions
 
-### Build pin
-
-**UE4SS 3.0.1** ships with the OSPlus dev environment as of 2026-04-25. The Lua marshaling layer (UFunction call shapes, out-param handling, multicast-delegate binding) is the part most likely to change between UE4SS releases — and that's exactly the surface OSPlus depends on most. **Anchor any UE4SS docs/issue-thread lookup to 3.0.1**; fixes landed in 3.1+ may not apply to us, and 2.x-era behavior may also differ.
-
-Sources of truth for this version, in order of trust:
-1. Empirical: a working call in `mod/OSPlus/scripts/` confirms the shape on this build. Always preferred.
-2. UE4SS GitHub issues with explicit "repros on 3.0.1" or with no fix-version newer than 3.0.1 in the resolution. Also check the [3.0.1 release notes](https://github.com/UE4SS-RE/RE-UE4SS/releases) and any 3.1.x changelog entries describing fixes that *don't* apply to us.
-3. The official [UE4SS docs site](https://docs.ue4ss.com/) — note the docs lag releases; cross-check with issues, and confirm the documented behavior isn't gated on a newer version.
-
-When upgrading UE4SS, bump this line, re-run the relevant probes (especially anything in `pass2-probes/`), and revisit `docs/learnings/ue4ss-*.md` — each carries its own "tested under" version pin in the *Related* section.
-
-### Lifecycle hooks
-| Function | When it fires |
-|----------|---------------|
-| `RegisterLoadMapPostHook(cb)` | After any map loads |
-| `RegisterBeginPlayPostHook(cb)` | After any actor's BeginPlay |
-| `NotifyOnNewObject(className, cb)` | When any instance of the class is constructed |
-| `RegisterHook(funcPath, cb)` | Before/after a UFunction executes |
-| `RegisterKeyBind(keyCode, cb)` | On key press (game must be focused) |
-
-### Execution
-| Function | Behavior |
-|----------|----------|
-| `ExecuteInGameThread(cb)` | Run code on game thread (required for UObject operations from keybinds) |
-| `ExecuteWithDelay(ms, cb)` | Run code after delay (on game thread) |
-| `LoopInGameThreadWithDelay(ms, cb)` | Repeating loop on game thread (preferred) |
-| `LoopAsync(ms, cb)` | Repeating loop (DEPRECATED, use above) |
-
-### Object lookup
-| Function | Returns |
-|----------|---------|
-| `StaticFindObject(path)` | Single UObject by full path |
-| `FindFirstOf(className)` | First instance of class (short name only) |
-| `FindAllOf(className)` | Table of all instances (short name only) |
-| `LoadAsset(path)` | Load an asset (must be on game thread) |
-
-### Class introspection
-```lua
-local cls = obj:GetClass()
-cls:ForEachFunction(function(func)
-    local name = func:GetFullName()
-    local flags = func:GetFunctionFlags()
-end)
-local super = cls:GetSuperStruct()  -- parent class
-```
-
-### Hook registration
-```lua
--- /Script/ prefix = pre-hook (fires BEFORE the function)
-RegisterHook("/Script/Engine.HUD:ReceiveDrawHUD", function(Context, SizeX, SizeY)
-    local hud = Context:get()
-end)
-
--- Non-/Script/ prefix = post-hook (fires AFTER)
-RegisterHook("/Game/MyBP.MyBP_C:MyFunc", function(Context)
-    local self = Context:get()
-end)
-```
-
-### FVector creation
-```lua
-local UEHelpers = require("UEHelpers")
-local kml = UEHelpers.GetKismetMathLibrary()
-local vec = kml:MakeVector(x, y, z)
-local rot = kml:MakeRotator(roll, pitch, yaw)
-```
+> **Migrated → [`docs/engine/ue4ss-version-and-gotchas.md` → "The Lua API surface"](docs/engine/ue4ss-version-and-gotchas.md#the-lua-api-surface).**
+> Includes the UE4SS 3.0.1 build pin (and trust-ranking for sources
+> of truth), lifecycle hooks, execution helpers, object lookup,
+> class introspection, `RegisterHook` patterns, and `FVector` /
+> `FRotator` creation via UEHelpers.
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## Common Pitfalls
 
-1. **Mod not updating**: Always copy ALL `.lua` files to the game's `Mods/OSPlus/scripts/` folder after editing. The source copy in the project repo is NOT what the game reads.
-
-2. **"Reload All Mods" limitations**: Reloading mods re-runs Lua scripts but does NOT reload `.pak` files. After cooking/paking, a full game restart is required.
-
-3. **Keybind conflicts**: Check that your keybind doesn't conflict with the game's controls. The game uses G for its own emote wheel.
-
-4. **pcall everything**: UE4SS Lua calls to engine functions can crash if objects are invalid. Always wrap in `pcall()` and check `IsValid()`.
-
-5. **Game thread requirement**: Most UObject operations must run on the game thread. Keybind callbacks run on the input thread — wrap engine calls in `ExecuteInGameThread()`.
-
-6. **Hook parameters are wrapped**: Parameters in `RegisterHook` callbacks are `RemoteUnrealParam` — call `:get()` to unwrap them.
-
-7. **Blueprint events vs native functions**: `RegisterHook` on a BlueprintImplementableEvent (like `ReceiveDrawHUD`, `ReceiveTick`) only fires if the Blueprint actually implements the event. Just because the UFunction exists doesn't mean it's called.
-
-8. **Lua version is 5.4+**: UE4SS uses modern Lua. `math.atan2` does NOT exist -- use `math.atan(y, x)` instead (two-argument form). Similarly, integer division uses `//` not `math.floor(a/b)`.
-
-9. **Widget creation**: `WidgetBlueprintLibrary::Create` expects 4 params (WorldContext, WidgetClass, OwningPlayer, WidgetName). Use `StaticConstructObject(widgetClass, playerController, FName("name"))` instead -- it's simpler and proven working.
-
-10. **Lua local function ordering**: If function A calls function B, and both are `local function`, B must be defined before A — or forward-declare B with `local B` at the top and assign later with `B = function(...)`. Otherwise A captures a nil upvalue.
-
-11. **UE4SS has no networking**: No HTTP, WebSocket, or socket support in Lua. Use file-based IPC (`io.open`) with an external sidecar process for networking.
-
-12. **PlaySound2D requires all 8 params**: `UGameplayStatics:PlaySound2D(world, sound, vol, pitch, startTime, nil, nil, true)` — UE4SS does not support default parameter values, all must be passed explicitly.
+> **Migrated → [`docs/engine/ue4ss-version-and-gotchas.md` → "Common pitfalls"](docs/engine/ue4ss-version-and-gotchas.md#common-pitfalls).**
+> All twelve pitfalls preserved with cross-references to the
+> deeper UE4SS-3.0.1-specific known bugs (`ExecuteInGameThread` +
+> callback-registry corruption is now its own dedicated entry).
+> Section retained as a stub so existing references still resolve.
 
 ---
 
@@ -373,41 +198,34 @@ cd sidecar && node index.js ws://localhost:3000 ROOMCODE
 
 ## Flipbook Animation (Sprite Sheets)
 
-### Material setup
-- Replace `TextureSampleParameter2D` with `TextureObjectParameter` for the Flipbook's Texture input
-- Flipbook node takes Number of Rows and Number of Columns as **input pins** (wire Constant or Scalar Parameter nodes)
-- `Time` node multiplied by a constant controls playback speed (1.0 = one cycle/sec)
-- Use Scalar Parameters for Rows/Columns so material instances can set 1x1 (static) or 4x4 (animated)
-
-### Sprite sheet requirements
-- Power-of-2 textures preferred (2048x2048, 4096x4096) but non-power-of-2 works fine
-- 16 frames (4x4 grid) is a good sweet spot for VFX animations
-- UE Editor material preview only animates with Realtime Preview enabled
+> **Migrated → [`docs/engine/widgets.md` → "Flipbook animation (sprite sheets)"](docs/engine/widgets.md#flipbook-animation-sprite-sheets).**
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## Omega Strikers — Game Internals
 
+This H2 section is a container for several engine-side topics. As
+each sub-section migrates to `docs/engine/`, it gets a redirect
+stub here. The unmigrated sub-sections remain canonical until
+they too move (per the migration banner at the top of this file).
+
 ### Engine & Modules
 
-| Property | Value |
-|----------|-------|
-| Engine version (runtime) | UE 5.1.0 (confirmed via sentry crash metadata) |
-| UE editor (modding) | 5.1.1 |
-| Gameplay module | `Prometheus` — all core game logic, characters, game modes |
-| UI module | `OdyUI` — widget framework, `OdyHUD`, `UIRouter` |
-| Internal project name | `OmegaStrikers` |
-| Shipping config | `Shipping`, DX11 / SM5 |
+> **Migrated → [`docs/engine/overview.md`](docs/engine/overview.md).**
+> Specifically: ["The engine pin"](docs/engine/overview.md#the-engine-pin)
+> and ["The two gameplay modules"](docs/engine/overview.md#the-two-gameplay-modules).
+> KB stated "UE editor (modding) 5.1.1" — this was *empirically
+> wrong* (5.1.1 from launcher silently corrupts complex widgets;
+> source-built 5.1.0 is the actual requirement). The migrated
+> doc reflects the correction; see
+> [`docs/engine/overview.md` → "Why source-built 5.1.0"](docs/engine/overview.md#why-source-built-510).
+> Section retained as a stub so existing references still resolve.
 
 ### Maps
 
-| Map | Context | Path |
-|-----|---------|------|
-| MainMenuMap | Lobby, menus, social, queue | `/Game/Prometheus/Maps/MainMenuMap/MainMenuMap` |
-| GameMapPractice | Tutorial / practice mode | `/Game/Prometheus/Maps/GameMap/GameMapPractice` |
-| GameMapAhtenCity | Online match (one of several arenas) | `/Game/Prometheus/Maps/GameMap/GameMapAhtenCity` |
-
-Other arena maps likely exist under `/Game/Prometheus/Maps/GameMap/` but have not been catalogued yet.
+> **Migrated → [`docs/engine/setup.md` → "Maps"](docs/engine/setup.md#maps).**
+> Section retained as a stub so existing references still resolve.
 
 ### Backend Ecosystem — Odyssey's "Prometheus" API
 
@@ -591,15 +409,8 @@ Characters follow the pattern `C_<InternalName>` → `C_<InternalName>_C` at run
 Utility folders: `Shared/` (common abilities like GA_Rescue), `Concept/`, `Full/`, `Timeline/`, `X/`, `CloseUp/`, `GoalScore/`, `GradientGoal/` (art/VFX, not playable characters).
 
 #### HUD Hierarchy
-```
-HUD_Menu_C (menu) / HUD_Practice_C (practice)
-  └─ PMHUDBase (/Script/Prometheus)
-      └─ OdyHUD (/Script/OdyUI) — GetUIRouter(), OnUIRouterCreated()
-          └─ AHUD (/Script/Engine)
-```
-- Game uses UMG exclusively — no Canvas drawing
-- `ReceiveDrawHUD` never fires (not implemented in Blueprint, C++ doesn't call Super)
-- All game UI goes through `OdyHUD` → `UIRouter` pattern
+
+> **Migrated → [`docs/engine/widgets.md` → "HUD class hierarchy"](docs/engine/widgets.md#hud-class-hierarchy).**
 
 #### Key UFunctions (hookable)
 
@@ -640,128 +451,45 @@ HUD_Menu_C (menu) / HUD_Practice_C (practice)
 
 #### UI Widget Tree (menu — from F3 dump)
 
-All persistent widgets live under `GameInstance_Base_C`:
-```
-GameInstance_Base_C
-├── WBP_SoftwareCursor_C          — custom cursor overlay
-├── WBP_SoftwareCursorTextBeam_C  — cursor text beam effect
-├── WBP_ModChat_C                 — OUR mod chat widget
-├── Router_OutOfGame_C            — main UI router (out-of-game screens)
-└── WBP_HomeHub_PC_C              — the main lobby hub
-    ├── GroupMemberNameplateRight  (WBP_HomeHubGroupNameplate_C)
-    ├── GroupMemberNameplateLeft   (WBP_HomeHubGroupNameplate_C)
-    ├── PlayerNameplateCenter     (WBP_HomeHubGroupNameplate_C)
-    ├── WBP_ReactionButtonPanel_C — emote/reaction buttons
-    ├── PlayPanel                 (WBP_PlayPanel_C) — queue button
-    ├── WBP_FitActorToRect_C      — 3D character model in hub
-    ├── WBP_GroupInvitePanel_C    — party invite list
-    ├── WBP_GameVersion_C         — version display
-    └── TournamentAnnouncement    (WBP_TournamentAnnouncement_C)
-```
+> **Migrated → [`docs/engine/widgets.md` → "Persistent widgets"](docs/engine/widgets.md#persistent-widgets-parented-to-gameinstance_base_c).**
 
 #### ScrollBox Usage in Game (confirmed via F9 dump)
 
-The game uses ScrollBox extensively across all phases:
-
-**Always loaded:**
-- `WBP_SettingsHub_C:MainScrollBox` — settings screen
-- `WBP_ReportPlayerModal_C:ScrollBox_0` — report player
-
-**Menu-only (16 instances on menu):**
-- `WBP_FriendChatModal_C:MessagesScrollBox` — **DM chat message list**
-- `WBP_FriendChat_StartChatModal_C:ScrollBox_0` — chat start modal
-- `WBP_SocialModal_C:ScrollBox_0`, `ContentScrollBox` — social/friends
-- `WBP_GroupInvitePanel_C:InviteListContainer` — party invites
-- `WBP_Store_C:Tabs_ScrollBox`, `ScrollBox_Description`, `ScrollBox_0` — store
-- `WBP_CharacterLoreModal_C:MainScroll_1` — character lore
-- `WBP_Menu_DailyLogin_C:ScrollBox_58` — daily login
-- `WBP_VisualNovelTextMessageScene_C:MessageScrollBox` — visual novel
-
-**Practice match (6 instances):**
-- `WBP_TrainingSelectModal_C:ScrollBox_0` — training mode selection
-- `WBP_InGameMobile_AbilityTooltipsModal_C:ScrollBox_3` — ability tooltips
-- `WBP_StrikerSelect_ChoosePhases_C:ScrollBox_0` — striker select
-
-**Online match (5 instances):**
-- `WBP_CharacterSelectModal_C:ChoosePhase:ScrollBox_0` — live character select
-- Plus persistent ones from above
+> **Migrated → [`docs/engine/widgets.md` → "ScrollBox usage in OS's own UI"](docs/engine/widgets.md#scrollbox-usage-in-oss-own-ui).**
 
 ### BPModLoaderMod Lifecycle
 
-This is how our Blueprint mod assets get loaded into the game:
-
-1. **Startup**: BPModLoaderMod scans `Content/Paks/LogicMods/` for `.pak` files
-2. **Registration**: Creates a config for each pak: `AssetPath = /Game/Mods/<ModName>/ModActor`, `AssetName = ModActor_C`
-3. **Map load**: On every `RegisterLoadMapPostHook`, calls `LoadMods(World)`
-4. **Loading**: Uses `AssetRegistryHelpers:GetAsset(assetData)` to resolve the Blueprint class from the pak
-5. **Spawning**: Calls `World:SpawnActor(ModClass, {}, {})` to instantiate the ModActor
-6. **Widget creation**: ModActor's BeginPlay event graph creates `WBP_ModChat` and adds it to viewport
-
-**Timing**: The `Loading mod:` log line appears ~27s after game start (first map load). The `Actor:` confirmation follows immediately if successful. If no `Actor:` line appears, the crash occurred during `SpawnActor` → asset deserialization.
-
-**Duplicate prevention**: ModActor Blueprint includes `Get All Widgets Of Class(WBP_ModChat)` + `Array.IsEmpty` check before creating the widget.
+> **Migrated → [`docs/engine/widgets.md` → "BPModLoaderMod lifecycle"](docs/engine/widgets.md#bpmodloadermod-lifecycle).**
+> The auto-load sequence, magic-name constraint
+> (`/Game/Mods/<ModName>/ModActor`), timing characteristics
+> (`~27s` post-start), and the duplicate-prevention check
+> are all preserved. Section retained as a stub so existing
+> references still resolve.
 
 ### Widget System — What Works in Cooked Paks
 
-| Widget Type | Status | Notes |
-|-------------|--------|-------|
-| CanvasPanel | Working | Root container, use as widget root |
-| SizeBox | Working | Size constraints, MaxDesiredHeight for clipping |
-| Border | Working | Background color/padding |
-| VerticalBox | Working | Vertical layout |
-| HorizontalBox | Working | Horizontal layout |
-| TextBlock | Working | Static text display |
-| EditableText | Working | Text input (NOT EditableTextBox) |
-| ScrollBox | Working | Requires `CanUseUnversionedPropertySerialization=False` in `[Core.System]` — without it, crashes on pak deserialization due to schema drift between editor and game builds. With versioned serialization, works natively in Blueprint |
+> **Migrated → [`docs/engine/widgets.md` → "Widget catalog (what works in cooked paks)"](docs/engine/widgets.md#widget-catalog-what-works-in-cooked-paks).**
 
 ### EditableText (ChatInput) — Known Bugs & Workarounds
 
-| Issue | Cause | Workaround |
-|-------|-------|------------|
-| `SetText("")` doesn't clear | UE 5.1.1 Slate bug — empty string reverts | Use `SetText(FText(" "))` (space), trim on Lua side |
-| `OnTextCommitted` fires twice on Enter | Engine behavior | Blueprint clears `PendingMessage` after first read |
-| `Get Owning Player` returns null | Widget added to GameInstance, not level player | Use `Get Player Controller 0` instead |
-| Controls locked after chat | `Set Input Mode Game Only` doesn't recapture mouse | Use `Set Input Mode Game And UI` + `Set Focus to Game Viewport` |
-| Empty Enter doesn't close chat | Space workaround trims to "", early return skipped `close()` | Call `close()` before the empty-string check |
+> **Migrated → [`docs/engine/widgets.md` → "EditableText quirks (chat input)"](docs/engine/widgets.md#editabletext-quirks-chat-input).**
 
 ### Input Mode Management
 
-The chat system requires switching between game and UI input modes:
-
-**Opening chat (OpenInput Blueprint function):**
-1. Set ChatInput visibility → Visible
-2. `Set Input Mode UI Only` (target: `Get Player Controller 0`)
-3. `Set User Focus` on ChatInput
-
-**Closing chat (CloseInput Blueprint function):**
-1. Set ChatInput visibility → Collapsed
-2. `Set Input Mode Game And UI` (target: `Get Player Controller 0`)
-3. `Set Focus to Game Viewport`
+> **Migrated → [`docs/engine/widgets.md` → "Input mode management"](docs/engine/widgets.md#input-mode-management).**
 
 ### Visibility Constants (ESlateVisibility)
 
-| Value | Name | Behavior |
-|-------|------|----------|
-| 0 | Visible | Renders and receives clicks |
-| 1 | Collapsed | Hidden, takes no layout space |
-| 2 | Hidden | Hidden but takes layout space |
-| 3 | HitTestInvisible | Renders but passes clicks through (and children) |
-| 4 | SelfHitTestInvisible | Renders, self doesn't receive clicks but children can |
-
-**Widget default visibility**: Root CanvasPanel in WBP_ModChat must default to `Hit Test Invisible` (not Visible, not Collapsed). Collapsed prevents Lua from showing it. Visible blocks mouse clicks on menu.
-
-**HitTestInvisible vs SelfHitTestInvisible — critical for mouse interaction**:
-`HitTestInvisible (3)` on a UserWidget blocks ALL descendant widgets from receiving mouse events (scroll, click, drag). `SelfHitTestInvisible (4)` only blocks the widget itself — children can still receive mouse input. When the chat needs mouse interaction (e.g. scrolling the history), Self must be upgraded from `HitTestInvisible` to `SelfHitTestInvisible`. In compact/passive mode, `HitTestInvisible` is correct to prevent accidental mouse capture.
-
-**BP function naming**: UE4SS Lua resolves Blueprint functions by their internal name, which matches the display name **without spaces**. A BP function displayed as "Open Input" must be called as `widget:OpenInput()` in Lua. A mismatch causes `nullptr` errors because UE4SS wraps a null UFunction.
+> **Migrated → [`docs/engine/widgets.md` → "Visibility constants (ESlateVisibility)"](docs/engine/widgets.md#visibility-constants-eslatevisibility).**
+> The HitTestInvisible vs SelfHitTestInvisible distinction and
+> the BP-function-name resolution rule (display name without
+> spaces) are preserved in the migrated doc; the latter also
+> appears in
+> [`docs/engine/ue4ss-version-and-gotchas.md` → "BP function name resolution"](docs/engine/ue4ss-version-and-gotchas.md#4-bp-function-name-resolution-display-name-without-spaces).
 
 ### GameInstance Persistence
 
-`GameInstance_Base_C` persists across ALL map loads. Widgets added to the GameInstance's viewport persist too. This means:
-- WBP_ModChat survives map transitions without re-creation
-- On map change, `chat.reset()` clears Lua state but the widget object stays alive
-- `ensureWidget()` re-finds it via `FindFirstOf("WBP_ModChat_C")`
-- Must explicitly collapse widget on map transitions to prevent menu visibility
+> **Migrated → [`docs/engine/widgets.md` → "GameInstance persistence"](docs/engine/widgets.md#gameinstance-persistence-the-persistent-root).**
 
 ---
 
@@ -821,23 +549,13 @@ Three separate namespaces. A Prometheus ID cannot be derived from a SteamID (or 
 
 ### ScrollBox Crash — Root Cause & Resolution (SOLVED)
 
-**Root cause**: Unversioned property serialization (`PKG_UnversionedProperties` flag `0x2000`). UE5 cooked assets serialize properties by schema index order by default — no property names are stored. If the game's `UScrollBox` class has even a single extra/reordered property compared to our editor build, the deserializer reads at wrong offsets and interprets garbage bytes as FName indices, causing the crash.
-
-**Investigation timeline**:
-1. **UE 5.1.1 (Epic launcher)**: ScrollBox crashes on `SpawnActor` — binary schema mismatch with the 5.1.0 game runtime
-2. **UE 5.1.0 (built from source)**: Still crashes with `FName serialization error — index 33817088, valid range [0, 96)` — same root cause, the source build's ScrollBox schema still differs from Odyssey Interactive's custom 5.1.0 fork
-3. **Binary analysis**: `ModActor` files were byte-identical between 5.1.0 and 5.1.1 (simple widgets serialize identically). The garbage FName index was NOT present in the files — the deserializer was reading at a wrong offset due to schema mismatch
-4. **INI config attempt**: `bUnversionedPropertySerialization=False` under `[/Script/UnrealEd.CookerSettings]` — **had no effect** (wrong section, wrong key name)
-5. **Source code analysis**: Found the actual setting in `UnversionedPropertySerialization.cpp:771` — it reads `[Core.System] CanUseUnversionedPropertySerialization` from `GEngineIni`
-
-**Solution**: Add to `DefaultEngine.ini`:
-```ini
-[Core.System]
-CanUseUnversionedPropertySerialization=False
-```
-This forces the cooker to embed property names in serialized data. The deserializer matches by name instead of by index, making assets tolerant to property layout differences. File size increases slightly (e.g. 7135 → 8567 bytes for WBP_ModChat) but all widgets including ScrollBox now load correctly.
-
-**Key lesson**: Simple containers (CanvasPanel, VerticalBox, SizeBox, Border) happen to have identical schemas across UE 5.1.x variants, so they worked even with unversioned serialization. Complex widgets like ScrollBox have schema drift. Always cook with `CanUseUnversionedPropertySerialization=False` for mod assets.
+> **Migrated → [`docs/engine/widgets.md` → "ScrollBox crash — root cause"](docs/engine/widgets.md#scrollbox-crash--root-cause).**
+> Full investigation timeline preserved (UE 5.1.1 attempt → UE
+> 5.1.0 source-built → binary analysis → wrong-key-name
+> false-friend → source-code analysis → fix). The fix INI line
+> also lives in [`docs/engine/setup.md` → "DefaultEngine.ini"](docs/engine/setup.md#defaultengineini).
+> Section retained as a stub (and as a SOLVED marker for the
+> "Known Unknowns" section) so existing references still resolve.
 
 ### Audio
 - [ ] Game's sound classes / sound mixes — can we play custom sounds without conflicting?
