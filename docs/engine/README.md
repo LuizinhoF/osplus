@@ -5,13 +5,15 @@ terms?"* — UClasses, UFunctions, runtime data shapes, hook patterns,
 phase models. Everything below the `docs/game/` player-perception
 layer.
 
-This subtree is the **destination** for the contents of
-[`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md). KB started as one
-~850-line monolith and is being migrated topic-by-topic into the
-per-topic files listed below; until each topic is migrated, **KB
-remains the canonical source for that topic**. See
-[migration history](#migration-history) below for what's been
-promoted out of KB and what's still in flight.
+This subtree is the **destination** for the engine-side contents
+of [`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md). KB started as one
+~850-line monolith and was migrated topic-by-topic into the
+per-topic files listed below across three batches in 2026-05; the
+migration is now complete and **KB itself is a redirect index**.
+The OSPlus-internal architecture sections of the original KB
+(Lua module architecture, network relay) landed in
+[`docs/architecture/`](../architecture/) instead — see the
+[migration history](#migration-history) below for the full mapping.
 
 This subtree exists because OSPlus is a mod **layered onto a UE 5.1.0
 + UE4SS 3.0.1 game**, and the engine internals are the bedrock every
@@ -28,11 +30,11 @@ cover everything *but* the engine reality at navigable granularity:
 
 ## What's in this folder
 
-Per-topic files migrated out of `KNOWLEDGEBASE.md`. Items marked
-**migrated** are live; items marked **TBD** are planned slots that
-still resolve to KB until promoted.
+Per-topic files migrated out of `KNOWLEDGEBASE.md`. Migration
+complete as of batch 3 (2026-05-01); every topic below is **live
+and canonical** (KB itself is now a redirect index).
 
-| Doc | Status | KB section it owns |
+| Doc | Status | What it owns |
 |---|---|---|
 | [`overview.md`](./overview.md) | **migrated** (batch 1, 2026-05-01) | Engine + UE4SS primer (UE 5.1.0, UE4SS 3.0.1, Prometheus module, OdyUI, project paths) |
 | [`setup.md`](./setup.md) | **migrated** (batch 1, 2026-05-01) | Paths, install layout, INI config, pak packaging, maps table |
@@ -42,29 +44,37 @@ still resolve to KB until promoted.
 | [`player-state.md`](./player-state.md) | **migrated** (batch 2, 2026-05-01) | `PlayerState_Game_C`: UFunctions, `DamageChanged`, `SpawnEffectsOnCharacterKnockedOut`, etc. |
 | [`identity-and-api.md`](./identity-and-api.md) | **migrated** (batch 2, 2026-05-01) | `PMIdentitySubsystem`, Clarion / Prometheus API, `MeResponseV1`, `PlayerNamePrivate` caveats |
 | [`data-model.md`](./data-model.md) | **migrated** (batch 2, 2026-05-01) | `PMPlayerMatchSummary`, `EPMEndOfGameStat` enum, runtime data shapes |
-| `rock-and-strike.md` | **TBD** (batch 3) | `PMRockCharacter`, `RedirectRock`, knockback types, Strike input events |
-| `strikers.md` | **TBD** (batch 3) | Internal Striker name table + character-class mapping |
-| `awakenings.md` | **planned, blocked on probe** (batch 3) | Awakening data class + draft UI widget — TBD per [glossary entry](../glossary.md#awakening) |
-| `open-questions.md` | **TBD** (batch 3) | RE TODO list (current "Pass-N candidates") |
+| [`rock-and-strike.md`](./rock-and-strike.md) | **migrated** (batch 3, 2026-05-01) | `PMRockCharacter`, `LastRedirectKnockBack`, `EKnockBackType::Redirect = 2`, `StrikeReleased` / `StrikeDragged` |
+| [`strikers.md`](./strikers.md) | **migrated** (batch 3, 2026-05-01) | Internal Striker name table + `C_<InternalName>_C` runtime pattern, content folder layout, utility folders |
+| [`open-questions.md`](./open-questions.md) | **migrated** (batch 3, 2026-05-01) | Cross-cutting RE TODO catalog + resolved-questions table |
 
-Items marked **TBD** are slots reserved by intent, not yet drafted.
-Don't add a feature that depends on a TBD doc without first promoting
-that doc out of TBD via its own `docs/engine-<topic>` branch (or by
-migrating the relevant KB section as part of the feature work).
+**Engine surface for Awakenings is intentionally not in this
+folder.** Per [glossary → "Awakening"](../glossary.md#awakening),
+the engine surface is **blocked on probe** — no `awakenings.md`
+exists yet. The first feature that touches Awakenings forces a
+Stage-3 RE pass, the result of which lands as a new doc here
+alongside its sibling per-topic files. Until then,
+[`docs/game/awakenings.md`](../game/awakenings.md) covers the
+player-side reality.
+
+The OSPlus-internal architecture sections of the original KB
+landed in [`docs/architecture/`](../architecture/) instead, since
+they describe the *mod's* shape (Lua modules, IPC, sidecar, relay)
+rather than the underlying engine. See [migration history](#migration-history)
+for the full mapping.
 
 ## Reading orders for common tasks
 
-Items in **bold** are migrated and live; non-bold names are still
-**TBD** and resolve to the linked KB section until promoted.
-
 | Task | Suggested reads |
 |---|---|
-| New-to-engine onboarding | **[`overview.md`](./overview.md)** → **[`setup.md`](./setup.md)** → **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** → **[`game-state.md`](./game-state.md)** |
-| Adding/changing identity-related code | **[`identity-and-api.md`](./identity-and-api.md)** → **[`player-state.md`](./player-state.md)** → relevant learnings on `PlayerNamePrivate` |
-| Working on Core / puck mechanics | `rock-and-strike.md` (TBD) → **[`game-state.md`](./game-state.md)** (for match-state context) |
-| Building new in-match UI | **[`widgets.md`](./widgets.md)** → **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** (for ScrollBox crash + EditableText bugs) |
-| Capturing per-match stats | **[`data-model.md`](./data-model.md)** → **[`player-state.md`](./player-state.md)** → **[`game-state.md`](./game-state.md)** |
-| Writing a new UE4SS hook | **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** → relevant **[`game-state.md`](./game-state.md)** / **[`player-state.md`](./player-state.md)** UFunction list |
+| New-to-engine onboarding | [`overview.md`](./overview.md) → [`setup.md`](./setup.md) → [`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md) → [`game-state.md`](./game-state.md) |
+| Adding/changing identity-related code | [`identity-and-api.md`](./identity-and-api.md) → [`player-state.md`](./player-state.md) → relevant learnings on `PlayerNamePrivate` |
+| Working on Core / puck mechanics | [`rock-and-strike.md`](./rock-and-strike.md) → [`data-model.md`](./data-model.md) → [`game-state.md`](./game-state.md) (for match-state context) |
+| Targeting a specific Striker | [`strikers.md`](./strikers.md) → [`player-state.md`](./player-state.md) (for Pawn handle) → [glossary → "Striker"](../glossary.md#striker) |
+| Building new in-match UI | [`widgets.md`](./widgets.md) → [`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md) (for ScrollBox crash + EditableText bugs) |
+| Capturing per-match stats | [`data-model.md`](./data-model.md) → [`player-state.md`](./player-state.md) → [`game-state.md`](./game-state.md) |
+| Writing a new UE4SS hook | [`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md) → relevant [`game-state.md`](./game-state.md) / [`player-state.md`](./player-state.md) UFunction list |
+| Picking up an RE probe | [`open-questions.md`](./open-questions.md) → the per-topic doc the question belongs to |
 
 ## Conventions across this subtree
 
@@ -92,26 +102,28 @@ Items in **bold** are migrated and live; non-bold names are still
 
 ## Migration history
 
-Migration from `KNOWLEDGEBASE.md` happens topic-by-topic, one branch
-per batch of 3-5 related topics. Each batch:
+Migration from `KNOWLEDGEBASE.md` happened topic-by-topic, one
+branch per batch of 3–5 related topics, completed across three
+batches in 2026-05. Each batch:
 
-1. Lifts the relevant KB section into a new per-topic file under this folder.
-2. Improves structure on the way (TOC, conventions above, cross-references to `docs/game/` and `docs/glossary.md`).
-3. Replaces the corresponding KB section with a short stub: *"Migrated to [`docs/engine/<topic>.md`](./engine/<topic>.md)"*.
-4. Updates this README's status table from **TBD** to **migrated**.
-5. Updates [`docs/glossary.md`](../glossary.md) cross-references so they point at the new file (when applicable).
+1. Lifted the relevant KB section into a new per-topic file under this folder (or into [`docs/architecture/`](../architecture/) when the content belonged there).
+2. Improved structure on the way (TOC, conventions above, cross-references to `docs/game/` and `docs/glossary.md`).
+3. Replaced the corresponding KB section with a short stub.
+4. Updated this README's status table from **TBD** to **migrated**.
+5. Updated [`docs/glossary.md`](../glossary.md) cross-references where applicable.
 
 | Batch | Date | Topics migrated | Branch |
 |---|---|---|---|
 | Batch 1 (foundations) | 2026-05-01 | `overview.md`, `setup.md`, `ue4ss-version-and-gotchas.md`, `widgets.md` | `docs/engine-migration-batch-1` |
 | Batch 2 (state + identity) | 2026-05-01 | `game-state.md`, `player-state.md`, `identity-and-api.md`, `data-model.md` | `docs/engine-migration-batch-2` |
-| Batch 3 (content + catalog + wrap) | TBD | `rock-and-strike.md`, `strikers.md`, `awakenings.md`, `open-questions.md`; redirect-stub the architecture-belonging KB sections (`Lua Module Architecture`, `Network Relay Architecture`) to `docs/architecture/` | TBD |
+| Batch 3 (content + catalog + wrap) | 2026-05-01 | `rock-and-strike.md`, `strikers.md`, `open-questions.md`; KB's "Lua Module Architecture" + "Network Relay Architecture" sections redirected to [`docs/architecture/mod-scripts.md`](../architecture/mod-scripts.md) and the new [`docs/architecture/relay.md`](../architecture/relay.md). Awakenings deferred — engine surface blocked on probe; player-side covered by [`docs/game/awakenings.md`](../game/awakenings.md). | `docs/engine-migration-batch-3` |
 
-Once every section in KB has been migrated, KB itself becomes a
-redirect index (similar to what
-[`docs/game/OMEGA_STRIKERS_GAME.md`](../game/OMEGA_STRIKERS_GAME.md)
-became after the player-side migration completed). Until then,
-**KB is canonical for any topic still marked TBD here**.
+KB itself is now a **redirect index** (every section is a stub
+pointing to its new home). New engine knowledge lands in the
+per-topic file, not in KB. If a future probe creates a need for
+a new engine topic (e.g. `awakenings.md` once the engine surface
+is catalogued), add it under this folder and update the table
+above.
 
 ## When this subtree lies
 
@@ -124,4 +136,6 @@ actually does:
 3. Update [`docs/glossary.md`](../glossary.md) in the same branch if your change invalidates a glossary entry's claim.
 
 This subtree is referenced from [`AGENTS.md`](../../AGENTS.md)
-pre-work reading as the planned successor to `KNOWLEDGEBASE.md`.
+pre-work reading as the canonical engine reference; see the
+batch-3 migration history above for the full mapping back to
+the (now-stubbed) sections of `KNOWLEDGEBASE.md`.
