@@ -38,10 +38,10 @@ still resolve to KB until promoted.
 | [`setup.md`](./setup.md) | **migrated** (batch 1, 2026-05-01) | Paths, install layout, INI config, pak packaging, maps table |
 | [`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md) | **migrated** (batch 1, 2026-05-01) | 3.0.1 anchor, Lua API, common pitfalls, version-sensitive bugs (out-param marshaling, multicast delegate no-op, `ExecuteInGameThread` corruption, etc.) |
 | [`widgets.md`](./widgets.md) | **migrated** (batch 1, 2026-05-01) | UMG-only HUD model, BPModLoaderMod lifecycle, asset loading, actor spawning, material setup, widget catalog, ScrollBox crash root-cause, EditableText/Input Mode/Visibility quirks, GameInstance persistence, the game's own widget tree |
-| `game-state.md` | **TBD** (batch 2) | `GameState_Game_C` / `GameState_Tutorial_C`: phase model, UFunctions, detection patterns, `CurrentMatchSeed` |
-| `player-state.md` | **TBD** (batch 2) | `PlayerState_Game_C`: UFunctions, `DamageChanged`, `SpawnEffectsOnCharacterKnockedOut`, etc. |
-| `identity-and-api.md` | **TBD** (batch 2) | `PMIdentitySubsystem`, Clarion / Prometheus API, `MeResponseV1`, `PlayerNamePrivate` caveats |
-| `data-model.md` | **TBD** (batch 2) | `PMPlayerMatchSummary`, `EPMEndOfGameStat` enum, runtime data shapes |
+| [`game-state.md`](./game-state.md) | **migrated** (batch 2, 2026-05-01) | `GameState_Game_C` / `GameState_Tutorial_C`: phase model, UFunctions, detection patterns, `CurrentMatchSeed` |
+| [`player-state.md`](./player-state.md) | **migrated** (batch 2, 2026-05-01) | `PlayerState_Game_C`: UFunctions, `DamageChanged`, `SpawnEffectsOnCharacterKnockedOut`, etc. |
+| [`identity-and-api.md`](./identity-and-api.md) | **migrated** (batch 2, 2026-05-01) | `PMIdentitySubsystem`, Clarion / Prometheus API, `MeResponseV1`, `PlayerNamePrivate` caveats |
+| [`data-model.md`](./data-model.md) | **migrated** (batch 2, 2026-05-01) | `PMPlayerMatchSummary`, `EPMEndOfGameStat` enum, runtime data shapes |
 | `rock-and-strike.md` | **TBD** (batch 3) | `PMRockCharacter`, `RedirectRock`, knockback types, Strike input events |
 | `strikers.md` | **TBD** (batch 3) | Internal Striker name table + character-class mapping |
 | `awakenings.md` | **planned, blocked on probe** (batch 3) | Awakening data class + draft UI widget — TBD per [glossary entry](../glossary.md#awakening) |
@@ -59,12 +59,12 @@ Items in **bold** are migrated and live; non-bold names are still
 
 | Task | Suggested reads |
 |---|---|
-| New-to-engine onboarding | **[`overview.md`](./overview.md)** → **[`setup.md`](./setup.md)** → **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** → `game-state.md` (TBD) |
-| Adding/changing identity-related code | `identity-and-api.md` (TBD) → `player-state.md` (TBD) → relevant learnings on `PlayerNamePrivate` |
-| Working on Core / puck mechanics | `rock-and-strike.md` (TBD) → `game-state.md` (TBD, for match-state context) |
+| New-to-engine onboarding | **[`overview.md`](./overview.md)** → **[`setup.md`](./setup.md)** → **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** → **[`game-state.md`](./game-state.md)** |
+| Adding/changing identity-related code | **[`identity-and-api.md`](./identity-and-api.md)** → **[`player-state.md`](./player-state.md)** → relevant learnings on `PlayerNamePrivate` |
+| Working on Core / puck mechanics | `rock-and-strike.md` (TBD) → **[`game-state.md`](./game-state.md)** (for match-state context) |
 | Building new in-match UI | **[`widgets.md`](./widgets.md)** → **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** (for ScrollBox crash + EditableText bugs) |
-| Capturing per-match stats | `data-model.md` (TBD) → `player-state.md` (TBD) → `game-state.md` (TBD) |
-| Writing a new UE4SS hook | **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** → relevant `game-state.md` / `player-state.md` UFunction list (TBD) |
+| Capturing per-match stats | **[`data-model.md`](./data-model.md)** → **[`player-state.md`](./player-state.md)** → **[`game-state.md`](./game-state.md)** |
+| Writing a new UE4SS hook | **[`ue4ss-version-and-gotchas.md`](./ue4ss-version-and-gotchas.md)** → relevant **[`game-state.md`](./game-state.md)** / **[`player-state.md`](./player-state.md)** UFunction list |
 
 ## Conventions across this subtree
 
@@ -104,7 +104,7 @@ per batch of 3-5 related topics. Each batch:
 | Batch | Date | Topics migrated | Branch |
 |---|---|---|---|
 | Batch 1 (foundations) | 2026-05-01 | `overview.md`, `setup.md`, `ue4ss-version-and-gotchas.md`, `widgets.md` | `docs/engine-migration-batch-1` |
-| Batch 2 (state + identity) | TBD | `game-state.md`, `player-state.md`, `identity-and-api.md`, `data-model.md` | TBD |
+| Batch 2 (state + identity) | 2026-05-01 | `game-state.md`, `player-state.md`, `identity-and-api.md`, `data-model.md` | `docs/engine-migration-batch-2` |
 | Batch 3 (content + catalog + wrap) | TBD | `rock-and-strike.md`, `strikers.md`, `awakenings.md`, `open-questions.md`; redirect-stub the architecture-belonging KB sections (`Lua Module Architecture`, `Network Relay Architecture`) to `docs/architecture/` | TBD |
 
 Once every section in KB has been migrated, KB itself becomes a
