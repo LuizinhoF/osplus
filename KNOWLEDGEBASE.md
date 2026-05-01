@@ -1,19 +1,24 @@
 # Omega Strikers Modding — Knowledgebase
 
-> **Migration in progress.** Per [ADR 0003](docs/decisions/0003-knowledge-substrate-structure.md),
-> this monolithic doc is being decomposed into per-topic files
-> under [`docs/engine/`](docs/engine/). Sections that have moved
-> are stubbed (heading retained, body replaced with a redirect).
-> Untouched sections remain canonical here until they too are
-> migrated.
+> **Migration complete.** Per [ADR 0003](docs/decisions/0003-knowledge-substrate-structure.md),
+> this monolithic doc has been fully decomposed into per-topic
+> files under [`docs/engine/`](docs/engine/) (engine + UE4SS
+> reality) and [`docs/architecture/`](docs/architecture/)
+> (OSPlus-internal architecture). Every section here is now a
+> redirect stub pointing at its new home; **read the new files,
+> not this one.** This file is kept around so existing references
+> in code comments, learnings, and old chat history still resolve
+> to a recognizable heading.
 >
 > **Where to start instead:**
 >
 > - New agent / first-time engine read → [`docs/engine/overview.md`](docs/engine/overview.md)
+> - OSPlus internal architecture (Lua modules, relay) → [`docs/architecture/`](docs/architecture/)
 > - Engine ↔ player concept bridge → [`docs/glossary.md`](docs/glossary.md)
-> - Full topic index + status table → [`docs/engine/README.md`](docs/engine/README.md)
+> - Full engine topic index → [`docs/engine/README.md`](docs/engine/README.md)
+> - Engine RE TODO catalog → [`docs/engine/open-questions.md`](docs/engine/open-questions.md)
 >
-> **Migrated so far:**
+> **Migration history:**
 >
 > - **Batch 1 (2026-05-01):** §"Game Engine Facts", §"Game Paths",
 >   §"UE Project Settings (Critical)", §"HUD System", §"Asset
@@ -26,16 +31,22 @@
 >   from Lua", §"Game Lifecycle & Phase Detection", §"Player
 >   Identity Reference", and the "Core Framework" + "Key UFunctions"
 >   sub-sub-sections of "Class Hierarchy Reference".
+> - **Batch 3 (2026-05-01):** §"Lua Module Architecture (v11+)"
+>   (→ `docs/architecture/mod-scripts.md`), §"Network Relay
+>   Architecture" (→ `docs/architecture/relay.md`), the "Characters"
+>   sub-section of "Class Hierarchy Reference" (→
+>   `docs/engine/strikers.md`), and §"Known Unknowns / Investigation
+>   Needed" (→ `docs/engine/open-questions.md`). Strike-specific
+>   detail centralized in `docs/engine/rock-and-strike.md`.
 
 This was originally the single source of truth for "how things
-work" in this game's modding context. Most of that knowledge has
-moved or is moving to [`docs/engine/`](docs/engine/) per the
-banner above. The historical context — *"everything learned
-through trial and error while building the custom ping system
-mod"* — explains why some of the early prototype-era patterns
-(ping markers, sprite materials, `CustomPings_P.pak`) appear
-throughout: that work *paid forward* the cooked-pak + UE4SS +
-sidecar pipeline OSPlus runs on today.
+work" in OSPlus's modding context. The historical context —
+*"everything learned through trial and error while building the
+custom ping system mod"* — explains why some of the early
+prototype-era patterns (ping markers, sprite materials,
+`CustomPings_P.pak`) appear throughout the older learnings.
+That work *paid forward* the cooked-pak + UE4SS + sidecar
+pipeline OSPlus runs on today; chat reused the substrate.
 
 ---
 
@@ -147,59 +158,31 @@ sidecar pipeline OSPlus runs on today.
 
 ## Lua Module Architecture (v11+)
 
-The mod is split into focused modules under `scripts/`:
-
-| Module | Responsibility |
-|--------|---------------|
-| `main.lua` | Entry point: wires modules together, registers keybinds, starts animation loop |
-| `config.lua` | All constants: colors, timing, paths, keybinds, ping type definitions |
-| `log.lua` | Logging to console and file, `try()` wrapper, `safeFullName()` |
-| `utils.lua` | UE math helpers: `makeVec`, `makeRot`, `getPlayerController`, `getWorld` |
-| `assets.lua` | Asset discovery and loading: materials, BP classes, SFX, widget class |
-| `pings.lua` | Ping spawning, animation math, position helpers, SFX playback |
-| `wheel.lua` | Radial wheel widget: creation, show/hide, cursor positioning, selection |
-| `ipc.lua` | File-based IPC: outbox writing, inbox reading, tick polling |
-| `json.lua` | Minimal JSON encode/decode for flat objects |
-
-Cross-module dependencies are wired via callbacks in `main.lua`:
-- `pings.onPingFired` -> `ipc.writePingToOutbox` (local ping fires broadcast it)
-- `ipc.spawnRemotePing` -> `pings.spawn` (remote pings get rendered locally)
+> **Migrated → [`docs/architecture/mod-scripts.md`](docs/architecture/mod-scripts.md).**
+> The KB section listed the prototype-era ping modules (`pings.lua`,
+> `wheel.lua`, `assets.lua`) as live; the migrated doc reflects the
+> current state — chat / profile / identity are the active features,
+> the ping modules are dead-but-present (kept for a future revival
+> attempt). The migrated doc also formalizes the two architecture
+> principles ("features own their engine integration", "per-tick
+> discipline") that were implicit in the original list.
+> Section retained as a stub so existing references still resolve.
 
 ---
 
 ## Network Relay Architecture
 
-### Overview
-Pings sync between players via a three-part system:
-- **Lua mod** writes/reads JSONL files in `%LOCALAPPDATA%\OSPlus\`
-- **Node.js sidecar** (local) bridges file IPC to WebSocket
-- **Node.js relay server** (remote) broadcasts messages within rooms
-
-### IPC Files
-| File | Writer | Reader | Purpose |
-|------|--------|--------|---------|
-| `outbox.jsonl` | Lua mod | Sidecar | Outgoing pings to broadcast |
-| `inbox.jsonl` | Sidecar | Lua mod | Incoming pings from other players |
-
-### Message format
-```json
-{"type":"ping","key":"DANGER","x":1234.5,"y":678.9,"z":0.0,"ts":1712345678}
-```
-
-### Running the system
-```bash
-# Terminal 1: Relay server
-cd server && node index.js
-
-# Terminal 2: Sidecar client
-cd sidecar && node index.js ws://localhost:3000 ROOMCODE
-```
-
-### Key design decisions
-- File-based IPC adds ~30-50ms overhead (acceptable for pings)
-- Sidecar uses `fs.watchFile` with 50ms polling (chokidar v4 is ESM-only, incompatible with CommonJS)
-- Lua polls inbox every ~90ms (3 animation ticks at 30ms/tick)
-- `isRemote` flag on `spawnPingVisual()` prevents re-broadcasting received pings
+> **Migrated → [`docs/architecture/relay.md`](docs/architecture/relay.md).**
+> The KB section was a snapshot of the **ping-prototype** era and was
+> stale — chat (not pings) is the live WebSocket payload, the relay
+> also hosts a REST API for per-install profiles per
+> [ADR 0002](docs/decisions/0002-profile-storage.md), and Caddy +
+> systemd + TLS deployment is documented operationally in
+> [`docs/ops/deploy-relay.md`](docs/ops/deploy-relay.md). The migrated
+> doc covers the current four-process chain (Lua ↔ sidecar ↔ Caddy ↔
+> relay), the file-IPC contract, the WebSocket + REST split, and the
+> "why pings turned into chat" historical context.
+> Section retained as a stub so existing references still resolve.
 
 ## Flipbook Animation (Sprite Sheets)
 
@@ -273,37 +256,17 @@ they too move (per the migration banner at the top of this file).
 
 #### Characters (confirmed via F10 dump + runtime Pawn inspection)
 
-| Internal Name | Striker Name | Confirmed |
-|--------------|-------------|-----------|
-| FlexibleBrawler | Juliette | Yes (Pawn observed in practice) |
-| NimbleBlaster | Drek'ar | Yes (used in online match) |
-| AngelicSupport | | |
-| Asher | Asher | Likely (folder = name) |
-| ChaoticRocketeer | | |
-| Chibi | | |
-| CleverSummoner | | |
-| DrumOni | | |
-| Dubu | Dubu | Likely (folder = name) |
-| EDMOni | | |
-| EmpoweringEnchanter | | |
-| Estelle | Estelle | Likely (folder = name) |
-| FlashySwordsman | | |
-| GravityMage | | |
-| Healer | | |
-| HulkingBeast | | |
-| MagicalPlaymaker | | |
-| ManipulatingMastermind | | |
-| RockOni | | |
-| Shieldz | | |
-| SpeedySkirmisher | | |
-| StalwartProtector | | |
-| TempoSniper | | |
-| TheAstronaut | | |
-| UmbrellaUser | | |
-| WhipFighter | | |
-
-Characters follow the pattern `C_<InternalName>` → `C_<InternalName>_C` at runtime.
-Utility folders: `Shared/` (common abilities like GA_Rescue), `Concept/`, `Full/`, `Timeline/`, `X/`, `CloseUp/`, `GoalScore/`, `GradientGoal/` (art/VFX, not playable characters).
+> **Migrated → [`docs/engine/strikers.md`](docs/engine/strikers.md).**
+> Specifically: [the internal-name → display-name table](docs/engine/strikers.md#internal-name--display-name-table)
+> (26 catalogued names, 3 confirmed mappings, 3 likely-by-folder),
+> [the `C_<InternalName>_C` runtime pattern](docs/engine/strikers.md#how-to-confirm-a-row),
+> [content folder layout](docs/engine/strikers.md#content-folder-layout),
+> and [utility folders](docs/engine/strikers.md#utility-folders)
+> (`Shared/`, `GoalScore/`, `GradientGoal/` etc. — NOT playable
+> Strikers). The migrated doc also catalogs the open question
+> for cross-context Striker representation (combat Pawn vs
+> striker-select preview vs lobby home-hub display).
+> Section retained as a stub so existing references still resolve.
 
 #### HUD Hierarchy
 
@@ -371,38 +334,30 @@ Utility folders: `Shared/` (common abilities like GA_Rescue), `Concept/`, `Full/
 
 ## Known Unknowns / Investigation Needed
 
-### Game Architecture
-- [ ] Full list of arena maps (only AhtenCity confirmed for online play)
-- [x] ~~All character internal names~~ — 26 characters catalogued, 3 striker names confirmed
-- [ ] Remaining striker name ↔ internal name mappings (need to play each character and check Pawn class)
-- [ ] Game phase transitions — `MatchPhaseChanged` fires, but what are the phase enum values?
-- [ ] What triggers map loads? Is there a `MatchManager` or similar coordinator?
-- [ ] `GameState_Game_C` readable properties — round number, score, team data, match timer (UFunctions known, but property fields need probing)
-
-### UI System
-- [x] ~~What widgets does the game's own HUD use?~~ — full widget tree captured for menu
-- [x] ~~How does the game's DM/chat popup work?~~ — `WBP_FriendChatModal_C:MessagesScrollBox` confirmed
-- [ ] `Router_OutOfGame_C` — how does it manage screen transitions? Could we hook into it?
-- [ ] Game's existing notification/toast system — can we piggyback on it?
-- [ ] In-match widget tree (F3 dump during active gameplay needed)
-
-### Networking / Player Data
-- [ ] Does the game expose any match ID, room ID, or lobby ID we can read?
-- [x] ~~Can we read the player's display name?~~ — **SOLVED**: `PlayerState_Game_C.PlayerNamePrivate:ToString()` returns the display name (e.g. "Ispicas") in custom/real games. Returns hex ID in practice mode. Also visible in `WBP_CharacterNameplate_Base_C.PlayerNameRichText` and `WBP_CharacterSelectPlayerCard_C.PlayerName_Text` RichTextBlock widgets.
-- [x] ~~Team assignment~~ — `TeamId` exists on PlayerState but returns UObject, needs further probing
-- [ ] Can we read other players' PlayerStates? (F4 dump only found 1 PlayerState_Game_C per phase — might need FindAllOf)
+> **Migrated → [`docs/engine/open-questions.md`](docs/engine/open-questions.md).**
+> The KB's flat list was reorganized into the cross-cutting
+> categories that survived (Game state / UI / Networking and
+> player data / Audio / Input) plus a "Resolved (kept for
+> reference)" table that catalogs every question previously
+> open in KB and where the answer now lives. Items that fit
+> cleanly into a per-topic engine doc (the majority) were also
+> added to that doc's *Open questions* section — the cross-cutting
+> file is the landing page for the rest.
+> Section retained as a stub so existing references still resolve.
 
 ### Player Identity Reference
 
 > **Migrated → [`docs/engine/identity-and-api.md`](docs/engine/identity-and-api.md).**
 > Specifically: [the three identifier namespaces](docs/engine/identity-and-api.md#the-three-identifier-namespaces),
-> [the local-identity surface (PMIdentitySubsystem, PMPlayerModel, MeResponseV1)](docs/engine/identity-and-api.md#the-local-identity-surface),
-> [the cached-others path (PMPlayerPublicProfile)](docs/engine/identity-and-api.md#the-cached-others-path),
+> [the local-identity surface](docs/engine/identity-and-api.md#the-local-identity-surface),
+> [the cached-others path](docs/engine/identity-and-api.md#the-cached-others-path),
 > and [the v36-current Lua-side reachability rules](docs/engine/identity-and-api.md#lua-side-reachability)
-> with the three-mode `PlayerNamePrivate` caveat
-> (display name / hex ID during replication / Windows machine
-> name out-of-match) cross-linked to the relevant learnings.
-> Section retained as a stub so existing references still resolve.
+> with the three-mode `PlayerNamePrivate` caveat (display name /
+> hex ID during replication / Windows machine name out-of-match)
+> cross-linked to the relevant learnings.
+> Heading retained here because `Known Unknowns / Investigation
+> Needed → Player Identity Reference` was a sub-section in the
+> original outline — kept so deep links still resolve.
 
 ### ScrollBox Crash — Root Cause & Resolution (SOLVED)
 
@@ -413,12 +368,3 @@ Utility folders: `Shared/` (common abilities like GA_Rescue), `Concept/`, `Full/
 > also lives in [`docs/engine/setup.md` → "DefaultEngine.ini"](docs/engine/setup.md#defaultengineini).
 > Section retained as a stub (and as a SOLVED marker for the
 > "Known Unknowns" section) so existing references still resolve.
-
-### Audio
-- [ ] Game's sound classes / sound mixes — can we play custom sounds without conflicting?
-- [ ] Volume control — does the game's audio settings affect our custom `PlaySound2D`?
-
-### Input
-- [ ] Full list of game keybinds to avoid conflicts
-- [ ] Does the game use Enhanced Input or legacy input?
-- [ ] Can we read mouse position in world space without line traces?
