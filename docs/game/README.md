@@ -4,13 +4,18 @@ The canonical answer to *"what does Omega Strikers look like and feel
 like to the player?"* — the layer every OSPlus feature design depends
 on but that nothing else in the project has previously documented.
 
-Currently the canonical source for everything in this subtree is
-[`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md) — a single ~1400-line
-narrative covering the whole player experience, written by the
-maintainer 2026-04-29. That monolith is being migrated topic-by-topic
-into the per-topic files listed below; until each topic is migrated,
-**`OMEGA_STRIKERS_GAME.md` remains the canonical source for that
-topic**. See [migration sequence](#migration-sequence) below.
+**Migration complete (2026-05-01).** The original monolith
+[`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md) — a single
+~1400-line narrative written by the maintainer 2026-04-29 — has
+been fully decomposed into the per-topic files listed below across
+four batches. The monolith remains in this folder as a redirect
+index; every section is now a short stub pointing to its canonical
+per-topic home.
+
+The two sections deliberately retained in the monolith (and not
+in this folder) are: Sec 26 (engine-side RE search targets, will
+move with the `docs/engine/` migration) and Sec 28 (good OSPlus
+feature categories, belongs in [`docs/ROADMAP.md`](../ROADMAP.md)).
 
 This subtree exists because OSPlus is a mod **layered onto a game**,
 and features that don't understand the player-facing reality of that
@@ -26,38 +31,32 @@ player's seat:
 | [`docs/product.md`](../product.md) | Audience, wedge, anti-goals, success criteria | Player-facing reality of OS itself |
 | **`docs/game/` (this subtree)** | **Screens, navigation, match lifecycle, in-match UX, player systems, design principles** | **Engine internals (above), OSPlus internals (above), product strategy (above)** |
 
-## What's in this folder (planned)
+## What's in this folder
 
 Per-topic files migrated out of
-[`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md). Items marked
-**migrated** are live; items marked **TBD** are planned slots that
-still resolve to the source monolith until promoted.
+[`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md). All entries
+are now live.
 
-| Doc | Status | Source section in `OMEGA_STRIKERS_GAME.md` |
+| Doc | Migrated in | Source section in `OMEGA_STRIKERS_GAME.md` |
 |---|---|---|
-| [`overview.md`](./overview.md) | **migrated** (batch 1, 2026-04-29) | Sec 1-2, 4-5, 29-30 (distilled identity + agent memory summary) |
-| [`match-lifecycle.md`](./match-lifecycle.md) | **migrated** (batch 1, 2026-04-29) | Sec 3, 6 (session flow + state machine) |
-| [`core-and-strike.md`](./core-and-strike.md) | **migrated** (batch 2, 2026-04-30) | Sec 4-5, 11 (Core mechanics + basic Strike) |
-| [`goals-and-barriers.md`](./goals-and-barriers.md) | **migrated** (batch 2, 2026-04-30) | Sec 7 |
-| [`roles.md`](./roles.md) | **migrated** (batch 3, 2026-04-30) | Sec 8 (goalie / forward / flexible) |
-| `strikers-and-abilities.md` | **TBD** | Sec 9-10 |
-| [`combat.md`](./combat.md) | **migrated** (batch 3, 2026-04-30) | Sec 12 (stagger / KO / damage) |
-| [`energy-evade-burst.md`](./energy-evade-burst.md) | **migrated** (batch 3, 2026-04-30) | Sec 13 |
-| [`power-orbs.md`](./power-orbs.md) | **migrated** (batch 3, 2026-04-30) | Sec 14 |
-| [`awakenings.md`](./awakenings.md) | **migrated** (batch 2, 2026-04-30) | Sec 15 (gameplay system) + Sec 21-22 (draft UX) |
-| `gear.md` | **TBD** | Sec 16 |
-| `maps.md` | **TBD** | Sec 17 |
-| [`lobby.md`](./lobby.md) | **migrated** (batch 1, 2026-04-29) | Sec 19 |
-| `striker-select.md` | **TBD** | Sec 20 |
-| [`in-match-hud.md`](./in-match-hud.md) | **migrated** (batch 1, 2026-04-29) | Sec 18, 23 (player attention + HUD UX) |
-| `post-match.md` | **TBD** | Sec 24 |
-| [`screens.md`](./screens.md) | **migrated** (batch 1, 2026-04-29) | Sec 25 (screen inventory + per-screen detail) |
-| `design-principles.md` | **TBD** | Sec 27 |
-
-Items marked **TBD** are slots reserved by intent, not yet drafted.
-Don't add a feature that depends on a TBD doc without first promoting
-that doc out of TBD via its own `docs/game-<topic>` branch (or by
-migrating the relevant section as part of the feature work).
+| [`overview.md`](./overview.md) | batch 1, 2026-04-29 | Sec 1-2, 4-5, 29-30 (distilled identity + agent memory summary) |
+| [`match-lifecycle.md`](./match-lifecycle.md) | batch 1, 2026-04-29 | Sec 3, 6 (session flow + state machine) |
+| [`core-and-strike.md`](./core-and-strike.md) | batch 2, 2026-04-30 | Sec 4-5, 11 (Core mechanics + basic Strike) |
+| [`goals-and-barriers.md`](./goals-and-barriers.md) | batch 2, 2026-04-30 | Sec 7 |
+| [`roles.md`](./roles.md) | batch 3, 2026-04-30 | Sec 8 (goalie / forward / flexible) |
+| [`strikers-and-abilities.md`](./strikers-and-abilities.md) | batch 4, 2026-05-01 | Sec 9-10 |
+| [`combat.md`](./combat.md) | batch 3, 2026-04-30 | Sec 12 (stagger / KO / damage) |
+| [`energy-evade-burst.md`](./energy-evade-burst.md) | batch 3, 2026-04-30 | Sec 13 |
+| [`power-orbs.md`](./power-orbs.md) | batch 3, 2026-04-30 | Sec 14 |
+| [`awakenings.md`](./awakenings.md) | batch 2, 2026-04-30 | Sec 15 (gameplay system) + Sec 21-22 (draft UX) |
+| [`gear.md`](./gear.md) | batch 4, 2026-05-01 | Sec 16 |
+| [`maps.md`](./maps.md) | batch 4, 2026-05-01 | Sec 17 |
+| [`lobby.md`](./lobby.md) | batch 1, 2026-04-29 | Sec 19 |
+| [`striker-select.md`](./striker-select.md) | batch 4, 2026-05-01 | Sec 20 |
+| [`in-match-hud.md`](./in-match-hud.md) | batch 1, 2026-04-29 | Sec 18, 23 (player attention + HUD UX) |
+| [`post-match.md`](./post-match.md) | batch 4, 2026-05-01 | Sec 24 |
+| [`screens.md`](./screens.md) | batch 1, 2026-04-29 | Sec 25 (screen inventory + per-screen detail) |
+| [`design-principles.md`](./design-principles.md) | batch 4, 2026-05-01 | Sec 27 (incl. 27.1-27.7) |
 
 Sec 26 of the source monolith ("Reverse Engineering Search Targets")
 is *not* migrated here — it's engine-side material destined for
@@ -66,11 +65,6 @@ Feature Categories") similarly belongs in
 [`docs/ROADMAP.md`](../ROADMAP.md), not here.
 
 ## Reading orders for common tasks
-
-Most of these still bottom out at
-[`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md) until migration
-completes; the file names below are the *destinations* — read the
-linked source section in the monolith until each file lands.
 
 | Task | Suggested reads |
 |---|---|
@@ -107,24 +101,35 @@ linked source section in the monolith until each file lands.
   so explicitly. The reader needs to know which facts are stable
   bedrock vs. which need re-validation each season.
 
-## Migration sequence
+## Migration history
 
 Migration from
-[`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md) happens
-topic-by-topic, one branch per batch of 3-5 related topics. Each
-migration:
+[`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md) ran
+topic-by-topic across four batches between 2026-04-29 and
+2026-05-01:
 
-1. Lifts the relevant section into a new per-topic file under this folder.
-2. Improves structure on the way (per-screen template for `screens.md`, per-mechanic template for `combat.md`, etc.).
-3. Closes any open glossary cross-references that are unblocked by the migration.
-4. Replaces the corresponding section in the source monolith with a short stub: *"Migrated to [`docs/game/<topic>.md`](./<topic>.md)"*.
-5. Updates this README's status table from **TBD** to **migrated**.
-6. Surfaces and resolves any contradictions or ambiguities found during the migration (per the OMEGA_STRIKERS_GAME.md review findings already on file).
+- **Batch 1 (2026-04-29)** — `overview.md`, `match-lifecycle.md`,
+  `screens.md`, `in-match-hud.md`, `lobby.md`
+- **Batch 2 (2026-04-30)** — `core-and-strike.md`,
+  `goals-and-barriers.md`, `awakenings.md`
+- **Batch 3 (2026-04-30)** — `roles.md`, `combat.md`,
+  `energy-evade-burst.md`, `power-orbs.md`
+- **Batch 4 (2026-05-01)** — `striker-select.md`, `post-match.md`,
+  `strikers-and-abilities.md`, `gear.md`, `maps.md`,
+  `design-principles.md`
 
-Once every section has been migrated, the source monolith gets
-archived (or deleted, with a learning entry) and this folder becomes
-the canonical surface. Until then, **the monolith is canonical for
-any topic still marked TBD here**.
+Each migration: lifted the relevant section into a per-topic file;
+improved structure (per-screen / per-mechanic templates); closed
+glossary cross-references; replaced the source section with a
+short redirect stub; surfaced and resolved any contradictions
+found during the pass.
+
+The source monolith is retained as a redirect index (every
+section is now a stub pointing to its canonical home). It can be
+archived once enough time has passed without anyone deep-linking
+into a specific section number — but no rush. The Sec 26 + Sec 28
+content stays canonical there until they too move (engine subtree
+and ROADMAP respectively).
 
 ## When this subtree lies
 

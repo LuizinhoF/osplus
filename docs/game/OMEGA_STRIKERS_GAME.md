@@ -4,23 +4,30 @@ This document explains what it is like to play **Omega Strikers** from the persp
 
 The goal is to help an agent understand the *game context* behind the code it is modifying.
 
-> **Migration in progress.** Per [ADR 0003](../decisions/0003-knowledge-substrate-structure.md),
-> this monolithic doc is being decomposed into per-topic files under
-> `docs/game/`. Sections that have moved are stubbed (heading retained,
-> body replaced with a redirect). Untouched sections remain canonical
-> here until they too are migrated.
+> **Migration complete (player-side).** Per [ADR 0003](../decisions/0003-knowledge-substrate-structure.md),
+> this monolith was decomposed into per-topic files under
+> `docs/game/`. **All player-side sections are now migrated.** The
+> two sections that remain in this file are **deliberately retained
+> here**, not pending migration:
+>
+> - **Sec 26 — Reverse Engineering Search Targets.** Engine-side
+>   material; will move to `docs/engine/` when that subtree
+>   migrates out of [`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md).
+> - **Sec 28 — Good OSPlus Feature Categories.** Belongs in
+>   [`docs/ROADMAP.md`](../ROADMAP.md), not in `docs/game/`.
 >
 > **Where to start instead:**
 >
 > - New agent / first-time read → [`overview.md`](./overview.md)
 > - Player ↔ engine concept bridge → [`docs/glossary.md`](../glossary.md)
-> - Full topic index + status table → [`docs/game/README.md`](./README.md)
+> - Full topic index → [`docs/game/README.md`](./README.md)
 >
-> **Migrated so far:**
+> **Migrated:**
 >
 > - **Batch 1 (2026-04-29):** §1, §2, §3, §4, §5, §6, §18, §19, §23, §25, §29, §30
 > - **Batch 2 (2026-04-30):** §7, §11, §15, §21, §22
 > - **Batch 3 (2026-04-30):** §8 (incl. §8.1-8.3), §12, §13, §14
+> - **Batch 4 (2026-05-01):** §9, §10, §16, §17, §20, §24, §27 (incl. §27.1-27.7)
 
 ---
 
@@ -95,127 +102,16 @@ The goal is to help an agent understand the *game context* behind the code it is
 
 # 9. Strikers
 
-A **Striker** is a playable character with a unique kit.
-
-A Striker usually has:
-
-```text
-Basic Strike
-Primary ability
-Secondary ability
-Special ability
-Unique stats
-Unique role tendencies
-Unique ability interactions with players and the Core
-```
-
-Strikers are not just skins.
-They define how the player interacts with the match.
-
-For reverse engineering, search for concepts like:
-
-```text
-StrikerDefinition
-CharacterDefinition
-HeroDefinition
-AbilityPrimary
-AbilitySecondary
-AbilitySpecial
-AbilityCooldown
-AbilityHitbox
-AbilityProjectile
-AbilityCastTime
-AbilityRange
-AbilityDamage
-AbilityKnockback
-CoreHitModifier
-PlayerHitModifier
-StatusEffect
-Buff
-Debuff
-```
-
-Design rule:
-
-```text
-A good feature preserves Striker identity.
-A bad feature makes every Striker feel the same or breaks the intended rhythm of a kit.
-```
-
-Examples of broad Striker identity patterns:
-
-```text
-Close-range brawler
-Projectile poke
-Defensive goalie
-Area control
-Summoner / deployable control
-Mobility assassin
-Hook / displacement specialist
-Support / buff / utility character
-```
+> **Migrated → [`strikers-and-abilities.md` → "What a Striker is"](./strikers-and-abilities.md#what-a-striker-is).**
+> Engine-side bridge: [`docs/glossary.md` → "Striker"](../glossary.md#striker).
+> Section retained as a stub so existing references (Sec 9) still resolve.
 
 ---
 
 # 10. Abilities
 
-Abilities are central to both combat and Core control.
-
-An ability may be used to:
-
-```text
-Hit the Core
-Redirect the Core
-Accelerate the Core
-Stop or slow the Core
-Damage enemies
-Stagger enemies
-Knock enemies away
-KO enemies
-Create terrain or obstacles
-Buff allies
-Debuff enemies
-Move the player
-Control space
-Deny an area
-Force enemy cooldowns
-```
-
-Important:
-
-```text
-Do not treat abilities as only combat tools.
-Do not treat abilities as only ball-control tools.
-Most ability design exists in the overlap between fighting and Core control.
-```
-
-For reverse engineering, ability logic may have different behavior depending on target:
-
-```text
-onCoreHit
-onPlayerHit
-onAllyHit
-onEnemyHit
-onBarrierHit
-onTerrainHit
-onProjectileExpire
-onRecast
-onChargeStart
-onChargeRelease
-onDeployableSpawn
-onDeployableExpire
-```
-
-Feature design should ask:
-
-```text
-How does this affect Core control?
-How does this affect enemy pressure?
-How does this affect goalie defense?
-How does this affect KO threat?
-How does this affect visual readability?
-How does this interact with Awakenings?
-```
+> **Migrated → [`strikers-and-abilities.md` → "Abilities — what they actually do"](./strikers-and-abilities.md#abilities--what-they-actually-do).**
+> Section retained as a stub so existing references (Sec 10) still resolve.
 
 ---
 
@@ -275,70 +171,21 @@ How does this interact with Awakenings?
 
 # 16. Gear
 
-Gear is selected before the match and gives passive role/style tuning.
-
-Gear is not the same as a full build.
-
-Useful model:
-
-```text
-Striker kit = base identity
-Gear = pre-match role/style tuning
-Awakenings = in-match build evolution
-Map = environmental constraint
-Team composition = strategic context
-Enemy composition = counterplay context
-```
-
-Gear should be understood as a limited pre-match choice, not a complete build system.
+> **Migrated → [`gear.md`](./gear.md).**
+> The three-build-layer mental model (kit / gear / Awakenings) is preserved verbatim
+> in [gear.md → "The three build layers"](./gear.md#the-three-build-layers-preserved-from-source).
+> Section retained as a stub so existing references (Sec 16) still resolve.
 
 ---
 
 # 17. Maps / Arenas
 
-Maps are gameplay systems, not just backgrounds.
-
-An arena may define:
-
-```text
-Goal shape
-Barrier layout
-Wall geometry
-Core bounce behavior
-Hazards
-Special objectives
-Orb spawn points
-Spawn locations
-Camera framing
-Visual readability
-Choke points
-Safe zones
-Danger zones
-```
-
-A map affects:
-
-```text
-Which Strikers are strong
-Which Awakenings are valuable
-How goalies defend
-How forwards pressure
-Where KOs happen
-Where orbs are contested
-How Core rebounds behave
-```
-
-Bad map design symptoms:
-
-```text
-Core becomes hard to see
-Wall bounces feel unpredictable
-Hazards dominate too much
-Goalie has no reasonable defense
-Forwards cannot reasonably break barriers
-Orb spawns create runaway advantage
-Visual clutter hides important state
-```
+> **Migrated → [`maps.md`](./maps.md).**
+> Specifically: ["What a map varies on"](./maps.md#what-a-map-varies-on),
+> ["How map shapes the rest of the game"](./maps.md#how-map-shapes-the-rest-of-the-game),
+> ["Bad map design symptoms"](./maps.md#bad-map-design-symptoms-preserved-from-source).
+> Engine-side bridge: [`docs/glossary.md` → "Map / Arena"](../glossary.md#map--arena).
+> Section retained as a stub so existing references (Sec 17) still resolve.
 
 ---
 
@@ -360,27 +207,10 @@ Visual clutter hides important state
 
 # 20. Striker Select UX
 
-During Striker select, the player wants to know:
-
-```text
-What role am I playing?
-What map are we on?
-What has my team picked?
-What has the enemy picked, if visible?
-Are there bans?
-Which Strikers are available?
-Which Striker should I pick?
-Which gear should I use?
-What cosmetics are selected?
-How much time remains?
-```
-
-Current-version warning:
-
-```text
-Do not add assumptions about full pre-match builds here.
-Striker select is not a full build editor in the current official format.
-```
+> **Migrated → [`striker-select.md`](./striker-select.md).**
+> Specifically: ["What the player wants to know here"](./striker-select.md#what-the-player-wants-to-know-here)
+> and ["Current-version warning"](./striker-select.md#current-version-warning-preserve-verbatim-from-source).
+> Section retained as a stub so existing references (Sec 20) still resolve.
 
 ---
 
@@ -410,40 +240,11 @@ Striker select is not a full build editor in the current official format.
 
 # 24. Post-Match UX
 
-After a match, the player wants to know:
-
-```text
-Did we win or lose?
-How did I perform?
-Did my rank change?
-Did I complete missions?
-Did I earn rewards?
-Which stats mattered?
-Do I want to queue again?
-Do I want to change Striker, cosmetics, role, party, or mode?
-Do I want to report, add, or commend someone?
-```
-
-Do not phrase post-match flow as:
-
-```text
-Change build and queue again
-```
-
-Better:
-
-```text
-Queue again, change Striker/cosmetics/mode, inspect stats/progression, party up, or leave.
-```
-
-If discussing builds post-match, frame it as:
-
-```text
-Review Awakening choices
-Review gear choice
-Review Striker fit
-Review map/team/enemy interaction
-```
+> **Migrated → [`post-match.md`](./post-match.md).**
+> Specifically: ["What the player wants to know here"](./post-match.md#what-the-player-wants-to-know-here)
+> and ["Wrap-up framing"](./post-match.md#wrap-up-framing-preserve-from-source) (the
+> "queue again, change something" framing preserved verbatim from this section).
+> Section retained as a stub so existing references (Sec 24) still resolve.
 
 ---
 
@@ -601,122 +402,10 @@ Input
 
 # 27. OSPlus Feature Design Principles
 
-Use these as design constraints.
-
----
-
-## 27.1 Preserve Core Readability
-
-The Core must always be easy to see and understand.
-
-Avoid:
-
-```text
-Large opaque VFX over the Core
-UI overlays near the Core
-Skins that hide Core direction
-Map art that blends with the Core
-Too many simultaneous indicators
-```
-
----
-
-## 27.2 Preserve Goalie Agency
-
-Goalies need reasonable tools to defend.
-
-Avoid:
-
-```text
-Unreactable scoring patterns
-Unavoidable stuffing
-Visual clutter in the goal area
-Too many forced open-goal states
-Abilities that remove defensive counterplay
-```
-
----
-
-## 27.3 Preserve Forward Pressure
-
-Forwards need ways to create threats.
-
-Avoid:
-
-```text
-Goalies becoming too safe
-Defensive tools that erase all pressure
-Barrier systems that are too hard to break
-Maps where offense cannot create angles
-```
-
----
-
-## 27.4 Respect Cooldown Mind Games
-
-Players often bait and punish cooldowns.
-
-Important interactions:
-
-```text
-Bait Strike
-Force goalie ability
-Punish wasted evade
-Wait for enemy projectile
-Use Core timing to force bad reactions
-```
-
-Do not accidentally remove this timing layer.
-
----
-
-## 27.5 Respect Striker Identity
-
-Each Striker should keep a recognizable rhythm.
-
-Avoid:
-
-```text
-Universal mechanics that make kits feel samey
-Awakenings that erase weaknesses too easily
-Balance changes that remove signature play patterns
-```
-
----
-
-## 27.6 Avoid Visual Pollution
-
-Omega Strikers is already visually busy.
-
-A feature should be visually quiet unless it communicates something very important.
-
-Ask:
-
-```text
-Does this help the player make a decision?
-Can it be smaller?
-Can it be shown only when relevant?
-Can it be moved away from the Core?
-Can it be represented with existing UI language?
-```
-
----
-
-## 27.7 Design Around Sets, Not Just Goals
-
-The match evolves across sets through Awakening drafts.
-
-A feature should consider:
-
-```text
-Early set state
-Late set state
-Match point
-Comebacks
-Awakening scaling
-Enemy adaptation
-Team adaptation
-```
+> **Migrated → [`design-principles.md`](./design-principles.md).**
+> All seven sub-principles (27.1-27.7) live there in long form. Compact
+> seven-bullet summary at [`overview.md` → "OSPlus design principles (compact)"](./overview.md#osplus-design-principles-compact).
+> Section retained as a stub so existing references (Sec 27) still resolve.
 
 ---
 
