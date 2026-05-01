@@ -17,13 +17,12 @@ local utils  = require("utils")
 -- local wheel  = require("wheel")
 local ipc    = require("ipc")
 local chat   = require("chat")
--- identity: required at module load (statement form — no local binding
--- needed since main.lua doesn't call into it directly anymore; profile.lua
--- is the consumer). The require triggers identity.lua's load-time
--- RegisterHook on PMIdentitySubsystem:GetIdentityState during cold-start
--- engine init (BEFORE login completes). Per ADR 0001 R-B substrate +
+-- identity: required for the side effect of its module-load RegisterHook
+-- on PMIdentitySubsystem:GetIdentityState during cold-start engine init
+-- (BEFORE login completes). Per ADR 0001 R-B substrate +
 -- ue4ss-cold-start-hook-install-pattern learning, a keypress-driven or
--- lazy install would miss the identity-flow window.
+-- lazy install would miss the identity-flow window. profile.lua reads
+-- the resolved PID through identity.onPrometheusIdResolved.
 require("identity")
 -- profile: subscribes to identity.onPrometheusIdResolved at init() time and
 -- emits a single profile_upsert IPC message once display name is also
@@ -125,8 +124,8 @@ end)
 -- Probe for the initial map (already loaded before mod starts)
 chat.onMapLoaded()
 
--- Tick loop — lightweight, only chat + IPC
 local tickLoopStarted = false
+
 LoopAsync(30, function()
     if not tickLoopStarted then
         tickLoopStarted = true
@@ -137,6 +136,7 @@ LoopAsync(30, function()
     pcall(chat.pollPending)
     pcall(profile.tick)
     ipc.poll()
+
     return false
 end)
 
