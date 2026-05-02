@@ -24,11 +24,12 @@ Entry point for any AI coding agent in this repo. If you need depth, link to a d
 
 ## Workflow skills
 
-Four skills in `.cursor/skills/` auto-activate by description match. If your current work matches a trigger and you haven't read the skill, you're skipping a step. Skills map onto stages of [`docs/dev-cycle.md`](./docs/dev-cycle.md).
+Five skills in `.cursor/skills/` auto-activate by description match. If your current work matches a trigger and you haven't read the skill, you're skipping a step. Skills map onto stages of [`docs/dev-cycle.md`](./docs/dev-cycle.md).
 
 - **`discover`** — Stage 3 (Feasibility / RE). "Is X possible in OS?", "can we hook Y?", or feasibility check for a framed feature. Produces `## Feasibility` in a feature doc, or a learning entry / `docs/engine/` update for standalone RE. Spike pattern for Low-confidence verdicts.
 - **`feature-design`** — Stage 4. "Add X" / "implement X" for non-trivial features. **Requires Stage 3 to have run** (precondition checks the feature doc). Surfaces design axes before code is written. Stops for sign-off.
 - **`bug-investigate`** — bug-fix lane (separate from feature lifecycle). Prior-art lookup → reproduce → falsify → fix → write learning.
+- **`correct-knowledge`** — discipline. Triggers when an investigation finds a doc claim that's wrong, incomplete, or absent. Walks the cascade across `docs/engine/`, `docs/architecture/`, `docs/game/`, `docs/glossary.md`, `AGENTS.md`, and `KNOWLEDGEBASE.md` so the canonical reference moves with the learning entry. Procedural backstop for `learnings-discipline.mdc` and `decision-discipline.mdc`.
 - **`release-checklist`** — Stage 6 (Land). Ship a build / cut a release. Pre-flight → build chain → spot-check → smoke test → distribution → recorded run.
 
 ## External paths (non-discoverable)

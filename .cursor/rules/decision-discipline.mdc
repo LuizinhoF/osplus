@@ -38,7 +38,7 @@ A one-option ADR is not an ADR. If you can't name two real alternatives with hon
 3. Mark `Status: proposed` while open for discussion. Move to `accepted` only after sign-off.
 4. Add an index row in `docs/decisions/README.md` (newest first).
 5. If the ADR supersedes a prior one: mark the prior ADR `Status: superseded` and fill its `Superseded by` field.
-6. If the ADR invalidates claims in `AGENTS.md`, `docs/product.md`, `KNOWLEDGEBASE.md`, or any other doc, **update those docs in the same branch.** The ADR is additive; fixing the stale source is separate and required.
+6. If the ADR invalidates claims in `AGENTS.md`, `docs/product.md`, `KNOWLEDGEBASE.md`, or any other doc, **update those docs in the same branch.** The ADR is additive; fixing the stale source is separate and required. The procedural cascade (find every echo, classify, fix, verify) lives in `.cursor/skills/correct-knowledge/SKILL.md`.
 7. If the ADR points to specific code sites, add a code comment: `-- See docs/decisions/NNNN-slug.md` (Lua) / `// See docs/decisions/NNNN-slug.md` (JS/PS1).
 
 ## Be terse. ADRs are decision records, not white papers.
