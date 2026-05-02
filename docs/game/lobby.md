@@ -69,11 +69,17 @@ Plus possibly **skin** (referenced as "Skin/cosmetics" in
 [`OMEGA_STRIKERS_GAME.md`](./OMEGA_STRIKERS_GAME.md) Sec 1) — TBD
 whether that's a fifth ID on the profile or held elsewhere.
 
-Where in the lobby the player accesses each of these slots — single
-"customize" entry point, separate buttons, modal-per-slot — is **TBD
-observation**. The `WBP_ReactionButtonPanel_C` child suggests
-emoticon loadout is at least partly configurable from the home hub
-directly without entering a deeper menu.
+**Cosmetic access flow — confirmed 2026-05-02 (partial).** From the
+home hub a single "Customize" entry point opens
+`WBP_Menu_Striker_C` (per [`docs/engine/widgets.md` → "Customization
+screen"](../../docs/engine/widgets.md#customization-screen-home-hub--customize)),
+a per-Striker page with top-level tabs Affinity / Overview /
+Cosmetics. The Cosmetics tab body (`WBP_Panel_StrikerCosmetics_C`)
+hosts a `UWidgetSwitcher` sub-tab cluster — Skins / **Emote** / Goal
+Explosion — backing onto a 7-slot equipped row
+(`DropTile1..DropTile7`) plus a selectable grid. The
+`WBP_ReactionButtonPanel_C` child of the home hub itself is the
+*display* of the equipped emote row, not the configuration surface.
 
 ## Profile view
 
@@ -147,9 +153,15 @@ Items deliberately left unresolved during this migration:
 
 - **A4 (partial) — Skin slot.** Is "Skin/cosmetics" a fifth ID on
   `MeResponseV1` or held elsewhere?
-- **A4 (partial) — Cosmetic access flow.** Does the player customize
-  via a single "customize" button → multi-tab modal, or per-slot
-  shortcuts on the home hub itself, or both?
+- ~~**A4 (partial) — Cosmetic access flow.** Does the player
+  customize via a single "customize" button → multi-tab modal, or
+  per-slot shortcuts on the home hub itself, or both?~~ **Closed
+  2026-05-02** — single "Customize" entry → `WBP_Menu_Striker_C`
+  page with Affinity / Overview / Cosmetics tabs, Cosmetics
+  containing Skins / Emote / Goal Explosion sub-tabs via
+  `CosmeticsPanelSwitcher`. Logo / Nameplate / Title slot access
+  remains uncatalogued (likely a separate `WBP_Menu_Account_C`-style
+  page; not probed).
 - **C5 — Profile view UI.** Where does the native game show profile
   detail (own / others)? Or doesn't it?
 - **C6 — Lobby progression display.** Are missions / battle pass /
@@ -164,8 +176,8 @@ Items deliberately left unresolved during this migration:
 
 ## Cross-references
 
-- Engine perspective: `docs/engine/widgets.md` *(planned)* —
-  `WBP_HomeHub_PC_C` cluster.
+- Engine perspective: [`docs/engine/widgets.md`](../engine/widgets.md)
+  — `WBP_HomeHub_PC_C` cluster, customization screen widget tree.
 - Glossary: [Cosmetic loadout](../glossary.md#cosmetic-loadout),
   [Player identity](../glossary.md#player-identity),
   [Striker](../glossary.md#striker).

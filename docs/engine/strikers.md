@@ -164,8 +164,12 @@ representation, and they are **not the same class**:
    in `WBP_HomeHub_PC_C` (specifically the
    `WBP_FitActorToRect_C` "3D character model in hub" child).
    Visualization actor class TBD.
-4. **Cosmetics / roster screens** — TBD. Striker as menu item
-   / card. Engine class TBD.
+4. **Customization / cosmetics page** — host page is
+   `WBP_Menu_Striker_C` (per
+   [`widgets.md` → "Customization screen"](./widgets.md#customization-screen-home-hub--customize)).
+   Whether the page renders the equipped Striker as a 3D preview
+   actor (and which class) is uncatalogued — the probe captured
+   the widget tree but not the visualization-actor branch.
 
 **Identity key — the Striker ID.** Across all these contexts,
 the equipped Striker is identified by a backend ID. The exact
