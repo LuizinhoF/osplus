@@ -1,16 +1,16 @@
 # OSPlus
 
-OSPlus is a community-maintained mod layer for Omega Strikers. The current
-public package ships UE4SS, the OSPlus Lua mod, the cooked Blueprint pak, the
-Node sidecar, and platform-specific install/update/uninstall scripts.
+OSPlus is a community-maintained mod for Omega Strikers. It adds community
+features that install alongside the game and can be updated without replacing
+your whole game install.
 
 ## Install
 
-Download the latest `OSPlus.zip` from:
+Download the latest OSPlus release:
 
 https://github.com/LuizinhoF/osplus/releases/latest
 
-Extract it, then run:
+Extract `OSPlus.zip`, then run:
 
 - Windows: `install.bat`
 - Linux / Steam Deck: `bash install.sh`
@@ -31,17 +31,21 @@ From an extracted OSPlus package, run:
 The updater downloads the latest `OSPlus.zip` from GitHub Releases and reruns
 the installer.
 
-## Versioning
+## Uninstall
 
-The release version source is `dist/version.json`. Public release tags use the
-same version with a `v` prefix, for example `v0.2.1`.
+From an extracted OSPlus package, run:
 
-GitHub Releases must include:
+- Windows: `uninstall.bat`
+- Linux / Steam Deck: `bash uninstall.sh`
 
-- `OSPlus.zip`
-- `version.json`
+The uninstaller removes OSPlus files and asks before removing shared UE4SS
+files, because another mod may also be using them.
 
-## Development
+## Troubleshooting
 
-The product and architecture docs start at `AGENTS.md` and `docs/product.md`.
-The release flow is documented in `docs/ops/github-release-distribution.md`.
+If OSPlus does not load:
+
+- Re-run the installer from the latest release.
+- On Linux / Steam Deck, confirm the launch option is set exactly as shown
+  above.
+- Restart Omega Strikers after installing or updating.
