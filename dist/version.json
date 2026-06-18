@@ -1,0 +1,8 @@
+{
+  "name": "OSPlus",
+  "version": "0.2.1",
+  "channel": "stable",
+  "repository": "LuizinhoF/osplus",
+  "release_asset": "OSPlus.zip",
+  "release_url": "https://github.com/LuizinhoF/osplus/releases/latest"
+}

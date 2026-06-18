@@ -50,7 +50,9 @@ Always check this before writing any script. If a workflow seems missing, ask be
 - **Cooking is manual in the UE Editor**: `File → Cook Content for Windows`. `/Game/Mods/OSPlus` must be in *Project Settings → Packaging → Additional Asset Directories to Cook* or the cook is empty.
 - `ue-assets/package_logicmod.ps1` — packs cooked content into `OSPlus.pak` in `LogicMods/`. Run after every cook.
 - `build_dist.ps1` — assembles `dist/OSPlus.zip`. Refuses to build without `OSPlus.pak`.
+- `tools/release/publish_github_release.ps1` — builds `dist/OSPlus.zip`, creates GitHub tag/release `v<dist/version.json version>`, and uploads `OSPlus.zip` + `version.json`. Requires `GH_TOKEN` or `GITHUB_TOKEN`.
 - `dist/install.bat`, `dist/install.sh` — end-user installers. Distributed inside the zip.
+- `dist/update.bat`, `dist/update.sh` — end-user updaters. Download the latest `OSPlus.zip` from GitHub Releases and rerun the installer.
 - `dist/uninstall.bat`, `dist/uninstall.sh` — end-user uninstallers. Remove OSPlus and ask before removing shared UE4SS/local data.
 
 ### Local dev loop

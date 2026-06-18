@@ -17,6 +17,8 @@ The distribution zip ships platform-specific entry points:
 
 - `install.bat` for Windows.
 - `install.sh` for Linux / Steam Deck.
+- `update.bat` / `update.ps1` for Windows.
+- `update.sh` for Linux / Steam Deck.
 - `uninstall.bat` for Windows.
 - `uninstall.sh` for Linux / Steam Deck.
 
@@ -61,6 +63,12 @@ They ask before removing shared UE4SS files or local OSPlus runtime data
 (logs/config/token), because those choices affect other mods or future
 reinstalls.
 
+### Update
+
+The update scripts download the latest `OSPlus.zip` from GitHub Releases and
+rerun the normal installer. The installer stays the only code path that writes
+into the game folder.
+
 ## Outcome
 
 Implemented in:
@@ -69,16 +77,19 @@ Implemented in:
 - `dist/uninstall.sh`
 - `dist/uninstall.bat`
 - `dist/install.bat`
+- `dist/update.bat`
+- `dist/update.ps1`
+- `dist/update.sh`
 - `mod/OSPlus/scripts/main.lua`
 - `build_dist.ps1`
 - `dist/README.txt`
 
 ## Validation
 
-- Shell syntax: `bash -n dist/install.sh dist/uninstall.sh`.
-- Zip permissions: `install.sh` and `uninstall.sh` must appear as `0755`
-  executable entries when inspecting `dist/OSPlus.zip` with a permission-aware
-  archive tool.
+- Shell syntax: `bash -n dist/install.sh dist/uninstall.sh dist/update.sh`.
+- Zip permissions: `install.sh`, `update.sh`, and `uninstall.sh` must appear
+  as `0755` executable entries when inspecting `dist/OSPlus.zip` with a
+  permission-aware archive tool.
 - Lua syntax: `npx --yes luaparse mod/OSPlus/scripts/main.lua`.
 
 Runtime smoke still needs a real Windows install and a real Linux/Steam Deck

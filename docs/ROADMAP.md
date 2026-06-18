@@ -31,6 +31,12 @@ If a proposed feature doesn't pass all three, it belongs below in "Won't do" wit
 
 ## Now
 
+**GitHub release distribution.** OSPlus is moving from hand-shared Google Drive
+zips to GitHub Releases under `LuizinhoF/osplus`, with a version manifest and
+Windows/Linux update scripts. This is distribution infrastructure, not a new
+gameplay feature; it unblocks a wider public install surface without changing
+the wedge.
+
 **Agentic workflow design.** Foundation rebuild (product, ADRs, cursor restructure) is committed. Currently building the lifecycle layer: `docs/dev-cycle.md`, `docs/features/` per-feature paper trail, `discover` skill for Stage 3 (Feasibility / RE), and the Stage-3 precondition in the `feature-design` skill. Once this lands, the agentic surface is complete enough that the next active feature-level item is a real Stage-1 capture for the wedge.
 
 After this: pick the first piece of the wedge (profile scaffolding vs. first unlockable-earning path) → triage as Stage 1 → frame into a feature doc → run `discover` → it will likely force the identity ADR.
@@ -97,6 +103,5 @@ Per `docs/product.md` anti-goals + the three-filter test above:
 - **Color picker UI / user-chosen name colors, standalone.** Doesn't serve the wedge. Could live inside the unlockables model later (earned color slots), but not as a standalone v1 feature.
 - **Verified SteamID auth as a prerequisite.** Held in the identity ADR queue; won't block v1 work but won't be assumed present either.
 - **Persistent chat history.** Chat is infra, not product. No feature has named a retention reason.
-- **Public distribution channel beyond Drive direct link.** Deferred until there's a reason to widen audience beyond the SA-community distribution surface.
 - **Features aimed primarily at streamers or veterans.** In-scope long-tail per `docs/product.md`, not a v1 design driver. "It'd be cool for streamers" alone doesn't promote anything from Later.
 - **Generalized fun / silly features with no retention story.** "Fun reinforces retention" is the test; "fun in isolation" is not.

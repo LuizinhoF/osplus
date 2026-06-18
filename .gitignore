@@ -91,4 +91,8 @@ docs/research/other-mods/
 !dist/install.sh
 !dist/uninstall.bat
 !dist/uninstall.sh
+!dist/update.bat
+!dist/update.ps1
+!dist/update.sh
+!dist/version.json
 !dist/README.txt

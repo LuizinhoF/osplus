@@ -7,7 +7,8 @@ description: Build, validate, and ship an OSPlus release end-to-end. Use when th
 
 You are a specialized sub-skill for shipping an OSPlus release. You produce a structured **Release Run Document** that records exactly what was built, what was tested, and where the artifact landed. The skill exists so "ship a build" is a one-prompt operation and so every release is documented in a way that lets us roll back or diagnose user reports later.
 
-The skill does NOT cover versioning or changelog — neither is established yet. When a versioning scheme exists (`v1`, semver, calver, whatever the user picks), this skill gets updated to include those steps.
+The public package version lives in `dist/version.json`. Release tags use
+`v<version>` and GitHub Releases must include `OSPlus.zip` plus `version.json`.
 
 ## When to use
 
@@ -94,7 +95,8 @@ Step 3 — Build the dist zip
   Run: .\build_dist.ps1
   Expected output: "Created <path>\OSPlus.zip (<N> MB)"
   Steps internally: clean dist → copy Lua → build sidecar SEA exe → copy pak
-                    → copy UE4SS bundle → copy installer + README → zip
+                    → copy UE4SS bundle → copy installer/updater/version docs
+                    → zip
   Failure modes to watch:
     - "OSPlus.pak not found" => Step 2 didn't run / failed silently
     - sidecar SEA build failure (npm/esbuild/postject errors) => check sidecar/
@@ -131,9 +133,13 @@ EXPECTED CONTENTS
   Top-level:
     install.bat
     install.sh
+    update.bat
+    update.ps1
+    update.sh
     uninstall.bat
     uninstall.sh
     README.txt
+    version.json
     mod\OSPlus.pak
     mod\scripts\*.lua    (~10 files: main, chat, ipc, log, config, utils, json, assets, pings, wheel)
     mod\sidecar\OSPlus.exe
@@ -206,27 +212,25 @@ Result: [ ] PASS — proceed to distribution
 
 ## Phase 5: Distribution
 
-> **VOLATILE STEP — this section will change when OSPlus goes public.**
-> Today: hand-uploaded to a Google Drive folder. When public release happens,
-> this gets revisited (GitHub Releases? Nexus? Direct webhost?). Until then,
-> the steps below are accurate.
-
 ```
-DISTRIBUTION (current state — Drive direct link)
-  [ ] Upload dist/OSPlus.zip to the OSPlus Drive folder
-      (the user knows the URL/folder; ask if you don't)
-  [ ] Replace any prior OSPlus.zip in that folder
-      (we don't keep historical builds in Drive today; supersede in place)
-  [ ] Confirm the share link still resolves and the file is the new size/mtime
+DISTRIBUTION (GitHub Releases)
+  [ ] Confirm `dist/version.json` has the version being shipped
+  [ ] Confirm `CHANGELOG.md` has an entry for that version
+  [ ] Run `tools/release/publish_github_release.ps1`
+      (requires GH_TOKEN or GITHUB_TOKEN with repo release permissions)
+  [ ] Confirm GitHub release `v<version>` exists at:
+      https://github.com/LuizinhoF/osplus/releases
+  [ ] Confirm release assets include:
+      - OSPlus.zip
+      - version.json
+  [ ] Confirm the stable latest URL resolves:
+      https://github.com/LuizinhoF/osplus/releases/latest/download/OSPlus.zip
   [ ] Notify whoever needs to know that a new build is up
-
-DEFERRED (until versioning scheme is established)
-  - Tagging the commit (no scheme yet)
-  - Updating a CHANGELOG (file doesn't exist yet)
-  - GitHub Release / Nexus upload / etc. (no public channel yet)
 ```
 
-If the user mentions wanting a tag or a changelog "this time," **don't invent a scheme on the fly** — surface that this would be a `chore/release-versioning` branch worth doing properly, and ship without those for now.
+Do not publish a release that failed smoke testing. If the publish script
+fails after creating the GitHub release, delete the draft/broken release or
+upload the missing asset before notifying users.
 
 ---
 
@@ -242,8 +246,9 @@ Write to `docs/releases/<YYYY-MM-DD-shortdesc>.md` (create `docs/releases/` if i
 **Commit:** <full sha> (`git rev-parse HEAD`)
 **Branch:** main
 **Built by:** <user / AI session id if relevant>
+**Version:** <dist/version.json version>
 **Zip size:** <MB>
-**Distributed via:** Drive (direct link)
+**Distributed via:** GitHub Releases
 
 ## What's in this build
 - <1-3 bullets — the user-visible things this build does that the prior didn't>
@@ -300,8 +305,10 @@ RELEASE RUN: <YYYY-MM-DD>
 
 1. **Sequential, not parallel.** UE cook → pak → dist zip → spot-check → smoke test → ship. No skipping, no reordering.
 2. **Smoke test is non-negotiable.** A built zip is not a shipped build. The minimum bar (Phase 4) is the bare minimum, not the ceiling — if the release adds new features, smoke-test those features too.
-3. **Don't invent versioning on the fly.** When the user wants a tag/changelog and no scheme exists, that's a separate `chore/` branch. Surface it; don't ad-hoc.
-4. **The volatile Distribution step is volatile on purpose.** Don't harden Drive-specific steps as if they were the long-term plan. When public release happens, this skill changes.
+3. **Versioning is part of the release.** Update `dist/version.json` and
+   `CHANGELOG.md` before publishing.
+4. **The GitHub release asset contract is stable.** Keep the asset name
+   `OSPlus.zip`; the updater depends on GitHub's latest-release download URL.
 5. **Record every release.** `docs/releases/<date>-<desc>.md` is the artifact-trail that lets us answer user reports. No release is done without it.
 6. **Failed smoke = no ship.** "We can patch it after" is how shipped builds get reputational damage. If the smoke fails, file `bug-investigate`, fix, rebuild, re-smoke. Don't ship through it.
 7. **Stop at the first precondition failure.** Wrong branch, dirty tree, missing UE folder, game running — surface and pause. Working around any of these in-flight is how shipped builds end up containing experimental code.

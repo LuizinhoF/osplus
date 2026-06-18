@@ -14,6 +14,13 @@ $SCRIPTS_SRC = "$ROOT\mod\OSPlus\scripts"
 $DATA_SRC    = "$ROOT\data"
 $UE4SS_SRC   = "$ROOT\ue4ss-bundle"
 $ZIP_OUT     = "$ROOT\dist\OSPlus.zip"
+$VERSION_SRC = "$ROOT\dist\version.json"
+
+$releaseVersion = "unknown"
+if (Test-Path $VERSION_SRC) {
+    $releaseManifest = Get-Content -Raw $VERSION_SRC | ConvertFrom-Json
+    $releaseVersion = [string]$releaseManifest.version
+}
 
 # Final dist requires the new OSPlus.pak. The legacy OmegaStrikersMod.pak
 # is detected only so we can give a clear error if someone forgot to re-cook
@@ -271,18 +278,23 @@ if (Test-Path $UE4SS_SRC) {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Copy installers + README.txt
+# 6. Copy installers, updater, version manifest, and README.txt
 # ---------------------------------------------------------------------------
 
-Write-Step "[6/7] Copying installers + README"
+Write-Step "[6/7] Copying installers + updater + README"
 Copy-Item "$ROOT\dist\install.bat" "$DIST\" -Force
 Copy-Item "$ROOT\dist\install.sh"  "$DIST\" -Force
 Copy-Item "$ROOT\dist\uninstall.bat" "$DIST\" -Force
 Copy-Item "$ROOT\dist\uninstall.sh"  "$DIST\" -Force
+Copy-Item "$ROOT\dist\update.bat" "$DIST\" -Force
+Copy-Item "$ROOT\dist\update.ps1" "$DIST\" -Force
+Copy-Item "$ROOT\dist\update.sh"  "$DIST\" -Force
+Copy-Item "$VERSION_SRC" "$DIST\" -Force
 Copy-Item "$ROOT\dist\README.txt"  "$DIST\" -Force
 Convert-FileToLf "$DIST\install.sh"
 Convert-FileToLf "$DIST\uninstall.sh"
-Write-Ok "Copied installers + README.txt"
+Convert-FileToLf "$DIST\update.sh"
+Write-Ok "Copied installers + updater + README.txt"
 
 # ---------------------------------------------------------------------------
 # 7. Zip everything
@@ -296,6 +308,7 @@ Write-Ok "Created $ZIP_OUT ($zipSize MB)"
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host " Build complete!" -ForegroundColor Green
+Write-Host " Version: $releaseVersion" -ForegroundColor Cyan
 Write-Host " Zip: $ZIP_OUT" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 

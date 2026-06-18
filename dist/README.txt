@@ -143,6 +143,30 @@ Manual UE4SS removal, if no other UE4SS mods use it:
   dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, UE4SS-LICENSE.txt, Mods\, ue4ss\
 
 
+UPDATE
+------
+
+OSPlus releases now live on GitHub:
+
+  https://github.com/LuizinhoF/osplus/releases/latest
+
+To update from an extracted OSPlus package:
+
+Windows:
+
+  Double-click update.bat
+
+Linux / Steam Deck:
+
+  From the extracted folder, run:
+
+    bash update.sh
+
+The updater downloads the latest OSPlus.zip from GitHub Releases and runs the
+normal installer again. The installer is safe to rerun over an existing OSPlus
+install.
+
+
 CREDITS
 -------
 
