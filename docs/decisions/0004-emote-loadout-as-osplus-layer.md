@@ -2,11 +2,31 @@
 
 | Field | Value |
 |---|---|
-| Status | `accepted` |
+| Status | `accepted` (U-α mechanism revised 2026-05-16) |
 | Date | 2026-05-01 |
 | Forcing feature | `feat/first-unlock-emote-lvl10` (Stage 4 — first concrete unlockable; needs a way to equip OSPlus-cosmetics alongside vanilla ones) |
 | Supersedes | — |
 | Superseded by | — |
+
+## Revision 2026-05-16 — U-α mechanism corrected
+
+The original U-α decision committed to "replace the Cosmetics → Emote sub-tab content with an OSPlus-cooked widget" but the *mechanism* of that replacement was misframed. The original framing (and subsequent R1/R2/R3 iterations in the linked feature brief) all attacked the widget tree — cooked-asset replacement hit the `Serial size mismatch` wall, side-loaded viewport sacrificed the "one place" UX, and runtime widget-tree manipulation on `CosmeticsPanelSwitcher` produced UMG mutations that Slate never reflected. A dragnet of twelve native UMG/UPanelWidget functions during sub-tab clicks captured zero fires. The mechanism is not in the widget tree.
+
+Static extraction of `WBP_Panel_StrikerCosmetics`, `Interface_WBP_Panel`, `WBP_TabHeaderGroup_IconAndText`, `WBP_TabHeader_IconAndTextItem` revealed the actual routing layer: a custom BP UFunction `SetActivePanel(targetPanel)` is the chokepoint, called once per sub-tab click by a delegate chain (tab button → tab group fires `OnActiveHeaderChanged(TabId Name)` → bound `OnCosmeticTabChanged` handler does SwitchName → `SetActivePanel(<matching sub-panel ref>)`). The same pattern is reused at `WBP_Menu_Striker_C` for top-level Affinity / Overview / Cosmetics routing.
+
+**Validated production mechanism (2026-05-16, real change in-game showing correct behavior):**
+
+- `RegisterCustomEvent("SetActivePanel", callback)` at module init. `RegisterHook` does NOT work for pure BP UFunctions (`FUNC_Native: 0`); `RegisterCustomEvent` hooks at `ProcessInternal` dispatch level instead. See [`docs/learnings/ue4ss-registerhook-vs-registercustomevent.md`](../learnings/ue4ss-registerhook-vs-registercustomevent.md).
+- Inside callback: `Context:get():GetClass():GetFName():ToString()` filters to `WBP_Panel_StrikerCosmetics_C`. Required because `RegisterCustomEvent` matches by short name globally (`WBP_Menu_Striker_C` also has a `SetActivePanel` for top-level routing).
+- `arg[2]:get()` retrieves the target sub-panel reference. When it's the native Emoticons panel, recursively call `self_:SetActivePanel(osplus_widget_ref)` — guarded by a recursion-flag — to redirect display to the OSPlus widget. `Param:set` was tested but `RegisterCustomEvent` fires post-execution; the recursive-call pattern is the working redirect.
+
+**Revised U-α:** the OSPlus emote loadout widget plugs in via `RegisterCustomEvent` + recursive `SetActivePanel` redirect — NOT cooked-asset replacement, side-loaded viewport widget, or widget-tree mutation. The cooked OSPlus widget must implement `Interface_WBP_Panel` (provides `OnPanelActivated`) and respond to `OnUIDataSet` for striker context. Native data model (`PMUIDataModel.Catalog`, `ReactionsByCharacterId`, `EquipEmoticonToSlot`, `SwapEmoticonSlots`) is consumed unchanged — only the UI surface is OSPlus. See [`docs/learnings/customize-page-tab-routing-architecture.md`](../learnings/customize-page-tab-routing-architecture.md) and [`docs/learnings/emoticon-panel-data-model.md`](../learnings/emoticon-panel-data-model.md).
+
+**R-Hook commitment for in-match wheel unchanged.** The original `R-Hook` decision (RegisterHook on `UpdateReactionButtons`, post-call hook for in-match wheel render) remains valid as written. That target is a native UMG render path (`FUNC_Native: 1`), and `RegisterHook` works correctly there. The mechanism correction in this revision applies *only* to U-α (menu-side panel routing), not R-Hook (in-match render).
+
+**S-Relay, V-Relay, B-Seed unchanged.** Relay-canonical loadout state authority, cross-OSPlus-peer visibility via the relay, and first-launch bootstrap from native loadout are all unaffected — they're about loadout state, not UI activation.
+
+**The R1 / R2 / R3 framing in the linked feature brief is now superseded by this revision.** Feature brief will be revised in the same change as the v1 deliverable (native-only emote tab rework) gets framed.
 
 ## Decision
 

@@ -90,6 +90,23 @@ project that mirrors the game's content layout for the
 | `Content\Mods\OSPlus\_Shared\` | Reserved for cross-feature assets (currently empty). |
 | `Saved\Cooked\Windows\OmegaStrikers\Content\Mods\OSPlus\` | Cook output. `package_logicmod.ps1` reads from here and packs `OSPlus.pak`. |
 
+### Authoring guidance
+
+Use the least surprising authoring surface for each artifact. For asset-like
+game-facing content, the UE project is usually the clearest home. Widgets,
+materials, textures, animated textures, sounds, VFX, Blueprint helper classes,
+and Blueprint/DataTable-style catalogs commonly live under
+`Content\Mods\OSPlus\...` and are cooked into `OSPlus.pak`.
+
+Repo-side Lua and JSON are still valid, but they are integration artifacts:
+Lua talks to UE4SS, native game objects, the sidecar, and cooked Blueprint
+functions; JSON carries runtime-readable localization or curated metadata. Do
+not hide major content in Lua tables or JSON blobs merely because Lua can read
+them; if placement is ambiguous, document the reason in the feature doc.
+
+For contributor clarity, feature folders should be named by product area
+(`Chat`, `Emotes`, `Profile`, etc.). Cross-feature assets go in `_Shared/`.
+
 **Cooking is manual:**
 
 > `File → Cook Content for Windows` in the editor.
@@ -220,7 +237,7 @@ What's inside the pak:
 
 For end-user distribution, [`build_dist.ps1`](../../build_dist.ps1)
 assembles `OSPlus.pak` + Lua + sidecar SEA + UE4SS bundle +
-installer into `dist/OSPlus.zip`. See
+Windows/Linux installers and uninstallers into `dist/OSPlus.zip`. See
 [AGENTS.md → "Build & ship the mod"](../../AGENTS.md#build--ship-the-mod).
 
 ## Cross-references
@@ -231,7 +248,10 @@ installer into `dist/OSPlus.zip`. See
 - **Mod-asset-folder rename history (CustomPings → OSPlus, mount-root locking):** [`docs/UE_PROJECT_MIGRATION.md`](../UE_PROJECT_MIGRATION.md)
 - **Toolchain scripts:** [AGENTS.md → "Toolchain"](../../AGENTS.md#toolchain--use-these-dont-reinvent), [`.cursor/rules/harnesses.mdc`](../../.cursor/rules/harnesses.mdc)
 - **First-time machine setup:** [`tools/setup/bootstrap.ps1`](../../tools/setup/bootstrap.ps1)
-- **End-user installer:** [`dist/install.bat`](../../dist/install.bat)
+- **End-user installers:** [`dist/install.bat`](../../dist/install.bat),
+  [`dist/install.sh`](../../dist/install.sh)
+- **End-user uninstallers:** [`dist/uninstall.bat`](../../dist/uninstall.bat),
+  [`dist/uninstall.sh`](../../dist/uninstall.sh)
 - **Sibling docs index:** [`docs/engine/README.md`](./README.md)
 
 ## Open questions

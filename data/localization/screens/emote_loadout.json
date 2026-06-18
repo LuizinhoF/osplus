@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "default_locale": "en",
+  "screen": "emote_loadout",
+  "strings": {
+    "emote_loadout.search_hint": {
+      "en": "Search emotes",
+      "pt-BR": "Pesquisar emotes"
+    },
+    "emote_loadout.equipped_heading": {
+      "en": "EQUIPPED EMOTES",
+      "pt-BR": "EMOTES EQUIPADOS"
+    },
+    "emote_loadout.owned_heading": {
+      "en": "{striker} EMOTES",
+      "pt-BR": "EMOTES DO {striker}"
+    },
+    "emote_loadout.footer.empty_title": {
+      "en": "Select an emote",
+      "pt-BR": "Selecione um emote"
+    },
+    "emote_loadout.footer.empty_kind": {
+      "en": "EMOTE",
+      "pt-BR": "EMOTE"
+    },
+    "emote_loadout.footer.empty_description": {
+      "en": "Choose a slot, then pick an owned emote.",
+      "pt-BR": "Escolha um slot, depois selecione um emote."
+    },
+    "emote_loadout.equip": {
+      "en": "Equip",
+      "pt-BR": "Equipar"
+    },
+    "emote_loadout.favorite": {
+      "en": "Favorite",
+      "pt-BR": "Favorito"
+    },
+    "emote_loadout.filter.all": {
+      "en": "All",
+      "pt-BR": "Todos"
+    },
+    "emote_loadout.filter.source.native": {
+      "en": "Native",
+      "pt-BR": "Nativo"
+    },
+    "emote_loadout.filter.source.osplus": {
+      "en": "OSPlus",
+      "pt-BR": "OSPlus"
+    }
+  }
+}

@@ -4,6 +4,8 @@ The canonical answer to *"what does each Lua script do, how do they
 talk to each other, and where does behavior X live?"*
 
 Companion to:
+- [`domain-boundaries.md`](./domain-boundaries.md) - the **product/domain
+  boundary** (what reusable concept owns a file, module, or data contract).
 - [`state-contract.md`](./state-contract.md) — the **Lua/BP boundary**
   (what state lives in Lua vs in cooked Blueprint, and how they talk).
 - [`.cursor/rules/mod-architecture.mdc`](../../.cursor/rules/mod-architecture.mdc)

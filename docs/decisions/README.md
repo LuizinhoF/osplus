@@ -60,10 +60,14 @@ Newest first.
 
 | # | Status | Title | Date |
 |---|---|---|---|
-| [0004](0004-emote-loadout-as-osplus-layer.md) | `accepted` | Emote loadout as an OSPlus-canonical parallel layer | 2026-05-01 |
+| [0004](0004-emote-loadout-as-osplus-layer.md) | `accepted` (revision queued — see note below) | Emote loadout as an OSPlus-canonical parallel layer | 2026-05-01 |
 | [0003](0003-knowledge-substrate-structure.md) | `accepted` | Knowledge substrate structure: multi-file subtrees + canonical glossary | 2026-04-29 |
 | [0002](0002-profile-storage.md) | `accepted` | Profile + capture storage and per-request auth | 2026-04-25 |
 | [0001](0001-identity-model.md) | `accepted` | Bind OSPlus profiles to the Odyssey (Prometheus) account ID | 2026-04-24 |
+
+## Pending revisions
+
+- **ADR 0004** is `accepted` but committed to a path (`R-Hook` / widget-level replacement of `WBP_Panel_StrikerEmoticons_C`) that the 2026-05-02 evening session contradicted via (a) hitting the subobject-embedding wall during a cooked-asset replacement attempt and (b) a community-priors check that found zero confirmed widget-tree replacements in the entire OS GameBanana modding ecosystem ([details](../learnings/os-modding-community-priors.md)). Path-of-record has shifted to a side-loaded OSPlus screen (chat-pattern). Revision will be drafted as an ADR supersession alongside the R2 design work, gated on an outstanding "Opening the Prometheus" Discord query that could re-open R1 if a community-known widget-replacement technique surfaces. See [`docs/features/emote-loadout-ui-improvement.md` → "R1 vs R2 verdict"](../features/emote-loadout-ui-improvement.md#r1-vs-r2-verdict--2026-05-02-evening-update) for full reasoning.
 
 ## Related
 

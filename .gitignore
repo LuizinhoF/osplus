@@ -1,6 +1,7 @@
 # ─── Build artifacts ─────────────────────────────────────────────────────────
 dist/OSPlus/
 dist/OSPlus.zip
+dist/*.zip
 sidecar/bundle.js
 sidecar/sea-prep.blob
 sidecar/OSPlus.exe
@@ -61,9 +62,17 @@ server/config.local.json
 scratch/
 scratchpad.md
 *.scratch.*
+.codex/
+.codex-work/
+.claude/
+.mcp.json
+.crash-parse*.py
+mod/OSPlus/scripts/probe_*.lua
+mod/OSPlus/scripts/swap_test_*.lua
 
 # ─── RE toolchain binaries (downloaded by tools/setup/bootstrap.ps1) ─────────
 tools/_bin/
+tools/ue/
 
 # ─── RE raw dumps (huge, regenerated per game patch) ─────────────────────────
 data/re/raw/
@@ -71,8 +80,15 @@ data/re/raw/
 !data/re/index/
 !data/re/index/**
 
+# Local third-party mod dumps used for ad-hoc research; large and
+# redistribution-sensitive.
+docs/research/other-mods/
+
 # ─── Allow-list overrides ────────────────────────────────────────────────────
 # Keep the dist source files (install.bat + README.txt) — they're inputs,
 # not outputs. The build script copies them INTO dist/OSPlus/.
 !dist/install.bat
+!dist/install.sh
+!dist/uninstall.bat
+!dist/uninstall.sh
 !dist/README.txt
