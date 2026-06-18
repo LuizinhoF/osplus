@@ -76,6 +76,15 @@ M.IPC_DIR     = M.LOG_DIR
 M.OUTBOX_FILE = M.IPC_DIR .. "\\outbox.jsonl"
 M.INBOX_FILE  = M.IPC_DIR .. "\\inbox.jsonl"
 M.HEARTBEAT_FILE = M.IPC_DIR .. "\\heartbeat.txt"
+M.DATA_DIR_CANDIDATES = {
+    ".\\Mods\\OSPlus\\data",
+    ".\\ue4ss\\Mods\\OSPlus\\data",
+    M.LOG_DIR .. "\\data",
+}
+M.EMOTE_CATALOG_FILE = "emotes\\catalog.json"
+M.LOCALIZATION_FILES = {
+    "localization\\screens\\emote_loadout.json",
+}
 M.INBOX_POLL_INTERVAL = 10  -- ~300ms at 30ms/tick, plenty fast for chat
 -- Sidecar shutdown: Lua touches HEARTBEAT_FILE every HEARTBEAT_INTERVAL ticks.
 -- Sidecar exits if heartbeat hasn't been touched in HEARTBEAT_TIMEOUT_MS (see sidecar/index.js).

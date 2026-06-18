@@ -11,6 +11,7 @@ $ROOT        = $PSScriptRoot
 $DIST        = "$ROOT\dist\OSPlus"
 $SIDECAR_SRC = "$ROOT\sidecar"
 $SCRIPTS_SRC = "$ROOT\mod\OSPlus\scripts"
+$DATA_SRC    = "$ROOT\data"
 $UE4SS_SRC   = "$ROOT\ue4ss-bundle"
 $ZIP_OUT     = "$ROOT\dist\OSPlus.zip"
 
@@ -34,15 +35,31 @@ try {
 }
 New-Item -Path "$DIST\mod\scripts"  -ItemType Directory -Force | Out-Null
 New-Item -Path "$DIST\mod\sidecar"  -ItemType Directory -Force | Out-Null
+New-Item -Path "$DIST\mod\data\emotes" -ItemType Directory -Force | Out-Null
+New-Item -Path "$DIST\mod\data\localization\screens" -ItemType Directory -Force | Out-Null
 
 # ---------------------------------------------------------------------------
 # 2. Copy Lua scripts
 # ---------------------------------------------------------------------------
 
 Write-Step "[2/7] Copying Lua scripts"
-Copy-Item "$SCRIPTS_SRC\*.lua" "$DIST\mod\scripts\" -Force
+$SCRIPT_EXCLUDE_PATTERNS = @(
+    "swap_test_*.lua",
+    "probe_*.lua"
+)
+Get-ChildItem "$SCRIPTS_SRC\*.lua" -File |
+    Where-Object {
+        $name = $_.Name
+        -not ($SCRIPT_EXCLUDE_PATTERNS | Where-Object { $name -like $_ })
+    } |
+    Copy-Item -Destination "$DIST\mod\scripts\" -Force
 $luaCount = (Get-ChildItem "$DIST\mod\scripts\*.lua").Count
 Write-Ok "Copied $luaCount Lua scripts"
+
+Copy-Item "$DATA_SRC\emotes\*.json" "$DIST\mod\data\emotes\" -Force
+Copy-Item "$DATA_SRC\localization\screens\*.json" "$DIST\mod\data\localization\screens\" -Force
+$dataCount = (Get-ChildItem "$DIST\mod\data\*.json" -Recurse).Count
+Write-Ok "Copied $dataCount data file(s)"
 
 # ---------------------------------------------------------------------------
 # 3. Build sidecar exe
@@ -129,13 +146,16 @@ if (Test-Path $UE4SS_SRC) {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Copy install.bat + README.txt
+# 6. Copy installers + README.txt
 # ---------------------------------------------------------------------------
 
-Write-Step "[6/7] Copying installer + README"
+Write-Step "[6/7] Copying installers + README"
 Copy-Item "$ROOT\dist\install.bat" "$DIST\" -Force
+Copy-Item "$ROOT\dist\install.sh"  "$DIST\" -Force
+Copy-Item "$ROOT\dist\uninstall.bat" "$DIST\" -Force
+Copy-Item "$ROOT\dist\uninstall.sh"  "$DIST\" -Force
 Copy-Item "$ROOT\dist\README.txt"  "$DIST\" -Force
-Write-Ok "Copied install.bat + README.txt"
+Write-Ok "Copied installers + README.txt"
 
 # ---------------------------------------------------------------------------
 # 7. Zip everything

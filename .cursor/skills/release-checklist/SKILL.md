@@ -130,6 +130,9 @@ Expected entries (the installer fails confusingly if any are missing):
 EXPECTED CONTENTS
   Top-level:
     install.bat
+    install.sh
+    uninstall.bat
+    uninstall.sh
     README.txt
     mod\OSPlus.pak
     mod\scripts\*.lua    (~10 files: main, chat, ipc, log, config, utils, json, assets, pings, wheel)

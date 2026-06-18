@@ -17,6 +17,7 @@ local utils  = require("utils")
 -- local wheel  = require("wheel")
 local ipc    = require("ipc")
 local chat   = require("chat")
+local i18n   = require("localization")
 -- identity: required for the side effect of its module-load RegisterHook
 -- on PMIdentitySubsystem:GetIdentityState during cold-start engine init
 -- (BEFORE login completes). Per ADR 0001 R-B substrate +
@@ -45,8 +46,30 @@ ipc.onPresenceReceived = function(members) chat.setPresence(members) end
 -- its own keybinds, UFunction hooks, and native delegates — main.lua just
 -- triggers them once. Engine-global lifecycle (map load, below) is the one
 -- exception, multiplexed here because it crosses features.
+-- Truncate log + write header BEFORE module inits; module inits log
+-- via append, and a later truncation would wipe their startup output.
+log.ensureDir()
+local f = io.open(cfg.LOG_FILE, "w")
+if f then
+    f:write("=== OSPlus " .. cfg.VERSION .. " ===\n")
+    f:write("Started: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n\n")
+    f:close()
+end
+
+i18n.init()
 chat.init()
 profile.init()
+
+-- Production emote-tab override. Hooks WBP_Panel_StrikerCosmetics_C:SetActivePanel
+-- via RegisterCustomEvent, redirects Emote-sub-tab clicks to our cooked
+-- WBP_OSPlusEmoteLoadout widget. See mod/OSPlus/scripts/emote_loadout.lua and
+-- docs/learnings/customize-page-tab-routing-architecture.md.
+local emote_loadout = require("emote_loadout"); emote_loadout.init()
+
+-- swap_test_a1 disarmed 2026-05-17 — production module (emote_loadout) supersedes
+-- the throwaway validation experiments. Keeping the file in tree for future
+-- debug reference; can delete entirely once we're comfortable.
+-- local swap_test_a1 = require("swap_test_a1"); swap_test_a1.init()
 
 -- ============================================================================
 -- Sidecar auto-launch
@@ -55,6 +78,15 @@ profile.init()
 local function launchSidecar()
     -- Kill any leftover sidecar from a previous session
     os.execute('taskkill /f /im OSPlus.exe >nul 2>&1')
+
+    -- Under Proton/Wine, wscript/VBS is less reliable than launching the
+    -- Windows sidecar exe directly. The sidecar still runs inside the same
+    -- Windows compatibility environment as the game, which keeps
+    -- %LOCALAPPDATA%\OSPlus shared with the Lua IPC files.
+    local runningUnderProton =
+        os.getenv("STEAM_COMPAT_DATA_PATH") ~= nil or
+        os.getenv("STEAM_COMPAT_CLIENT_INSTALL_PATH") ~= nil or
+        os.getenv("WINEPREFIX") ~= nil
 
     local candidates = {
         ".\\ue4ss\\Mods\\OSPlus\\sidecar",
@@ -73,14 +105,22 @@ local function launchSidecar()
             -- runs a .vbs silently and the .vbs spawns the exe with window
             -- state 0 (hidden), inheriting no console.
             local vbsCheck = io.open(vbsLauncher, "r")
-            if vbsCheck then
+            if vbsCheck and not runningUnderProton then
                 vbsCheck:close()
                 os.execute('start "" wscript.exe "' .. vbsLauncher .. '" "OSPlus.exe"')
                 log.log("[SIDECAR] Launched (hidden) " .. sidecarExe)
             else
+                if vbsCheck then vbsCheck:close() end
                 -- Fallback: visible console launch if shim is missing.
+                -- On Proton/Wine this is the preferred path; console-window
+                -- behavior is owned by the compatibility layer rather than by
+                -- native Windows shell UX.
                 os.execute('start "" /D "' .. sidecarDir .. '" "' .. sidecarExe .. '"')
-                log.log("[SIDECAR] Launched (visible, no vbs shim) " .. sidecarExe)
+                if runningUnderProton then
+                    log.log("[SIDECAR] Launched direct for Proton/Wine " .. sidecarExe)
+                else
+                    log.log("[SIDECAR] Launched (visible, no vbs shim) " .. sidecarExe)
+                end
             end
             return
         end
@@ -92,15 +132,6 @@ end
 -- ============================================================================
 -- Initialization
 -- ============================================================================
-
-log.ensureDir()
-
-local f = io.open(cfg.LOG_FILE, "w")
-if f then
-    f:write("=== OSPlus " .. cfg.VERSION .. " ===\n")
-    f:write("Started: " .. os.date("%Y-%m-%d %H:%M:%S") .. "\n\n")
-    f:close()
-end
 
 ipc.truncateInbox()
 ipc.writeHeartbeat()  -- prime heartbeat before sidecar starts polling
@@ -134,6 +165,7 @@ LoopAsync(30, function()
 
     pcall(chat.tickMatchProbe)
     pcall(chat.pollPending)
+    pcall(i18n.tick)
     pcall(profile.tick)
     ipc.poll()
 

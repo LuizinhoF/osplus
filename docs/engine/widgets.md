@@ -595,6 +595,32 @@ GameInstance_Base_C
     └── TournamentAnnouncement    (WBP_TournamentAnnouncement_C)
 ```
 
+### Customization screen (Home Hub → Customize)
+
+Reached from the home hub via a "Customize" affordance; routed by
+`Router_OutOfGame_C` (the open question below). Verified at runtime
+2026-05-02 via probe `mod/OSPlus/scripts/probe_subtab_a0.lua`
+(throwaway; see [`docs/learnings/customization-screen-widgetswitcher-architecture.md`](../learnings/customization-screen-widgetswitcher-architecture.md)).
+
+```text
+WBP_Menu_Striker_C                         — main customization page (per-Striker)
+└── WBP_Panel_StrikerCosmetics_C           — body of the "Cosmetics" tab
+    └── CosmeticsPanelSwitcher (UWidgetSwitcher) — sub-tab navigation, ActiveWidgetIndex
+        ├── WBP_Panel_StrikerSkins_C       — Skins sub-tab body
+        ├── WBP_Panel_StrikerEmoticons_C   — Emote sub-tab body
+        │   ├── EmoticonEquippedContainer  — 7 named DropTile1..DropTile7 (equipped slots)
+        │   └── EmoticonsTileView          — selectable emote grid
+        └── WBP_Panel_StrikerGoalExplosions_C — Goal Explosion sub-tab body
+```
+
+**Notes for hooking:**
+
+- **Sub-tab navigation is a `UWidgetSwitcher`**, not a tab-button-cluster pattern. Detect the active sub-tab via `CosmeticsPanelSwitcher.ActiveWidgetIndex` (0 = Skins, 1 = Emote, 2 = Goal Explosion) — names confirmed by child order in the probe dump but verify against the live `WidgetTree` if Odyssey ever reorders.
+- **The 7-slot equipped loadout is hard-coded at the UI layer** — `DropTile1..DropTile7` are named children, not a dynamic array. Any "8th slot" feature needs its own widget surface.
+- **`WBP_Panel_StrikerEmoticons_C`** is the swap target for OSPlus's Emote-sub-tab replacement (per [ADR 0004](../decisions/0004-emote-loadout-as-osplus-layer.md)). The host page (`WBP_Menu_Striker_C`) and the Cosmetics-tab body (`WBP_Panel_StrikerCosmetics_C`) stay native.
+- **Sibling tabs** Affinity / Overview live as siblings of `WBP_Panel_StrikerCosmetics_C` on the host page; structure not catalogued (out of scope for the emote-loadout feature). Likely follow the same `WidgetSwitcher`-of-panels pattern.
+- **Striker visualization actor inside the page** (the 3D/preview model) is not catalogued — see [`strikers.md`](./strikers.md) → *Open questions*.
+
 ### ScrollBox usage in OS's own UI
 
 The game uses ScrollBox extensively across all phases. Useful

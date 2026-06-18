@@ -30,14 +30,42 @@ if (-not (Test-Path $COOKED_DIR)) {
     exit 1
 }
 
-Write-Step "Packaging LogicMod (ModActor + Chat Widget)"
+Write-Step "Packaging LogicMod (OSPlus cooked assets)"
 Write-Host "    Cooked dir : $COOKED_DIR"
 Write-Host "    Output pak : $OUTPUT_PAK"
 
+$EXCLUDED_RELATIVE_PATTERNS = @(
+    "_Scratch/*",
+    "*/_Scratch/*",
+    "CustomPings/UI/Test.*",
+    "CustomPings/UI/WBP_Chat.*",
+    "CustomPings/UI/WBP_Chat2.*",
+    "CustomPings/UI/WBP_Chat_Nofunc.*",
+    "CustomPings/Textures/PingTest.*",
+    "CustomPings/Textures/PingTest_HLOD0_Instancing.*"
+)
+
+function Test-ExcludedCookedAsset {
+    param([string]$RelativePath)
+
+    foreach ($pattern in $EXCLUDED_RELATIVE_PATTERNS) {
+        if ($RelativePath -like $pattern) {
+            return $true
+        }
+    }
+    return $false
+}
+
 $lines = @()
+$excluded = @()
 $files = Get-ChildItem -Path $COOKED_DIR -Recurse -File
 foreach ($f in $files) {
     $relativePath = $f.FullName.Substring($COOKED_DIR.Length).TrimStart("\")
+    $relativePakPath = $relativePath -replace "\\", "/"
+    if (Test-ExcludedCookedAsset $relativePakPath) {
+        $excluded += $relativePakPath
+        continue
+    }
     $mountPath = "../../../OmegaStrikers/Content/Mods/OSPlus/$relativePath"
     $mountPath = $mountPath -replace "\\", "/"
     $lines += "`"$($f.FullName)`" `"$mountPath`""
@@ -49,6 +77,10 @@ if ($lines.Count -eq 0) {
 }
 
 Write-Ok "Found $($lines.Count) files"
+if ($excluded.Count -gt 0) {
+    Write-Host "    Excluded $($excluded.Count) scratch/prototype cooked files" -ForegroundColor DarkGray
+    foreach ($e in $excluded) { Write-Host "      - $e" -ForegroundColor DarkGray }
+}
 foreach ($l in $lines) { Write-Host "    $l" -ForegroundColor DarkGray }
 
 # UnrealPak's response file is read as ASCII; writing UTF-8 with BOM (PS5

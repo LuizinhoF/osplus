@@ -29,6 +29,7 @@ runtime form (with `_C` suffix).
 |---|---|---|---|
 | Startup / login | Pre-session | Game launch, auth handshake, EULA check | TBD |
 | **Home Hub** (main lobby) | Out-of-game | Default screen between matches; queue, party, customize, social | `WBP_HomeHub_PC_C` |
+| **Customization (Striker)** | Out-of-game | Per-Striker customization page; tabs for Affinity / Overview / Cosmetics, with Cosmetics holding sub-tabs for Skins / Emote / Goal Explosion | `WBP_Menu_Striker_C` (page) + `WBP_Panel_StrikerCosmetics_C` (Cosmetics tab body) + `CosmeticsPanelSwitcher` (sub-tab `UWidgetSwitcher`); see [`docs/engine/widgets.md` → "Customization screen"](../engine/widgets.md#customization-screen-home-hub--customize) |
 | Play mode selection | Out-of-game | Pick which mode to queue (Ranked, Brawl, Practice, Custom — see [Modes](#modes)) | TBD |
 | Queue state | Out-of-game | "Searching for match" overlay/state | TBD |
 | Match found notification | Out-of-game | "Accept / decline" prompt when matchmaker locks a match | TBD |

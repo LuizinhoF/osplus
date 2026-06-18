@@ -79,6 +79,7 @@ set "MODS_DIR=!BIN_DIR!\Mods"
 set "MOD_DIR=!MODS_DIR!\OSPlus"
 set "SCRIPTS_DIR=!MOD_DIR!\Scripts"
 set "SIDECAR_DIR=!MOD_DIR!\sidecar"
+set "DATA_DIR=!MOD_DIR!\data"
 set "PAK_DIR=!GAME_PATH!\OmegaStrikers\Content\Paks\LogicMods"
 set "THIS_DIR=%~dp0"
 set "UE4SS_SRC=!THIS_DIR!ue4ss-files"
@@ -159,9 +160,10 @@ echo.
 
 if not exist "!SCRIPTS_DIR!" mkdir "!SCRIPTS_DIR!"
 if not exist "!SIDECAR_DIR!" mkdir "!SIDECAR_DIR!"
+if not exist "!DATA_DIR!\emotes" mkdir "!DATA_DIR!\emotes"
 if not exist "!PAK_DIR!" mkdir "!PAK_DIR!"
 
-echo   [1/4] Copying Lua scripts...
+echo   [1/5] Copying Lua scripts...
 xcopy /y /q "!THIS_DIR!mod\scripts\*.lua" "!SCRIPTS_DIR!\" >nul
 if errorlevel 1 (
     echo [ERROR] Failed to copy Lua scripts
@@ -169,7 +171,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   [2/4] Copying sidecar...
+echo   [2/5] Copying emote metadata...
+xcopy /y /q /e /i "!THIS_DIR!mod\data" "!DATA_DIR!" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to copy emote metadata
+    pause
+    exit /b 1
+)
+
+echo   [3/5] Copying sidecar...
 :: Kill any running sidecar so the copy doesn't fail with "file in use"
 taskkill /f /im OSPlus.exe          >nul 2>&1
 taskkill /f /im OmegaStrikersChat.exe >nul 2>&1
@@ -186,10 +196,10 @@ if not exist "!SIDECAR_DIR!\config.json" (
     copy /y "!THIS_DIR!mod\sidecar\config.json" "!SIDECAR_DIR!\" >nul
 )
 
-echo   [3/4] Copying Blueprint pak...
+echo   [4/5] Copying Blueprint pak...
 copy /y "!THIS_DIR!mod\OSPlus.pak" "!PAK_DIR!\" >nul
 
-echo   [4/4] Enabling mod in mods.txt...
+echo   [5/5] Enabling mod in mods.txt...
 set "MODS_TXT=!MODS_DIR!\mods.txt"
 findstr /c:"OSPlus" "!MODS_TXT!" >nul 2>&1
 if errorlevel 1 (
@@ -232,5 +242,6 @@ echo  Chat activates automatically in-match.
 echo  Press Enter to type, Escape to cancel.
 echo.
 echo  Config: !SIDECAR_DIR!\config.json
+echo  Uninstall: run uninstall.bat from this package
 echo.
 pause

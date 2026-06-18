@@ -45,6 +45,8 @@ Newest first. Empty until the first feature gets a doc.
 
 | Status | Slug | One-line summary |
 |---|---|---|
+| `building` | [`install-uninstall-cross-platform`](./install-uninstall-cross-platform.md) | Add Linux/Steam Deck installer support, first-class uninstallers, and Proton-aware sidecar launch behavior. |
+| `framed` | [`emote-loadout-ui-improvement`](./emote-loadout-ui-improvement.md) | Replace the native Cosmetics → Emote sub-tab body with an OSPlus widget (search bar, per-Striker grouping, preview-with-Equip, 7 equipped slots). Feature 1 of a 2-feature split (sibling: custom emotes / in-game render — Brief pending). Feasibility Pass-2 A0 closed (verified host widget tree); A1 (swap reinstall reliability) pending. ADR-gated on [0004](../decisions/0004-emote-loadout-as-osplus-layer.md). |
 | `feasibility` | [`in-game-profile-mvp`](./in-game-profile-mvp.md) | v1 wedge substrate — plumbing only: identity binding + raw per-match state capture. Feasibility Pass 1 done (identity High; tracker ecosystem mapped; Prometheus-ID-vs-SteamID distinction surfaced). Pass 2 (capture-surface live probes) pending. ADR-gated on identity model + profile storage. |
 
 `Status` values: `framed` (Stage 2 done), `feasibility` (Stage 3 done), `designed` (Stage 4 done), `building` (Stage 5 in progress), `shipped`, `shelved`.

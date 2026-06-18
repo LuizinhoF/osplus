@@ -4,6 +4,28 @@ When the project was renamed from `OmegaStrikersTest` to `OSPlus`, all code, scr
 
 This doc is the concrete plan for that one-time migration **plus** the cleanup of dead prototype content discovered during reverse-engineering. After this migration, the cooked pak structure becomes the long-term layout the mod platform builds on.
 
+## 2026-05-24 cleanup note
+
+The primary `Content/Mods/OmegaStrikersMod -> Content/Mods/OSPlus` migration is
+done in the live UE project. During the emote-loadout cleanup pass, unreferenced
+prototype assets were archived outside `Content` at
+`F:\Omegamod\OmegaStonkers 5.1\_Archive\2026-05-24-osplus-cleanup\`:
+
+- `Content/Mods/OSPlus/CustomPings/UI/Test.uasset`
+- `Content/Mods/OSPlus/CustomPings/UI/WBP_Chat.uasset`
+- `Content/Mods/OSPlus/CustomPings/UI/WBP_Chat2.uasset`
+- `Content/Mods/OSPlus/CustomPings/UI/WBP_Chat_Nofunc.uasset`
+- `Content/Prometheus/UI/OutOfGame/Strikers/WBP_Panel_StrikerEmoticons.uasset`
+
+`DefaultGame.ini` now cooks `/Game/Mods/OSPlus` as the only OSPlus-specific
+content mount. The package script also excludes known scratch/prototype cooked
+files so stale `Saved/Cooked` output cannot leak into `OSPlus.pak`.
+
+The remaining `PingTest` map/HLOD files under
+`Content/Mods/OSPlus/CustomPings/Textures` have map-owned external actor/object
+references and should be removed through a dedicated UE-side delete/fix-up pass,
+not by hand-moving files.
+
 ---
 
 ## Why now
@@ -60,6 +82,13 @@ After we add features, the same pattern:
 ```
 
 One folder per feature. Cross-feature assets (base widget classes, shared data tables, the `_Shared/` orchestration utilities `ModActor` reaches for) go in `_Shared/`.
+
+This layout is also an authoring heuristic: game-facing content should be easy
+for Unreal contributors to find and edit in the Content Browser. Widgets,
+textures, animated textures, materials, sounds, VFX, Blueprint helpers, and
+UE-native data assets/catalogs usually belong in the UE project. Lua and JSON
+can reference those assets, enrich runtime metadata, or carry localization, but
+they should not become a surprising hiding place for substantial content.
 
 ---
 

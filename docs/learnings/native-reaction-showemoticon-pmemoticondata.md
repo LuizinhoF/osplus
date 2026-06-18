@@ -20,6 +20,7 @@ The native reaction stack is data-driven and typed, not a single generic "play e
 - Live runtime probing confirmed that a no-arg `ShowSelectedReaction` call on `WBP_ReactionModal_C` renders a native reaction, so the modal is a real owner/path in practice rather than just a UI shell.
 - Parsed `EmoteData_Asher_Delighted` shows `PMEmoteData` includes character-specific animation references (`/Game/Prometheus/Characters/Shieldz/.../AM_ShieldUser_Default_Emote_Happy`) plus icon art.
 - Parsed `EmoticonData_JulietteComfy` shows `PMEmoticonData` is the lighter-weight icon/audio path: texture + Wwise event, no striker animation dependency.
+- `PMEmoticonData.bHideFromEnemyTeam` (Bool) gates **gameplay-layer team-only callouts** in-match (e.g. "Spread out!" / goalie defends-callout). It is **NOT** a cross-client / mod-installation visibility gate. Setting it to `true` on a custom asset would make the emote half-broken (own team sees, enemy team doesn't, regardless of who has the mod). Confirmed by maintainer 2026-05-01 during ADR 0004 drafting; an earlier draft mis-used the flag for "graceful vanilla-peer fallback" and was corrected.
 
 That means a random shipped `PMEmoteData` is a bad generic probe for the hotkey reaction pipeline because it bakes in striker-specific animation assumptions. The safer first probe is a `PMEmoticonData` plus `ShowEmoticon`.
 

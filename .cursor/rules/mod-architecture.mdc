@@ -8,6 +8,23 @@ globs:
 
 # OSPlus Mod Architecture
 
+## Contributor-legible authoring
+
+Cooked Blueprint content is not a fallback or decoration layer. It is often the
+least surprising home for asset-like game-facing content, especially when a UE
+contributor would expect to find that content in the Content Browser.
+
+Prefer the authoring surface that matches the artifact and maintainer:
+widgets, materials, textures, animated textures, sounds, VFX, Blueprint helper
+classes, DataTables, DataAssets, and other editor-authored catalogs usually
+belong in the UE project under `Content/Mods/OSPlus/...`. Runtime integration,
+native-game probes, sidecar/file IPC, localization, and curated metadata that
+must be readable without recooking can belong in Lua or JSON.
+
+Do not hide major content in Lua tables or JSON blobs just because Lua can read
+them. When placement is ambiguous, choose the least surprising home and record
+why in the feature doc.
+
 ## Lua / BP Boundary Contract
 
 The mod runs across two execution contexts: Lua (UE4SS scripts) and Blueprint (cooked into `OSPlus.pak`). Every piece of state has **one canonical home**, decided by who consumes it. No mirroring.

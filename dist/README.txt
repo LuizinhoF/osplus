@@ -11,8 +11,8 @@ More features (player profiles, currency, social, analytics) are on
 the roadmap. One install, growing capabilities over time.
 
 
-INSTALL
--------
+INSTALL - WINDOWS
+-----------------
 
   1. Extract this zip somewhere (e.g. your Desktop)
   2. Double-click install.bat
@@ -27,6 +27,32 @@ just adds OSPlus on top.
 
 If you have an older "OmegaStrikersTest" install from a previous build,
 this installer migrates it automatically.
+
+
+INSTALL - LINUX / STEAM DECK
+----------------------------
+
+  1. Extract this zip somewhere
+  2. Open a terminal in the extracted folder
+  3. Run:
+
+       bash install.sh
+
+The Linux installer auto-detects normal Steam and Flatpak Steam library
+locations, then installs the same UE4SS + OSPlus files into the Proton
+game folder. If auto-detection fails, it asks for the OmegaStrikers path.
+
+After installing, set this Steam Launch Option for Omega Strikers:
+
+  WINEDLLOVERRIDES="dwmapi=n,b" %command%
+
+This tells Proton to load OSPlus's local dwmapi.dll proxy so UE4SS starts,
+instead of using Wine's builtin dwmapi implementation.
+
+Omega Strikers runs as a Windows game under Proton, so OSPlus currently
+launches the Windows sidecar inside that same compatibility layer. This
+keeps the file-IPC path shared with the Lua mod. A native Linux sidecar is
+a separate future packaging step, not required for this installer path.
 
 
 USAGE
@@ -68,7 +94,10 @@ TROUBLESHOOTING
 ---------------
 
 Chat not appearing?
-  - Re-run install.bat (make sure it says "Installation complete!")
+  - Re-run install.bat or bash install.sh (make sure it says
+    "Installation complete!")
+  - On Linux/Steam Deck, confirm the launch option is set:
+      WINEDLLOVERRIDES="dwmapi=n,b" %command%
   - Check that OSPlus is listed in:
       <game>\Binaries\Win64\Mods\mods.txt   with " : 1" at the end
   - Restart the game
@@ -82,17 +111,35 @@ Messages not sending?
   - Check that config.json has the correct relay server address
   - Make sure the relay server is reachable
   - Check your firewall isn't blocking OSPlus.exe
+  - On Linux/Steam Deck, check the Proton prefix logs under:
+      <steam-library>/steamapps/compatdata/<appid>/pfx/drive_c/users/steamuser/AppData/Local/OSPlus
 
 
 UNINSTALL
 ---------
 
+Windows:
+
+  Double-click uninstall.bat
+
+Linux / Steam Deck:
+
+  From the extracted folder, run:
+
+    bash uninstall.sh
+
+The uninstaller removes OSPlus files, removes the "OSPlus : 1" mods.txt
+entry, and stops the sidecar if it is running. It asks before removing
+UE4SS, because another mod may be using the same UE4SS install. It also
+asks before deleting local OSPlus logs/config/token.
+
+Manual uninstall is still:
   1. Delete: <game>\Binaries\Win64\Mods\OSPlus\
   2. Delete: <game>\OmegaStrikers\Content\Paks\LogicMods\OSPlus.pak
-  3. (Optional) Remove the "OSPlus : 1" line from
+  3. Remove the "OSPlus : 1" line from:
      <game>\Binaries\Win64\Mods\mods.txt
 
-To remove UE4SS entirely, delete these from <game>\Binaries\Win64\:
+Manual UE4SS removal, if no other UE4SS mods use it:
   dwmapi.dll, UE4SS.dll, UE4SS-settings.ini, UE4SS-LICENSE.txt, Mods\, ue4ss\
 
 

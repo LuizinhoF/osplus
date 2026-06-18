@@ -72,8 +72,11 @@ primary identity in a match. See `docs/game/strikers-and-abilities.md`
 - **Lobby home hub display — TBD.** Equipped Striker rendered in
   `WBP_HomeHub_PC_C` (specifically the `WBP_FitActorToRect_C` "3D
   character model in hub" child). Visualization actor class TBD.
-- **Cosmetics / roster screens — TBD.** Striker as menu item / card.
-  Engine class TBD.
+- **Customization / cosmetics page — partial.** Host page is
+  `WBP_Menu_Striker_C` (per
+  [`docs/engine/widgets.md` → "Customization screen"](./engine/widgets.md#customization-screen-home-hub--customize)).
+  Whether and how the page renders the equipped Striker as a 3D
+  preview is uncatalogued — only the widget tree is probed.
 
 **Identity key.** Across all engine contexts, the equipped Striker is
 identified by a backend ID. The exact field name on `MeResponseV1` /
@@ -233,7 +236,7 @@ others?" — the customization slots on the player's profile.
 |---|---|---|
 | **Logo** | `LogoId` | TBD — probably a graphic shown alongside the name |
 | **Nameplate** | `NameplateId` | Background plate behind player name (lobby + nameplates) |
-| **Emoticon** | `EmoticonId` | One of the equipped reactions on the in-match wheel (see *Emote / Emoticon* above) |
+| **Emoticon** | `EmoticonId` | One of the **7 equipped reactions** (slots 1–7) on the in-match wheel; configured per-Striker via the customization page's Cosmetics → Emote sub-tab — see [*Emote / Emoticon*](#emote--emoticon) above and [`docs/engine/widgets.md` → "Customization screen"](./engine/widgets.md#customization-screen-home-hub--customize) |
 | **Title** | `TitleId` | TBD — likely a text label shown alongside name |
 
 The player vocabulary "cosmetics" collapses these four slots; in code

@@ -69,7 +69,7 @@ two protocols, three hosts**:
 | Process | Where it runs | What it owns |
 |---|---|---|
 | **Lua mod** | Inside `OmegaStrikers.exe` (UE4SS-injected) | Game-side feature logic. Cannot open sockets — UE4SS Lua has no networking. |
-| **Sidecar** | Same machine as the game (`%LOCALAPPDATA%\OSPlus\sidecar.exe`) | The bridge. File IPC on the local side, WebSocket + HTTPS on the network side. Auto-launched by the mod (via UE4SS `os.execute`) at game start. |
+| **Sidecar** | Same machine as the game (`%LOCALAPPDATA%\OSPlus\sidecar.exe`) | The bridge. File IPC on the local side, WebSocket + HTTPS on the network side. Auto-launched by the mod (via UE4SS `os.execute`) at game start. On Linux/Steam Deck, the game runs under Proton; OSPlus launches the same Windows sidecar directly inside that compatibility layer so `%LOCALAPPDATA%` stays shared with Lua. |
 | **Caddy** | OCI VM `136.248.104.200` | Reverse proxy. Owns TLS termination for `play-osplus.duckdns.org`. Routes everything to `127.0.0.1:3000`. |
 | **Relay (Node.js)** | OCI VM, behind Caddy, listening on `127.0.0.1:3000` | The fanout + persistence layer. Two responsibilities under one process per [ADR 0002](../decisions/0002-profile-storage.md): WS chat broadcast + REST profile API. |
 
@@ -89,7 +89,7 @@ flat JSONL files plus a single heartbeat file.
 | `outbox.jsonl` | Lua mod | Sidecar | Outgoing messages (chat sends, room joins/leaves, profile upserts). One JSON object per line. Sidecar tracks read offset. |
 | `inbox.jsonl` | Sidecar | Lua mod | Incoming messages (chat from other players, room presence updates, errors). One JSON object per line. Lua polls every ~90 ms (3 ticks at 30 ms). |
 | `heartbeat.txt` | Lua mod | Sidecar | Lua's "I'm alive" beacon. Touched every 5 s. Sidecar **exits** if no heartbeat for 20 s (with a 30 s startup grace) — this is how the sidecar knows the game closed. |
-| `sidecar.log` | Sidecar | (operator) | Sidecar's persistent log. The sidecar runs hidden via wscript.exe shim — stdout goes nowhere, so we mirror everything to this file. Truncated at each start. |
+| `sidecar.log` | Sidecar | (operator) | Sidecar's persistent log. On Windows the sidecar usually runs hidden via the wscript.exe shim; on Proton it is launched directly. Either way stdout is unreliable for users, so we mirror everything to this file. Truncated at each start. |
 
 **Format.** All IPC messages are flat JSON objects with a
 `type` field. No nesting (the Lua-side JSON encoder is
