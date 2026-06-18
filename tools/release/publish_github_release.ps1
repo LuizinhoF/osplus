@@ -17,7 +17,6 @@ $version = [string]$manifest.version
 $assetName = [string]$manifest.release_asset
 $tagName = "v$version"
 $zipPath = Join-Path $ROOT "dist\$assetName"
-$versionAssetPath = Join-Path $ROOT "dist\version.json"
 
 if (-not $version) {
     throw "dist/version.json is missing a version."
@@ -55,9 +54,6 @@ if (-not $SkipBuild) {
 if (-not (Test-Path $zipPath)) {
     throw "Release zip not found: $zipPath"
 }
-if (-not (Test-Path $versionAssetPath)) {
-    throw "Version asset not found: $versionAssetPath"
-}
 
 $headers = @{
     "Authorization" = "Bearer $token"
@@ -71,7 +67,6 @@ OSPlus $version
 
 Assets:
 - $assetName
-- version.json
 
 Install/update instructions are in README.md and docs/ops/github-release-distribution.md.
 "@
@@ -126,6 +121,6 @@ function Upload-ReleaseAsset {
 }
 
 Upload-ReleaseAsset -Path $zipPath -Name $assetName -ContentType "application/zip"
-Upload-ReleaseAsset -Path $versionAssetPath -Name "version.json" -ContentType "application/json"
+Remove-ExistingReleaseAsset -Name "version.json"
 
 Write-Ok "Release published: $($release.html_url)"

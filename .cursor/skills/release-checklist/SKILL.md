@@ -8,7 +8,7 @@ description: Build, validate, and ship an OSPlus release end-to-end. Use when th
 You are a specialized sub-skill for shipping an OSPlus release. You produce a structured **Release Run Document** that records exactly what was built, what was tested, and where the artifact landed. The skill exists so "ship a build" is a one-prompt operation and so every release is documented in a way that lets us roll back or diagnose user reports later.
 
 The public package version lives in `dist/version.json`. Release tags use
-`v<version>` and GitHub Releases must include `OSPlus.zip` plus `version.json`.
+`v<version>` and GitHub Releases must include `OSPlus.zip`.
 
 ## When to use
 
@@ -139,7 +139,6 @@ EXPECTED CONTENTS
     uninstall.bat
     uninstall.sh
     README.txt
-    version.json
     mod\OSPlus.pak
     mod\scripts\*.lua    (~10 files: main, chat, ipc, log, config, utils, json, assets, pings, wheel)
     mod\sidecar\OSPlus.exe
@@ -222,7 +221,6 @@ DISTRIBUTION (GitHub Releases)
       https://github.com/LuizinhoF/osplus/releases
   [ ] Confirm release assets include:
       - OSPlus.zip
-      - version.json
   [ ] Confirm the stable latest URL resolves:
       https://github.com/LuizinhoF/osplus/releases/latest/download/OSPlus.zip
   [ ] Notify whoever needs to know that a new build is up

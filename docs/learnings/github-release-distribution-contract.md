@@ -26,16 +26,16 @@ The release contract is now:
 
 - `dist/version.json` is the source of truth for the public version.
 - GitHub tags are `v<version>`.
-- GitHub Releases upload `OSPlus.zip` and `version.json`.
+- GitHub Releases upload `OSPlus.zip`.
 - `update.bat` and `update.sh` download
   `https://github.com/LuizinhoF/osplus/releases/latest/download/OSPlus.zip`
   and rerun the platform installer.
 
 ## Lesson
 
-Keep the asset name stable and put the changing version in the tag/manifest.
-That gives users and scripts a permanent latest-release URL without guessing
-which versioned zip filename to download.
+Keep the asset name stable and put the changing version in the tag and local
+release manifest. That gives users and scripts a permanent latest-release URL
+without exposing maintainer metadata as a separate player-facing asset.
 
 ## Related
 

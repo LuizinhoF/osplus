@@ -27,7 +27,7 @@ Add new entries here, newest first.
 
 | Date | Slug | Area | One-line summary |
 |---|---|---|---|
-| 2026-06-18 | [github-release-distribution-contract](github-release-distribution-contract.md) | build | Public distribution now uses GitHub Releases with stable `OSPlus.zip` plus `version.json`; update scripts download the latest release asset and rerun the installer. |
+| 2026-06-18 | [github-release-distribution-contract](github-release-distribution-contract.md) | build | Public distribution now uses GitHub Releases with stable `OSPlus.zip`; update scripts download the latest release asset and rerun the installer. |
 | 2026-06-18 | [linux-zip-executable-metadata](linux-zip-executable-metadata.md) | build | Windows `Compress-Archive` creates zip entries Linux extracts as non-executable; write Unix-hosted metadata and verify permissions from the archive, not just the source files. |
 | 2026-05-24 | [ue-cooked-mount-prototype-cleanup](ue-cooked-mount-prototype-cleanup.md) | ue-editor | Prototype assets under `/Game/Mods/OSPlus` are production assets unless moved out of `Content` or excluded from the pak step; clean both the UE source tree and stale cooked output, and archive unreferenced binary assets before deleting. |
 | 2026-05-23 | [ue-mcp-widget-blueprint-gotchas](ue-mcp-widget-blueprint-gotchas.md) | ue-editor | Lightweight UE MCP widget work is reliable if treated as a quirky local API: use `value` for `set_pin_default_value`, load widget-tree subobjects by full object path, create new UMG widgets with `unreal.new_object(..., outer=tree)`, use `H_ALIGN_*` / `V_ALIGN_*` enum names, wrap persistent Node REPL scratch code, and verify graph/tree edits before compile/cook. |

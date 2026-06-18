@@ -278,7 +278,7 @@ if (Test-Path $UE4SS_SRC) {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Copy installers, updater, version manifest, and README.txt
+# 6. Copy installers, updater, and README.txt
 # ---------------------------------------------------------------------------
 
 Write-Step "[6/7] Copying installers + updater + README"
@@ -289,7 +289,6 @@ Copy-Item "$ROOT\dist\uninstall.sh"  "$DIST\" -Force
 Copy-Item "$ROOT\dist\update.bat" "$DIST\" -Force
 Copy-Item "$ROOT\dist\update.ps1" "$DIST\" -Force
 Copy-Item "$ROOT\dist\update.sh"  "$DIST\" -Force
-Copy-Item "$VERSION_SRC" "$DIST\" -Force
 Copy-Item "$ROOT\dist\README.txt"  "$DIST\" -Force
 Convert-FileToLf "$DIST\install.sh"
 Convert-FileToLf "$DIST\uninstall.sh"

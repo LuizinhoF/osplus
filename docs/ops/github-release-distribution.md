@@ -17,10 +17,9 @@ Release tags use the same version with a `v` prefix:
 0.2.1 -> v0.2.1
 ```
 
-Every GitHub Release must upload these assets:
+Every GitHub Release must upload this asset:
 
 - `OSPlus.zip`
-- `version.json`
 
 The update scripts use GitHub's stable latest-release URL:
 
@@ -65,7 +64,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\release\publish_gith
 ```
 
 The script reads `dist/version.json`, builds `dist/OSPlus.zip`, creates release
-tag `v<version>`, and uploads both required assets.
+tag `v<version>`, and uploads the zip.
 
 If the zip has already been built and verified:
 
