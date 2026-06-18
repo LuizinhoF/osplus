@@ -19,7 +19,14 @@ if (-not (Test-Path $DEST)) {
     exit 1
 }
 
-$files = Get-ChildItem "$SRC\*.lua"
+$SCRIPT_EXCLUDE_PATTERNS = @(
+    "swap_test_*.lua",
+    "probe_*.lua"
+)
+$files = Get-ChildItem "$SRC\*.lua" | Where-Object {
+    $name = $_.Name
+    -not ($SCRIPT_EXCLUDE_PATTERNS | Where-Object { $name -like $_ })
+}
 foreach ($f in $files) {
     Copy-Item $f.FullName "$DEST\$($f.Name)" -Force
 }
