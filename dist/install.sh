@@ -141,7 +141,8 @@ else
 fi
 
 echo "Installing mod files..."
-mkdir -p "$SCRIPTS_DIR" "$SIDECAR_DIR" "$DATA_DIR" "$PAK_DIR"
+rm -rf "$SCRIPTS_DIR" "$DATA_DIR/emotes" "$DATA_DIR/localization/screens"
+mkdir -p "$SCRIPTS_DIR" "$SIDECAR_DIR" "$DATA_DIR" "$DATA_DIR/emotes" "$DATA_DIR/localization/screens" "$PAK_DIR"
 
 echo "  [1/5] Copying Lua scripts..."
 cp -f "$THIS_DIR"/mod/scripts/*.lua "$SCRIPTS_DIR/"

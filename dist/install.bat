@@ -158,9 +158,13 @@ if exist "!BIN_DIR!\UE4SS.dll" (
 echo Installing mod files...
 echo.
 
+if exist "!SCRIPTS_DIR!" rmdir /s /q "!SCRIPTS_DIR!" 2>nul
+if exist "!DATA_DIR!\emotes" rmdir /s /q "!DATA_DIR!\emotes" 2>nul
+if exist "!DATA_DIR!\localization\screens" rmdir /s /q "!DATA_DIR!\localization\screens" 2>nul
 if not exist "!SCRIPTS_DIR!" mkdir "!SCRIPTS_DIR!"
 if not exist "!SIDECAR_DIR!" mkdir "!SIDECAR_DIR!"
 if not exist "!DATA_DIR!\emotes" mkdir "!DATA_DIR!\emotes"
+if not exist "!DATA_DIR!\localization\screens" mkdir "!DATA_DIR!\localization\screens"
 if not exist "!PAK_DIR!" mkdir "!PAK_DIR!"
 
 echo   [1/5] Copying Lua scripts...

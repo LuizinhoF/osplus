@@ -27,6 +27,7 @@ $files = Get-ChildItem "$SRC\*.lua" | Where-Object {
     $name = $_.Name
     -not ($SCRIPT_EXCLUDE_PATTERNS | Where-Object { $name -like $_ })
 }
+Get-ChildItem "$DEST\*.lua" -File -ErrorAction SilentlyContinue | Remove-Item -Force
 foreach ($f in $files) {
     Copy-Item $f.FullName "$DEST\$($f.Name)" -Force
 }
@@ -35,6 +36,9 @@ $dataCopies = @(
     @{ Source = "$DATA_SRC\localization\screens\*.json"; Dest = "$DATA_DEST\localization\screens"; Label = "data\localization\screens" }
 )
 foreach ($copy in $dataCopies) {
+    if (Test-Path $copy.Dest) {
+        Remove-Item $copy.Dest -Recurse -Force
+    }
     New-Item -Path $copy.Dest -ItemType Directory -Force | Out-Null
     Copy-Item $copy.Source "$($copy.Dest)\" -Force
 }
