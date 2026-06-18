@@ -92,12 +92,24 @@ try {
 } catch {
     $message = $_.Exception.Message
     if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 422) {
-        throw "Release or tag $tagName already exists in $Repo."
+        Write-Warn2 "Release or tag $tagName already exists; using existing release."
+        $release = Invoke-RestMethod -Uri "$releaseUrl/tags/$tagName" -Method Get -Headers $headers
+    } else {
+        throw $message
     }
-    throw $message
 }
 
 $uploadBase = ($release.upload_url -replace "\{.*$", "")
+
+function Remove-ExistingReleaseAsset {
+    param([Parameter(Mandatory=$true)][string]$Name)
+
+    $existing = @($release.assets | Where-Object { $_.name -eq $Name })
+    foreach ($asset in $existing) {
+        Write-Warn2 "Removing existing release asset $Name"
+        Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/assets/$($asset.id)" -Method Delete -Headers $headers | Out-Null
+    }
+}
 
 function Upload-ReleaseAsset {
     param(
@@ -106,8 +118,9 @@ function Upload-ReleaseAsset {
         [Parameter(Mandatory=$true)][string]$ContentType
     )
 
+    Remove-ExistingReleaseAsset -Name $Name
     $escapedName = [uri]::EscapeDataString($Name)
-    $url = "$uploadBase?name=$escapedName"
+    $url = "${uploadBase}?name=$escapedName"
     Write-Step "Uploading $Name"
     Invoke-RestMethod -Uri $url -Method Post -Headers $headers -ContentType $ContentType -InFile $Path | Out-Null
 }
