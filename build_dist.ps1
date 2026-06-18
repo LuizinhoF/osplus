@@ -22,6 +22,131 @@ $PAK_NEW     = "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Con
 $PAK_LEGACY  = "F:\SteamLibrary\steamapps\common\OmegaStrikers\OmegaStrikers\Content\Paks\LogicMods\OmegaStrikersMod.pak"
 $PAK_SRC     = $PAK_NEW
 
+function Convert-ToSignedZipAttributes {
+    param([Parameter(Mandatory=$true)][int]$UnixMode)
+
+    $shifted = ([uint32]$UnixMode) -shl 16
+    return [BitConverter]::ToInt32([BitConverter]::GetBytes($shifted), 0)
+}
+
+function Convert-FileToLf {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    $text = [System.IO.File]::ReadAllText($Path)
+    $text = $text -replace "`r`n", "`n" -replace "`r", "`n"
+    [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Get-RelativeZipPath {
+    param(
+        [Parameter(Mandatory=$true)][string]$Root,
+        [Parameter(Mandatory=$true)][string]$Path
+    )
+
+    $rootPath = (Resolve-Path $Root).Path.TrimEnd("\", "/")
+    $fullPath = (Resolve-Path $Path).Path
+    return $fullPath.Substring($rootPath.Length).TrimStart("\", "/").Replace("\", "/")
+}
+
+function Set-ZipCentralDirectoryUnixHost {
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $minEocdLength = 22
+    $maxCommentLength = 65535
+    $searchStart = [Math]::Max(0, $bytes.Length - $minEocdLength - $maxCommentLength)
+    $eocdOffset = -1
+
+    for ($i = $bytes.Length - $minEocdLength; $i -ge $searchStart; $i--) {
+        if ($bytes[$i] -eq 0x50 -and $bytes[$i + 1] -eq 0x4b -and $bytes[$i + 2] -eq 0x05 -and $bytes[$i + 3] -eq 0x06) {
+            $eocdOffset = $i
+            break
+        }
+    }
+
+    if ($eocdOffset -lt 0) {
+        throw "Could not find ZIP end-of-central-directory record in $Path"
+    }
+
+    $entryCount = [BitConverter]::ToUInt16($bytes, $eocdOffset + 10)
+    $centralDirectoryOffset = [BitConverter]::ToUInt32($bytes, $eocdOffset + 16)
+    if ($centralDirectoryOffset -eq [uint32]::MaxValue -or $entryCount -eq [uint16]::MaxValue) {
+        throw "ZIP64 central-directory metadata is not supported by this packaging helper"
+    }
+
+    $offset = [int64]$centralDirectoryOffset
+    for ($entryIndex = 0; $entryIndex -lt $entryCount; $entryIndex++) {
+        if ($bytes[$offset] -ne 0x50 -or $bytes[$offset + 1] -ne 0x4b -or $bytes[$offset + 2] -ne 0x01 -or $bytes[$offset + 3] -ne 0x02) {
+            throw "Invalid ZIP central-directory entry at offset $offset"
+        }
+
+        # PowerShell/.NET creates Windows-hosted zip entries. Mark central
+        # directory entries as Unix-hosted so unzip honors the mode bits.
+        # See docs/learnings/linux-zip-executable-metadata.md.
+        $bytes[$offset + 5] = 3
+
+        $nameLength = [BitConverter]::ToUInt16($bytes, $offset + 28)
+        $extraLength = [BitConverter]::ToUInt16($bytes, $offset + 30)
+        $commentLength = [BitConverter]::ToUInt16($bytes, $offset + 32)
+        $offset += 46 + $nameLength + $extraLength + $commentLength
+    }
+
+    [System.IO.File]::WriteAllBytes($Path, $bytes)
+}
+
+function New-DistributionZip {
+    param(
+        [Parameter(Mandatory=$true)][string]$SourceDir,
+        [Parameter(Mandatory=$true)][string]$OutputZip
+    )
+
+    Add-Type -AssemblyName System.IO.Compression
+
+    if (Test-Path $OutputZip) { Remove-Item $OutputZip -Force }
+
+    $fileMode0644 = 33188
+    $fileMode0755 = 33261
+    $dirMode0755 = 16877
+
+    $zipFile = [System.IO.File]::Open($OutputZip, [System.IO.FileMode]::CreateNew)
+    $zip = [System.IO.Compression.ZipArchive]::new($zipFile, [System.IO.Compression.ZipArchiveMode]::Create)
+
+    try {
+        Get-ChildItem -Path $SourceDir -Recurse -Directory -Force | Sort-Object FullName | ForEach-Object {
+            $entryName = (Get-RelativeZipPath -Root $SourceDir -Path $_.FullName).TrimEnd("/") + "/"
+            $entry = $zip.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::NoCompression)
+            $entry.LastWriteTime = $_.LastWriteTime
+            $entry.ExternalAttributes = Convert-ToSignedZipAttributes -UnixMode $dirMode0755
+        }
+
+        Get-ChildItem -Path $SourceDir -Recurse -File -Force | Sort-Object FullName | ForEach-Object {
+            $entryName = Get-RelativeZipPath -Root $SourceDir -Path $_.FullName
+            $entry = $zip.CreateEntry($entryName, [System.IO.Compression.CompressionLevel]::Optimal)
+            $entry.LastWriteTime = $_.LastWriteTime
+
+            $unixMode = $fileMode0644
+            if ($_.Extension -ieq ".sh" -or $_.Extension -ieq ".exe") {
+                $unixMode = $fileMode0755
+            }
+            $entry.ExternalAttributes = Convert-ToSignedZipAttributes -UnixMode $unixMode
+
+            $input = [System.IO.File]::OpenRead($_.FullName)
+            $output = $entry.Open()
+            try {
+                $input.CopyTo($output)
+            } finally {
+                $output.Dispose()
+                $input.Dispose()
+            }
+        }
+    } finally {
+        $zip.Dispose()
+        $zipFile.Dispose()
+    }
+
+    Set-ZipCentralDirectoryUnixHost -Path $OutputZip
+}
+
 # ---------------------------------------------------------------------------
 # 1. Clean dist folder
 # ---------------------------------------------------------------------------
@@ -155,6 +280,8 @@ Copy-Item "$ROOT\dist\install.sh"  "$DIST\" -Force
 Copy-Item "$ROOT\dist\uninstall.bat" "$DIST\" -Force
 Copy-Item "$ROOT\dist\uninstall.sh"  "$DIST\" -Force
 Copy-Item "$ROOT\dist\README.txt"  "$DIST\" -Force
+Convert-FileToLf "$DIST\install.sh"
+Convert-FileToLf "$DIST\uninstall.sh"
 Write-Ok "Copied installers + README.txt"
 
 # ---------------------------------------------------------------------------
@@ -162,8 +289,7 @@ Write-Ok "Copied installers + README.txt"
 # ---------------------------------------------------------------------------
 
 Write-Step "[7/7] Zipping dist"
-if (Test-Path $ZIP_OUT) { Remove-Item $ZIP_OUT -Force }
-Compress-Archive -Path "$DIST\*" -DestinationPath $ZIP_OUT -CompressionLevel Optimal
+New-DistributionZip -SourceDir $DIST -OutputZip $ZIP_OUT
 $zipSize = [math]::Round((Get-Item $ZIP_OUT).Length / 1MB, 2)
 Write-Ok "Created $ZIP_OUT ($zipSize MB)"
 

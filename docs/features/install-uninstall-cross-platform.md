@@ -76,6 +76,9 @@ Implemented in:
 ## Validation
 
 - Shell syntax: `bash -n dist/install.sh dist/uninstall.sh`.
+- Zip permissions: `install.sh` and `uninstall.sh` must appear as `0755`
+  executable entries when inspecting `dist/OSPlus.zip` with a permission-aware
+  archive tool.
 - Lua syntax: `npx --yes luaparse mod/OSPlus/scripts/main.lua`.
 
 Runtime smoke still needs a real Windows install and a real Linux/Steam Deck
