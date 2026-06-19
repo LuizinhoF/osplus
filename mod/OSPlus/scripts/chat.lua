@@ -13,6 +13,7 @@ M.visible = false
 M.inMatch = false
 M.currentRoom = nil
 M.currentTeam = nil
+M.currentUsername = nil
 M.roomDelayTicks = 0
 M.messages = {}
 -- Latest presence list from the relay. Cached so a freshly respawned widget
@@ -440,14 +441,19 @@ local function seedToCode(seed)
     return code
 end
 
-local function normalizeTeam(team)
+local function normalizeAssignedTeam(team)
     local n = tonumber(team)
-    if n == 0 or n == 1 then return n end
+    -- EAssignedTeam is TeamZero=0, TeamOne=1, TeamTwo=2. TeamZero behaves
+    -- like "no player team" for chat routing (spectator / not replicated yet).
+    -- The relay uses compact routing indices: TeamOne -> 0, TeamTwo -> 1.
+    if n == 1 then return 0 end
+    if n == 2 then return 1 end
     return nil
 end
 
 local function teamLabel(team)
-    local n = normalizeTeam(team)
+    local n = tonumber(team)
+    if n ~= 0 and n ~= 1 then n = nil end
     if n == nil then return "unknown" end
     return "Team " .. tostring(n + 1)
 end
@@ -460,16 +466,14 @@ local function readLocalTeam()
         if not ps or not ps:IsValid() then return nil end
         return ps.AssignedTeam
     end)
-    if ok then return normalizeTeam(team) end
-    return nil
+    if ok then return normalizeAssignedTeam(team), tonumber(team) end
+    return nil, nil
 end
 
 function M.deriveRoomCode()
     local seed = readMatchSeed()
     if not seed then return nil end
     local code = seedToCode(seed)
-    log.log("[CHAT] MatchSeed: " .. tostring(seed)
-        .. " local team: " .. teamLabel(readLocalTeam()) .. " => room " .. code)
     return code
 end
 
@@ -520,7 +524,7 @@ end
 
 local function tryJoinRoom()
     local code = M.deriveRoomCode()
-    local team = readLocalTeam()
+    local team, rawTeam = readLocalTeam()
     -- Resolve the name on every attempt — v22 resolvePlayerName() only caches
     -- friendly-shaped values, so cachedPlayerName being set is our signal that
     -- we have something safe to put in ws._username on the relay side.
@@ -549,8 +553,9 @@ local function tryJoinRoom()
         log.log("[CHAT] Could not derive room after " .. ROOM_MAX_RETRIES .. " retries; giving up")
         return
     end
-    if code == M.currentRoom and team == M.currentTeam then return end
-    if missing then
+    local username = cachedPlayerName or getLocalAccountId() or cfg.CHAT_PLAYER_NAME
+    if code == M.currentRoom and team == M.currentTeam and username == M.currentUsername then return end
+    if missing and not M.currentRoom then
         -- Friendly name never resolved within the budget. Fall back so chat
         -- still works locally; presence list will show whatever PlayerNamePrivate
         -- holds (account ID) or "Me" if it's empty too.
@@ -558,8 +563,9 @@ local function tryJoinRoom()
     end
     M.currentRoom = code
     M.currentTeam = team
-    local username = cachedPlayerName or getLocalAccountId() or cfg.CHAT_PLAYER_NAME
-    log.log("[CHAT] Joining room: " .. code .. " as " .. username .. " (" .. teamLabel(team) .. ")")
+    M.currentUsername = username
+    log.log("[CHAT] Joining room: " .. code .. " as " .. username
+        .. " (" .. teamLabel(team) .. ", raw team: " .. tostring(rawTeam) .. ")")
     if M.onRoomChange then
         pcall(function() M.onRoomChange(code, username, team) end)
     end
@@ -570,6 +576,7 @@ local function leaveRoom()
     log.log("[CHAT] Leaving room: " .. M.currentRoom)
     M.currentRoom = nil
     M.currentTeam = nil
+    M.currentUsername = nil
     -- Presence is room-scoped; drop the cached list so a new room (or rejoin)
     -- doesn't briefly show stale members from the previous room.
     M.presence = {}
@@ -654,6 +661,8 @@ function M.tickMatchProbe()
             matchExitTimer = MATCH_EXIT_CHECK_TICKS
             if not isInMatch() then
                 endMatch("seed gone")
+            else
+                tryJoinRoom()
             end
         end
     end
@@ -748,6 +757,7 @@ function M.reset()
     M.inMatch = false
     M.currentRoom = nil
     M.currentTeam = nil
+    M.currentUsername = nil
     M.roomDelayTicks = 0
     roomRetries = 0
     matchProbeTimer = 0

@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "v48-chat-audiences"
+M.VERSION = "v49-chat-team-normalization"
 M.DEBUG = false
 
 M.LOG_DIR  = os.getenv("LOCALAPPDATA") .. "\\OSPlus"

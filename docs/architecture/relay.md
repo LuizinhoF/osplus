@@ -151,6 +151,9 @@ pay a correlation-ID tax for no gain.
   Anything else is dropped at the relay's input validator.
   `join` may carry `team` (`0` or `1`); `chat` may carry
   `audience:"all"` or `audience:"team"` plus `targetTeam`.
+  Lua maps the game's raw `EAssignedTeam` values (`TeamOne=1`,
+  `TeamTwo=2`) into relay routing indices (`0`, `1`) before
+  writing IPC.
 - **Hardening baseline** (relay-side):
   - 4 KB max payload (ws-level cap).
   - 5 connections per source IP.

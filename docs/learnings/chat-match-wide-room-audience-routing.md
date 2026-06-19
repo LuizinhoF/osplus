@@ -32,6 +32,14 @@ must explicitly treat `null`, `undefined`, and `""` as no team before numeric
 coercion. Without that guard, spectators join as team 1 and receive team-1-only
 messages.
 
+Custom-game test follow-up (2026-06-19): the game-side `AssignedTeam` field is
+`EAssignedTeam` with `TeamZero=0`, `TeamOne=1`, `TeamTwo=2`. Relay routing uses
+compact indices (`0` for Team 1, `1` for Team 2), so Lua must map raw `1 -> 0`
+and `2 -> 1`; raw `0` means no routable player team. Because spectators also
+need to join without a team, Lua cannot simply wait forever for a non-zero team.
+It should join the match-wide room and periodically re-emit `room_change` while
+in-match if team or username metadata changes.
+
 ## Lesson
 
 Do not encode recipient audience into the room identifier when a feature needs more than one audience in the same match. Use the room for shared match membership and put recipient intent on the message.

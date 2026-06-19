@@ -184,7 +184,8 @@ Audited 2026-04-04 against `mod/OSPlus/scripts/chat.lua`.
 | `M.widget` | operational | Cached UE object reference. Single owner. |
 | `M.inMatch` | operational | Cached polling result. |
 | `M.currentRoom` | domain | Match-wide WebSocket room code. |
-| `M.currentTeam` | domain | Local team number used as relay routing metadata. |
+| `M.currentTeam` | domain | Local relay routing team (`0` for game `TeamOne`, `1` for game `TeamTwo`; `nil` for spectator / unknown). |
+| `M.currentUsername` | domain | Last username sent to the relay for room membership; changed names trigger a same-room rejoin. |
 | `M.roomDelayTicks`, `roomRetries`, `matchProbeTimer`, `matchExitTimer` | operational | Timer state. |
 | `M.messages` | domain | Array of `{sender, text, audience, targetTeam, time}`. Painful in BP. |
 | `M.presence` | domain | Array of usernames in the current room (relay-pushed). Cached so widget reattach can re-render without waiting for the next server broadcast. |
