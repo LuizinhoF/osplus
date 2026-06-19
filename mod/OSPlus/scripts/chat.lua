@@ -12,6 +12,7 @@ M.widget  = nil
 M.visible = false
 M.inMatch = false
 M.currentRoom = nil
+M.currentTeam = nil
 M.roomDelayTicks = 0
 M.messages = {}
 -- Latest presence list from the relay. Cached so a freshly respawned widget
@@ -54,6 +55,29 @@ local function senderTag(name)
     return "<Sender>[" .. escapeForRichText(name) .. "]</>"
 end
 
+local function audienceLabel(audience, targetTeam)
+    if audience == "all" then return "All" end
+    if audience == "team" then
+        local n = tonumber(targetTeam)
+        if n == 0 or n == 1 then
+            return "Team " .. tostring(n + 1)
+        end
+        return "Team"
+    end
+    return nil
+end
+
+local function formatMessageLine(msg)
+    local parts = {}
+    local audience = audienceLabel(msg.audience, msg.targetTeam)
+    if audience then
+        parts[#parts + 1] = senderTag(audience)
+    end
+    parts[#parts + 1] = senderTag(msg.sender)
+    parts[#parts + 1] = escapeForRichText(msg.text)
+    return table.concat(parts, " ")
+end
+
 local function presenceTag(name)
     return "<PresenceName>" .. escapeForRichText(name) .. "</>"
 end
@@ -91,7 +115,7 @@ local function ensureWidget()
         -- reference to it.
         local lines = {}
         for _, msg in ipairs(M.messages) do
-            lines[#lines + 1] = senderTag(msg.sender) .. " " .. escapeForRichText(msg.text)
+            lines[#lines + 1] = formatMessageLine(msg)
         end
         log.try("SetHistory(initial)", function()
             M.widget:SetHistory(table.concat(lines, "\n"))
@@ -138,7 +162,7 @@ local function rebuildHistory()
     if not widgetAlive() then return end
     local lines = {}
     for _, msg in ipairs(M.messages) do
-        lines[#lines + 1] = senderTag(msg.sender) .. " " .. escapeForRichText(msg.text)
+        lines[#lines + 1] = formatMessageLine(msg)
     end
     log.try("SetHistory", function()
         M.widget:SetHistory(table.concat(lines, "\n"))
@@ -161,8 +185,14 @@ function M.setPresence(members)
     rebuildPresence()
 end
 
-function M.addMessage(sender, text)
-    table.insert(M.messages, { sender = sender, text = text, time = os.clock() })
+function M.addMessage(sender, text, audience, targetTeam)
+    table.insert(M.messages, {
+        sender = sender,
+        text = text,
+        audience = audience or "team",
+        targetTeam = targetTeam,
+        time = os.clock(),
+    })
     while #M.messages > cfg.CHAT_MAX_MESSAGES do
         table.remove(M.messages, 1)
     end
@@ -386,12 +416,15 @@ end
 
 -- ---------------------------------------------------------------------------
 -- Room code derivation
--- Room = matchSeed + team, so only teammates share a room.
--- CurrentMatchSeed is replicated from server; AssignedTeam is per-player.
+-- Room = matchSeed. Individual messages carry an audience:
+--   all  = everyone in the match room
+--   team = one team in that match room
+-- This keeps players and spectators connected to the same relay room while
+-- still letting the relay filter a message to the intended side.
 -- ---------------------------------------------------------------------------
 
 local ROOM_SETTLE_TICKS = 30  -- ~1 second at 30ms/tick (just enough for GS to replicate)
-local ROOM_RETRY_TICKS  = 30  -- retry interval if team / friendly name not available yet
+local ROOM_RETRY_TICKS  = 30  -- retry interval if match room / friendly name not available yet
 local ROOM_MAX_RETRIES  = 20  -- give up after ~20 seconds (need to outlast profile replication)
 local roomRetries       = 0
 
@@ -407,6 +440,18 @@ local function seedToCode(seed)
     return code
 end
 
+local function normalizeTeam(team)
+    local n = tonumber(team)
+    if n == 0 or n == 1 then return n end
+    return nil
+end
+
+local function teamLabel(team)
+    local n = normalizeTeam(team)
+    if n == nil then return "unknown" end
+    return "Team " .. tostring(n + 1)
+end
+
 local function readLocalTeam()
     local ok, team = pcall(function()
         local pc = utils.getPlayerController()
@@ -415,24 +460,67 @@ local function readLocalTeam()
         if not ps or not ps:IsValid() then return nil end
         return ps.AssignedTeam
     end)
-    if ok and team and type(team) == "number" then
-        return team
-    end
+    if ok then return normalizeTeam(team) end
     return nil
 end
 
 function M.deriveRoomCode()
     local seed = readMatchSeed()
     if not seed then return nil end
-    local team = readLocalTeam()
-    if not team then return nil end
-    local code = seedToCode(seed) .. "T" .. tostring(team)
-    log.log("[CHAT] MatchSeed: " .. tostring(seed) .. " team: " .. tostring(team) .. " => room " .. code)
+    local code = seedToCode(seed)
+    log.log("[CHAT] MatchSeed: " .. tostring(seed)
+        .. " local team: " .. teamLabel(readLocalTeam()) .. " => room " .. code)
     return code
+end
+
+local function parseChatAudience(text)
+    local trimmed = text:match("^%s*(.-)%s*$") or ""
+    if trimmed == "" then return nil end
+
+    local defaultTeam = readLocalTeam()
+    local cmd, rest = trimmed:match("^/(%S+)%s*(.*)$")
+    if not cmd then
+        if defaultTeam ~= nil then
+            return "team", defaultTeam, trimmed
+        end
+        return "all", nil, trimmed
+    end
+
+    local lower = cmd:lower()
+    local body = (rest or ""):match("^%s*(.-)%s*$") or ""
+
+    if lower == "all" or lower == "a" then
+        if body == "" then return nil end
+        return "all", nil, body
+    end
+
+    if lower == "team" or lower == "t" then
+        if body == "" or defaultTeam == nil then return nil end
+        return "team", defaultTeam, body
+    end
+
+    local targetByCommand = {
+        t0 = 0, team0 = 0,
+        t1 = 0, team1 = 0, ["1"] = 0, blue = 0,
+        t2 = 1, team2 = 1, ["2"] = 1, orange = 1,
+    }
+    local targetTeam = targetByCommand[lower]
+    if targetTeam ~= nil then
+        if body == "" then return nil end
+        return "team", targetTeam, body
+    end
+
+    -- Unknown slash commands are treated as normal chat text so a player can
+    -- still send "/shrug" without the command parser eating the message.
+    if defaultTeam ~= nil then
+        return "team", defaultTeam, trimmed
+    end
+    return "all", nil, trimmed
 end
 
 local function tryJoinRoom()
     local code = M.deriveRoomCode()
+    local team = readLocalTeam()
     -- Resolve the name on every attempt — v22 resolvePlayerName() only caches
     -- friendly-shaped values, so cachedPlayerName being set is our signal that
     -- we have something safe to put in ws._username on the relay side.
@@ -447,7 +535,7 @@ local function tryJoinRoom()
     resolvePlayerName()
     local missing = nil
     if not code then
-        missing = "team"
+        missing = "match room"
     elseif not cachedPlayerName then
         missing = "friendly name"
     end
@@ -461,7 +549,7 @@ local function tryJoinRoom()
         log.log("[CHAT] Could not derive room after " .. ROOM_MAX_RETRIES .. " retries; giving up")
         return
     end
-    if code == M.currentRoom then return end
+    if code == M.currentRoom and team == M.currentTeam then return end
     if missing then
         -- Friendly name never resolved within the budget. Fall back so chat
         -- still works locally; presence list will show whatever PlayerNamePrivate
@@ -469,10 +557,11 @@ local function tryJoinRoom()
         log.log("[CHAT] Friendly name never resolved within " .. ROOM_MAX_RETRIES .. " retries; joining with fallback")
     end
     M.currentRoom = code
+    M.currentTeam = team
     local username = cachedPlayerName or getLocalAccountId() or cfg.CHAT_PLAYER_NAME
-    log.log("[CHAT] Joining room: " .. code .. " as " .. username)
+    log.log("[CHAT] Joining room: " .. code .. " as " .. username .. " (" .. teamLabel(team) .. ")")
     if M.onRoomChange then
-        pcall(function() M.onRoomChange(code, username) end)
+        pcall(function() M.onRoomChange(code, username, team) end)
     end
 end
 
@@ -480,6 +569,7 @@ local function leaveRoom()
     if not M.currentRoom then return end
     log.log("[CHAT] Leaving room: " .. M.currentRoom)
     M.currentRoom = nil
+    M.currentTeam = nil
     -- Presence is room-scoped; drop the cached list so a new room (or rejoin)
     -- doesn't briefly show stale members from the previous room.
     M.presence = {}
@@ -631,12 +721,14 @@ function M.pollPending()
 
     local str = raw:match("^%s*(.-)%s*$") or ""
     if str == "" then return end
+    local audience, targetTeam, body = parseChatAudience(str)
+    if not body or body == "" then return end
 
     local sender = resolvePlayerName() or cfg.CHAT_PLAYER_NAME
-    log.log("[CHAT] Received: " .. str)
-    M.addMessage(sender, str)
+    log.log("[CHAT] Received: " .. body)
+    M.addMessage(sender, body, audience, targetTeam)
     if M.onChatSent then
-        pcall(function() M.onChatSent(sender, str) end)
+        pcall(function() M.onChatSent(sender, body, audience, targetTeam) end)
     end
 end
 
@@ -655,6 +747,7 @@ function M.reset()
     M.visible = false
     M.inMatch = false
     M.currentRoom = nil
+    M.currentTeam = nil
     M.roomDelayTicks = 0
     roomRetries = 0
     matchProbeTimer = 0

@@ -183,11 +183,12 @@ Audited 2026-04-04 against `mod/OSPlus/scripts/chat.lua`.
 |---|---|---|
 | `M.widget` | operational | Cached UE object reference. Single owner. |
 | `M.inMatch` | operational | Cached polling result. |
-| `M.currentRoom` | domain | WebSocket room code. |
+| `M.currentRoom` | domain | Match-wide WebSocket room code. |
+| `M.currentTeam` | domain | Local team number used as relay routing metadata. |
 | `M.roomDelayTicks`, `roomRetries`, `matchProbeTimer`, `matchExitTimer` | operational | Timer state. |
-| `M.messages` | domain | Array of `{sender, text, time}`. Painful in BP. |
+| `M.messages` | domain | Array of `{sender, text, audience, targetTeam, time}`. Painful in BP. |
 | `M.presence` | domain | Array of usernames in the current room (relay-pushed). Cached so widget reattach can re-render without waiting for the next server broadcast. |
-| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username)` since v16. |
+| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username, team)` since v48. |
 | `cachedPlayerName` | domain | Player identity cache. |
 
 **BP-owned (correct per contract):**

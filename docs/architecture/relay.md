@@ -96,8 +96,8 @@ flat JSONL files plus a single heartbeat file.
 deliberately flat-only). Examples:
 
 ```json
-{"type":"chat","text":"gg","ts":1712345678}
-{"type":"room_change","room":"AAX45ABAT1","username":"Ispicas"}
+{"type":"chat","text":"gg","audience":"team","targetTeam":0,"ts":1712345678}
+{"type":"room_change","room":"AAX45ABA","username":"Ispicas","team":0}
 {"type":"profile_upsert","prometheus_id":"6333a58673a37dc7cb11a7a7","display_name":"Ispicas"}
 ```
 
@@ -133,18 +133,24 @@ pay a correlation-ID tax for no gain.
 `ws://127.0.0.1:3000/`).
 
 - **Connection model.** Sidecar opens one WS to the relay,
-  joins exactly one room at a time, broadcasts and receives
+  joins exactly one match-wide room at a time, broadcasts and receives
   inside that room. **Rooms are ephemeral** — they vanish on
-  process restart by design.
+  process restart by design. Chat messages carry an `audience`
+  field (`all` or `team`); the relay filters team-targeted
+  messages using the message's `targetTeam` and each joiner's
+  `team` value.
 - **Room codes** come from the Lua side (per
   [`docs/learnings/relay-room-code-regex-vs-derived-codes.md`](../learnings/relay-room-code-regex-vs-derived-codes.md))
   — chat derives a room code from
-  `GameState_Game_C.CurrentMatchSeed` so all players in the
-  same online match end up in the same chat room without
-  needing share-codes.
+  `GameState_Game_C.CurrentMatchSeed` so all OSPlus users in
+  the same online match end up in the same chat room without
+  needing share-codes. Team-only vs all-player delivery is a
+  message-level audience, not a separate room.
 - **Validated message types.** `join`, `leave`, `chat`, `ping`
   (`presence` is server-out-only and can't be sent by clients).
   Anything else is dropped at the relay's input validator.
+  `join` may carry `team` (`0` or `1`); `chat` may carry
+  `audience:"all"` or `audience:"team"` plus `targetTeam`.
 - **Hardening baseline** (relay-side):
   - 4 KB max payload (ws-level cap).
   - 5 connections per source IP.

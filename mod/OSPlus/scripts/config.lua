@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "v47-hook-fix-stable"
+M.VERSION = "v48-chat-audiences"
 M.DEBUG = false
 
 M.LOG_DIR  = os.getenv("LOCALAPPDATA") .. "\\OSPlus"

@@ -31,12 +31,14 @@ end
 -- Outbox (Lua -> sidecar)
 -- ---------------------------------------------------------------------------
 
-function M.writeChatToOutbox(sender, text)
+function M.writeChatToOutbox(sender, text, audience, targetTeam)
     local msg = json.encode({
-        type   = "chat",
-        sender = sender,
-        text   = text,
-        ts     = os.time(),
+        type       = "chat",
+        sender     = sender,
+        text       = text,
+        audience   = audience,
+        targetTeam = targetTeam,
+        ts         = os.time(),
     })
     local f = io.open(cfg.OUTBOX_FILE, "a")
     if f then
@@ -64,11 +66,12 @@ function M.writePingToOutbox(pingType, posVec)
 end
 ]]
 
-function M.writeRoomChange(roomCode, username)
+function M.writeRoomChange(roomCode, username, team)
     local msg = json.encode({
         type     = "room_change",
         room     = roomCode,
         username = username,
+        team     = team,
         ts       = os.time(),
     })
     local f = io.open(cfg.OUTBOX_FILE, "a")
@@ -142,7 +145,7 @@ function M.readInbox()
         if msg and msg.type == "chat" and msg.sender and msg.text then
             log.log("[IPC] Remote chat: " .. tostring(msg.sender) .. ": " .. tostring(msg.text))
             if M.onChatReceived then
-                M.onChatReceived(msg.sender, msg.text)
+                M.onChatReceived(msg.sender, msg.text, msg.audience, msg.targetTeam)
             end
         elseif msg and msg.type == "presence" and type(msg.members) == "string" then
             -- Wire format: members is "\n"-joined string (json.lua is

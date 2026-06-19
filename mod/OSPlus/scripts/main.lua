@@ -1,11 +1,16 @@
 --[[
-    OSPlus — Team Chat (feature 1 of N)
+    OSPlus - Match Chat (feature 1 of N)
     ===================================
-    In-match text chat between teammates via WebSocket relay.
+    In-match text chat with team and all-player audiences via WebSocket relay.
 
     Keybinds:
       Enter    = Open chat input
       Escape   = Cancel chat input
+
+    Channel prefixes:
+      /all msg  = send to everyone
+      /t1 msg   = send to Team 1
+      /t2 msg   = send to Team 2
 ]]
 
 local cfg    = require("config")
@@ -35,9 +40,9 @@ local profile = require("profile")
 -- DISABLED: ping callbacks
 -- pings.onPingFired   = function(pingType, posVec) ipc.writePingToOutbox(pingType, posVec) end
 -- ipc.spawnRemotePing = pings.spawn
-chat.onChatSent       = function(sender, text) ipc.writeChatToOutbox(sender, text) end
-ipc.onChatReceived    = function(sender, text) chat.addMessage(sender, text) end
-chat.onRoomChange     = function(room, username) ipc.writeRoomChange(room, username) end
+chat.onChatSent       = function(sender, text, audience, targetTeam) ipc.writeChatToOutbox(sender, text, audience, targetTeam) end
+ipc.onChatReceived    = function(sender, text, audience, targetTeam) chat.addMessage(sender, text, audience, targetTeam) end
+chat.onRoomChange     = function(room, username, team) ipc.writeRoomChange(room, username, team) end
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
 ipc.onPresenceReceived = function(members) chat.setPresence(members) end
 
@@ -142,6 +147,7 @@ print("[OSPlus] " .. cfg.VERSION .. "\n")
 print("[OSPlus] Keybinds:\n")
 print("[OSPlus]   Enter = Open chat\n")
 print("[OSPlus]   Esc   = Cancel chat\n")
+print("[OSPlus]   /all, /t1, /t2 = chat audiences\n")
 print("[OSPlus] IPC:    " .. cfg.IPC_DIR .. "\n")
 print("==============================================\n")
 
