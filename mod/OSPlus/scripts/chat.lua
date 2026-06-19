@@ -511,6 +511,9 @@ local function parseChatAudience(text)
     local targetTeam = targetByCommand[lower]
     if targetTeam ~= nil then
         if body == "" then return nil end
+        if defaultTeam ~= nil and targetTeam ~= defaultTeam then
+            return nil, nil, nil, "Only spectators can send directly to the other team. Use /all to message everyone."
+        end
         return "team", targetTeam, body
     end
 
@@ -730,7 +733,11 @@ function M.pollPending()
 
     local str = raw:match("^%s*(.-)%s*$") or ""
     if str == "" then return end
-    local audience, targetTeam, body = parseChatAudience(str)
+    local audience, targetTeam, body, errorMessage = parseChatAudience(str)
+    if errorMessage then
+        M.addMessage("OSPlus", errorMessage, "all", nil)
+        return
+    end
     if not body or body == "" then return end
 
     local sender = resolvePlayerName() or cfg.CHAT_PLAYER_NAME

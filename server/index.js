@@ -324,6 +324,10 @@ wss.on("connection", (ws, req) => {
             ws.send(JSON.stringify({ type: "error", error: "invalid target team" }));
             return;
           }
+          if (fallbackTeam !== null && msg.targetTeam !== fallbackTeam) {
+            ws.send(JSON.stringify({ type: "error", error: "players cannot target the other team" }));
+            return;
+          }
         } else {
           delete msg.targetTeam;
         }

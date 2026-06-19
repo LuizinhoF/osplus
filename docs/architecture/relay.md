@@ -153,7 +153,9 @@ pay a correlation-ID tax for no gain.
   `audience:"all"` or `audience:"team"` plus `targetTeam`.
   Lua maps the game's raw `EAssignedTeam` values (`TeamOne=1`,
   `TeamTwo=2`) into relay routing indices (`0`, `1`) before
-  writing IPC.
+  writing IPC. The relay rejects team-targeted messages from
+  non-spectators when the target is not the sender's own team;
+  spectators (`team:null`) may target either team.
 - **Hardening baseline** (relay-side):
   - 4 KB max payload (ws-level cap).
   - 5 connections per source IP.

@@ -80,7 +80,7 @@ flowchart LR
 | Script | Role | One-line summary |
 |---|---|---|
 | `main.lua` | Entry point | Loads dependencies, wires cross-feature callbacks, calls each feature's `init()`, launches the sidecar, runs the per-frame tick loop, and owns the engine-global lifecycle multiplexer (map-load fan-out). |
-| `chat.lua` | Feature: in-match chat | Finds the on-screen chat widget, owns Enter/Esc keybinds and the `OnRep_MatchState` hook (registered in its own `M.init()`), formats messages, derives the match-wide room code from the match seed, maps game teams into relay routing teams, parses chat audiences (`team`, `all`, `Team 1`, `Team 2`), tracks presence. |
+| `chat.lua` | Feature: in-match chat | Finds the on-screen chat widget, owns Enter/Esc keybinds and the `OnRep_MatchState` hook (registered in its own `M.init()`), formats messages, derives the match-wide room code from the match seed, maps game teams into relay routing teams, parses chat audiences (`team`, `all`, `Team 1`, `Team 2`), blocks players from targeting the opposing team directly, tracks presence. |
 | `identity.lua` | Feature: identity resolution | Resolves the local player's Prometheus ID (one-shot via `RegisterHook` on `GetIdentityState`), display name (`PMPlayerUIData.Profile.Username`), and Steam ID. Caches everything; subsequent calls are pure cache reads. |
 | `profile.lua` | Feature: account upsert | Subscribes to `identity.onPrometheusIdResolved`, waits for the friendly display name to land, emits one `profile_upsert` IPC message to the sidecar. Then `M.tick` short-circuits forever — see Per-tick discipline below. |
 

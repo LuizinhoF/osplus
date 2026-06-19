@@ -40,6 +40,12 @@ need to join without a team, Lua cannot simply wait forever for a non-zero team.
 It should join the match-wide room and periodically re-emit `room_change` while
 in-match if team or username metadata changes.
 
+Policy correction (2026-06-19): explicit `/team1` and `/team2` targeting is
+not a player power for contacting the enemy team. Players may use their own
+team chat or `/all`; only spectators may choose either team directly. Enforce
+this both in Lua command parsing and on the relay, because old clients may
+still send a forbidden `targetTeam`.
+
 ## Lesson
 
 Do not encode recipient audience into the room identifier when a feature needs more than one audience in the same match. Use the room for shared match membership and put recipient intent on the message.
