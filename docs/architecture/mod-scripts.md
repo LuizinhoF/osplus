@@ -80,7 +80,7 @@ flowchart LR
 | Script | Role | One-line summary |
 |---|---|---|
 | `main.lua` | Entry point | Loads dependencies, wires cross-feature callbacks, calls each feature's `init()`, launches the sidecar, runs the per-frame tick loop, and owns the engine-global lifecycle multiplexer (map-load fan-out). |
-| `chat.lua` | Feature: in-match chat | Finds the on-screen chat widget, owns Enter/Esc keybinds and the `OnRep_MatchState` hook (registered in its own `M.init()`), formats messages, derives the room code from the match seed, tracks presence. |
+| `chat.lua` | Feature: in-match chat | Finds the on-screen chat widget; owns Enter/Esc and Tab/Shift+Tab controls, compact-feed timing, focused-height resizing, audience selection, native settings-screen suppression, and the `OnRep_MatchState` hook; formats messages; derives the match-wide room; maps player teams into relay routing teams; detects spectators separately from `AssignedTeam`; blocks players from targeting the opposing team directly; consumes `identity.lua` for local sender/presence names; and tracks presence. |
 | `identity.lua` | Feature: identity resolution | Resolves the local player's Prometheus ID (one-shot via `RegisterHook` on `GetIdentityState`), display name (`PMPlayerUIData.Profile.Username`), and Steam ID. Caches everything; subsequent calls are pure cache reads. |
 | `profile.lua` | Feature: account upsert | Subscribes to `identity.onPrometheusIdResolved`, waits for the friendly display name to land, emits one `profile_upsert` IPC message to the sidecar. Then `M.tick` short-circuits forever — see Per-tick discipline below. |
 
@@ -156,6 +156,10 @@ Three buckets, three patterns:
 - **Genuinely per-frame** (typing poll, IPC inbox read): cheap operations
   only — Lua compares, small file reads, cached-userdata property reads.
   **No new UFunction calls that allocate.**
+- **Bounded pointer gestures** (chat resize): reflected mouse-position reads
+  are allowed only while the user is actively holding the resize edge, must
+  read the Slate-owned cursor through `UWidgetLayoutLibrary`, and must stop
+  immediately on release or close.
 
 If a per-tick callee doesn't fit one of these three patterns, it
 shouldn't be on the tick loop.

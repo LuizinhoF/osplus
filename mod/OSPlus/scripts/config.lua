@@ -1,6 +1,6 @@
 local M = {}
 
-M.VERSION = "v47-hook-fix-stable"
+M.VERSION = "v52-chat-usability-overhaul"
 M.DEBUG = false
 
 M.LOG_DIR  = os.getenv("LOCALAPPDATA") .. "\\OSPlus"
@@ -69,8 +69,16 @@ M.VIS_SELF_HIT_TEST_INVIS  = 4
 
 M.CHAT_KEY            = 0x0D  -- Enter (VK_RETURN)
 M.CHAT_CANCEL_KEY     = 0x1B  -- Escape (VK_ESCAPE)
+M.CHAT_CHANNEL_KEY    = 0x09  -- Tab
 M.CHAT_MAX_MESSAGES   = 50
 M.CHAT_PLAYER_NAME    = "Me"
+M.CHAT_FEED_TICKS     = 333   -- ~10 seconds at the 30ms UI polling cadence
+M.CHAT_PASSIVE_HEIGHT = 124
+M.CHAT_FOCUSED_HEIGHT = 280
+M.CHAT_FOCUSED_MIN_HEIGHT = 220
+M.CHAT_FOCUSED_MAX_HEIGHT = 420
+M.CHAT_NOTIFICATION_SFX = "/Game/Mods/OSPlus/UI/Sounds/SFX_OSPlus_UI_Click"
+M.CHAT_NOTIFICATION_VOLUME = 0.35
 
 M.IPC_DIR     = M.LOG_DIR
 M.OUTBOX_FILE = M.IPC_DIR .. "\\outbox.jsonl"

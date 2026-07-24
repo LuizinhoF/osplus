@@ -8,6 +8,14 @@
 | Status | partially-superseded-by-ue4ss-type-stubs-as-canonical-source |
 
 > **2026-04-28 update:** The "delete the heuristics" half of this learning is correct and stands. The prescribed substrate (`PMPlayerPublicProfile.Username` keyed by Prometheus ID) was empirically falsified later the same day — that cache stays empty at the main menu for 2+ minutes while the on-screen widget renders the name. The actual canonical source is `UPMPlayerUIData.Username` (a `FOdyUITextBinding` struct on the UI data model), found by grepping the UE4SS type-stub dump rather than by in-game reflection. See `docs/learnings/ue4ss-type-stubs-as-canonical-source.md` for the discovery method and `mod/OSPlus/scripts/identity.lua` v41 for the production resolver. The heuristic-removal lesson below is the durable half; the resolver mechanism in the *Fix* section was an intermediate dead-end.
+>
+> **2026-07-24 chat follow-up:** The original note below claiming that
+> `chat.lua` kept these heuristics for remote-player disambiguation was wrong.
+> Those functions resolved the **local** sender and room-presence name from
+> `PlayerState.PlayerNamePrivate`. A two-client custom-game test exposed the
+> stale path when a spectator joined without a friendly name. Chat now consumes
+> `identity.resolveDisplayName()` and `identity.getBestLocalName()` directly, so
+> player and spectator names share the same pawn-independent session identity.
 
 
 ## Symptom
@@ -41,7 +49,11 @@ The Pass 4–6 substrate work made the heuristics obsolete without anyone notici
 
 Net diff: ~30 fewer lines, no new bug surface, the failure mode that produced this learning is now structurally impossible. Display name `Ispicas` resolved cleanly on the next launch.
 
-What's NOT changed: `chat.lua` has its own copies of `looksLikeAccountId` and `findFriendlyNameByAccountId`, used for **remote** player disambiguation (sender names from inbound chat replication). That's a different problem — remote players don't have a "local Prometheus ID" we can substrate-resolve from. Left in place.
+At the time of this learning, `chat.lua` still had copies of
+`looksLikeAccountId` and `findFriendlyNameByAccountId`. They were incorrectly
+described here as remote-player disambiguation; code inspection on 2026-07-24
+confirmed they resolved the local sender and relay-join name. They have now been
+deleted, and chat delegates local identity to `identity.lua`.
 
 Also unchanged: the prior learnings `playernameprivate-machine-name-out-of-match.md` and `playernameprivate-transient-account-id.md` remain accurate descriptions of `PlayerNamePrivate`'s behavior. They're not wrong; they're just no longer the right input for a *local* display-name resolution because we have a better source. Both should be updated with a "superseded by substrate path for local-player display name" header — done in the same commit.
 
@@ -57,7 +69,7 @@ The user-facing version of this lesson: a player should never lose data because 
 
 ## Related
 
-- Files: `mod/OSPlus/scripts/identity.lua` (this fix), `mod/OSPlus/scripts/profile.lua` (downstream consumer), `mod/OSPlus/scripts/chat.lua` (still uses heuristics for remote players — separate concern).
+- Files: `mod/OSPlus/scripts/identity.lua` (canonical resolver), `mod/OSPlus/scripts/profile.lua` and `mod/OSPlus/scripts/chat.lua` (downstream consumers).
 - Prior learnings now superseded for the local-player display-name path:
   - `docs/learnings/playernameprivate-machine-name-out-of-match.md` — the `PlayerNamePrivate` failure mode it describes is real, but the three-layer rejection it prescribed is no longer the recommended fix for *local* display names. Substrate path replaces it.
   - `docs/learnings/playernameprivate-transient-account-id.md` — same status: the observation about the account-ID window is correct, but for the local player we now bypass `PlayerNamePrivate` entirely.

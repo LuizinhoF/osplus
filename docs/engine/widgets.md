@@ -412,9 +412,11 @@ engine + UE4SS combination:
 |---|---|---|
 | `CanvasPanel` | Working | Root container for any UserWidget. |
 | `SizeBox` | Working | Size constraints, `MaxDesiredHeight` for clipping. |
+| `Spacer` | Working | Keeps authored layout space while neighboring content is hidden. |
 | `Border` | Working | Background color / padding. |
 | `VerticalBox` | Working | Vertical layout. |
 | `HorizontalBox` | Working | Horizontal layout. |
+| `Button` | Working | For a drag surface, use `DownAndUp`; `MouseDown` does not capture the pointer. |
 | `TextBlock` | Working | Static text display. |
 | `EditableText` | Working | Text input. **NOT** `EditableTextBox` — see [§"EditableText quirks"](#editabletext-quirks-chat-input). |
 | `ScrollBox` | **Working with prerequisite** | Requires `CanUseUnversionedPropertySerialization=False` in `[Core.System]`. Without that, crashes on pak deserialization due to schema drift between editor and game builds. With versioned serialization, works natively. See [§"ScrollBox crash — root cause"](#scrollbox-crash--root-cause). |
@@ -480,6 +482,17 @@ schema drift. **Always cook with
 | `Get Owning Player` returns null | Widget added to GameInstance, not level player | Use `Get Player Controller 0` instead |
 | Controls locked after chat closes | `Set Input Mode Game Only` doesn't recapture mouse properly | Use `Set Input Mode Game And UI` + `Set Focus to Game Viewport` — see [§"Input mode management"](#input-mode-management) |
 | Empty Enter doesn't close chat | Space-workaround trims to `""` and the early-return skips the `close()` call | Call `close()` *before* the empty-string check |
+
+### SizeBox, ScrollBox, and drag quirks (chat)
+
+| Issue | Cause | Workaround |
+|---|---|---|
+| A fixed composer slot disappears while its content is closed | `SBox::ComputeDesiredSize` returns zero when its only child is `Collapsed`, before reading `HeightOverride` | Keep a visible overlay/spacer as the `SizeBox` child and hide only the composer panel layered above it |
+| Newest messages move or disappear when chat height changes | `ScrollBox` preserves its old scroll offset when the viewport is resized | Call `ScrollToEnd()` after the new layout has passed through Slate |
+| Resize stops when the cursor leaves the grip | `SButton` with `ClickMethod=MouseDown` deliberately does not capture the mouse | Use `DownAndUp`, bind `OnPressed` / `OnReleased`, and provide a larger transparent hit target than the visible grip |
+| Resize updates only after release | `APlayerController:GetMousePosition` can lag while Slate owns a captured UMG drag | Read `UWidgetLayoutLibrary:GetMousePositionOnViewport` during the bounded gesture |
+
+See [`chat-widget-drag-and-layout-stability`](../learnings/chat-widget-drag-and-layout-stability.md).
 
 ### Input mode management
 
@@ -631,6 +644,12 @@ inventory if you ever want to hook the game's scrolling lists
 
 - `WBP_SettingsHub_C:MainScrollBox` — settings screen
 - `WBP_ReportPlayerModal_C:ScrollBox_0` — report player
+
+### In-match HUD vs. Escape/settings lifecycle
+
+`WBP_InGameMenu_PC_C` is the normal in-match HUD, not the Escape menu. Its tree owns the ability HUD, reaction panel, practice prompt, and other match UI, and its `OnNavigatedTo` event fires during ordinary match startup. Do not use that event as proof that gameplay is covered by a modal.
+
+The Escape/settings screen is `WBP_SettingsHub_C`. Live Practice verification on 2026-07-09 confirmed `OnNavigatedTo` when Escape opens it and `OnNavBack` when it closes. Additive in-match UI that must not appear above settings should track that class instead. See [`chat-settings-lifecycle-suppression`](../learnings/chat-settings-lifecycle-suppression.md).
 
 **Menu-only (16 instances on menu):**
 

@@ -42,10 +42,12 @@ shapes* (`PMPlayerMatchSummary`) are in
   player); whether `FindAllOf` enumerates all players in online
   matches is an open question. See
   [§"Local vs remote players"](#local-vs-remote-players).
-- **Display name lives at `PlayerNamePrivate` after replication.**
-  Has three observed modes (display name, hex Prometheus ID
+- **A display-name replica lives at `PlayerNamePrivate` after replication.**
+  It has three observed modes (display name, hex Prometheus ID
   during replication window, machine name in some out-of-match
-  contexts). Full identity machinery is in
+  contexts), so it is not the canonical local identity source.
+  OSPlus reads local display names from `UPMPlayerUIData` through
+  `identity.lua`. Full identity machinery is in
   [`identity-and-api.md`](./identity-and-api.md).
 
 ## The class
@@ -56,7 +58,7 @@ player when entering a match (Character Select onwards — see
 [`game-state.md` → "Phase model"](./game-state.md#phase-model)),
 and persists for the duration of the match.
 
-**Lua-side handle:**
+**Lua-side diagnostic handle (not canonical local identity):**
 
 ```lua
 local ps = FindFirstOf("PlayerState_Game_C")

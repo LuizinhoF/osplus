@@ -9,7 +9,12 @@
 
 > **Update 2026-04-28:** the *observation* below — that `PlayerState.PlayerNamePrivate` transiently holds an account-ID-shaped value during the early replication window — is still accurate. The *prescribed fix* (heuristic shape-rejection + cache-after-friendly-name) is no longer how OSPlus resolves the **local** player's display name. The R-B substrate from ADR 0001 gives us an authoritative local Prometheus ID, and the canonical display name is read from `PMPlayerPublicProfile.Username` keyed by that ID — no heuristic involved. See `identity-display-name-substrate-replaces-heuristics.md` for the substrate path and why the heuristic blocklist was wrong-shaped.
 >
-> The heuristics described below ARE still in use in `chat.lua` for **remote** player disambiguation (sender names from inbound chat replication, where no local-Prometheus-ID equivalent exists). That use is unchanged.
+> **2026-07-24 correction:** the sentence that previously claimed these
+> heuristics remained in `chat.lua` for remote-player disambiguation was stale.
+> The code actually used them for the local sender and room-presence name. A
+> spectator test exposed the mismatch, and chat now delegates local names to
+> `identity.lua`; the implementation below is retained only as historical
+> context.
 
 ## Symptom
 
@@ -84,7 +89,10 @@ Bumped `M.VERSION` to `v22-name-resolver-fast-path`, then `v23-defer-room-join-o
 
 ## Lesson
 
-For any UE replicated property whose value depends on cross-network state, **assume the first read can be a placeholder**. Don't cache the first value blindly. Either:
+For local identity, prefer the authenticated identity substrate over this
+replicated field entirely. More generally, for any UE replicated property whose
+value depends on cross-network state, **assume the first read can be a
+placeholder**. Don't cache the first value blindly. Either:
 
 - Validate it against a domain-specific shape check before caching (the approach here — friendly names don't look like hex IDs), or
 - Cache only after a known-stable lifecycle event (e.g. the player has spawned a Pawn, or the lobby's `BeginPlay` has fired), or
@@ -94,6 +102,6 @@ The same shape will recur for any other identity-ish field that gets initialized
 
 ## Related
 
-- Files: `mod/OSPlus/scripts/chat.lua` (`resolvePlayerName`, `looksLikeAccountId`, `findFriendlyNameByAccountId`, `dumpProfileDiagnostics`)
-- `docs/architecture/state-contract.md` finding #3 (`cachedPlayerName` invalidation, now partially addressed by the don't-cache-the-ID rule — full mid-session rename invalidation is still deferred)
+- Files: `mod/OSPlus/scripts/identity.lua` (canonical local resolver), `mod/OSPlus/scripts/chat.lua` (`tryJoinRoom`, downstream consumer)
+- `docs/architecture/state-contract.md` finding #3 (resolved by removing the duplicate chat identity owner)
 - `docs/learnings/chat-presence.md` — the chat-presence pipeline that consumes the resolved name

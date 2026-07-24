@@ -180,7 +180,7 @@ status rather than thinking the question is still open.
 | All character internal names | 26 catalogued; 3 confirmed display-name mappings | [`strikers.md`](./strikers.md) |
 | What widgets does the game's own HUD use? | Full menu widget tree captured via F3 | [`widgets.md` → "Persistent widgets"](./widgets.md#persistent-widgets-parented-to-gameinstance_base_c) |
 | How does the game's DM/chat popup work? | `WBP_FriendChatModal_C:MessagesScrollBox` confirmed | [`widgets.md` → "ScrollBox usage in OS's own UI"](./widgets.md#scrollbox-usage-in-oss-own-ui) |
-| Can we read the player's display name? | `PlayerState_Game_C.PlayerNamePrivate:ToString()` works in custom/real games (3-mode caveats apply) | [`identity-and-api.md` → "PlayerNamePrivate has three modes"](./identity-and-api.md#playernameprivate-has-three-modes) |
+| Can we read the player's display name? | Yes. Canonical local path is authenticated Prometheus ID → matching `UPMPlayerUIData.Profile.Username`; `PlayerNamePrivate` is only a three-mode match replica | [`identity-and-api.md`](./identity-and-api.md) |
 | Player Identity Reference (whole sub-section) | Three-namespace model + reachability matrix migrated | [`identity-and-api.md`](./identity-and-api.md) |
 | ScrollBox crash root cause | `CanUseUnversionedPropertySerialization=False` in DefaultEngine.ini | [`widgets.md` → "ScrollBox crash — root cause"](./widgets.md#scrollbox-crash--root-cause), [`setup.md` → "DefaultEngine.ini"](./setup.md#defaultengineini) |
 

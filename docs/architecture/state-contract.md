@@ -20,12 +20,11 @@ State that drives UMG bindings, BP animations, or BP event reactions. UMG cannot
 
 **Examples:**
 
-- `IsTyping` — drives Send button enable, click-out-to-close, animation state
+- `IsTyping` — drives chat focus, submit/cancel behavior, and input-mode restoration
 - `IsExpanded` — drives chat panel collapsed/expanded animation
-- `CurrentChannel` (when added) — drives tab highlight, input placeholder, send button color
 - `IsAuthenticated`, `Username` (Profile feature) — drives menu vs login button
 
-**Lua reads these via getters:** `widget.IsTyping`, `widget:GetCurrentChannel()`. Lua never writes them directly — it triggers BP functions like `:OpenInput()` that update them as a side effect.
+**Lua reads these via getters or reflected properties:** `widget.IsTyping`. Lua never writes them directly — it triggers BP functions like `:OpenInput()` that update them as a side effect.
 
 ### Bucket 2: Domain / operational state — owned by Lua
 
@@ -33,12 +32,13 @@ State that requires data structures, IPC, filesystem access, process management,
 
 **Examples:**
 
-- `M.messages` — array of `{sender, text, time}` records (BP arrays-of-structs are clunky; Lua tables are cheap)
+- `M.messages` — array of `{sender, text, audience, targetTeam, time}` records (BP arrays-of-structs are clunky; Lua tables are cheap)
+- `M.selectedChannel` — current match-scoped audience choice; Lua applies it to the single compact recipient control
 - IPC outbound queue — FIFO of pending writes to `outbox.jsonl`
 - Sidecar PID, socket state, file handles
 - Match seed → room code derivation (string parsing)
 - Periodic tasks (heartbeat, IPC poll, room derivation) — `LoopAsync` lives in Lua
-- Cached references like `M.widget`, `cachedPlayerName`
+- Cached references like `M.widget`, plus session identity values owned by `identity.lua`
 
 BP doesn't see this state and doesn't need to. When BP needs to *display* a value derived from this state, Lua pushes it via bucket 3.
 
@@ -74,7 +74,6 @@ BP stores and renders. No BP-side logic operates on the value. Lua decides every
 
 ```lua
 if widget.IsTyping then ... end
-local channel = widget:GetCurrentChannel()
 ```
 
 BP is source of truth. Lua reads it whenever it needs to make a decision. Lua never caches the value across ticks (it might change between calls).
@@ -173,7 +172,7 @@ Done well, this is 15-30 lines and tells the next reader (or agent) the entire s
 
 ## Audit: current `chat.lua` against this contract
 
-Audited 2026-04-04 against `mod/OSPlus/scripts/chat.lua`.
+Audited 2026-07-24 against `mod/OSPlus/scripts/chat.lua` and the rebuilt `WBP_ModChat`.
 
 ### State inventory
 
@@ -183,12 +182,21 @@ Audited 2026-04-04 against `mod/OSPlus/scripts/chat.lua`.
 |---|---|---|
 | `M.widget` | operational | Cached UE object reference. Single owner. |
 | `M.inMatch` | operational | Cached polling result. |
-| `M.currentRoom` | domain | WebSocket room code. |
+| `M.currentRoom` | domain | Match-wide WebSocket room code. |
+| `M.currentTeam` | domain | Local relay routing team (`0` for game `TeamOne`, `1` for game `TeamTwo`; `nil` for spectator or unknown). Spectator status is tracked separately; `nil` team alone is not a caster permission signal. |
+| `M.currentSpectator` | domain | Explicit local spectator flag derived from PlayerState spectator signals. Used for relay policy, because spectators may still carry an `AssignedTeam` viewing-side value. |
+| `M.currentUsername` | domain | Last username sent to the relay for room membership; sourced from `identity.lua`, and changed names trigger a same-room rejoin. |
 | `M.roomDelayTicks`, `roomRetries`, `matchProbeTimer`, `matchExitTimer` | operational | Timer state. |
-| `M.messages` | domain | Array of `{sender, text, time}`. Painful in BP. |
+| `M.messages` | domain | Array of `{sender, text, audience, targetTeam, time}`. Painful in BP. |
 | `M.presence` | domain | Array of usernames in the current room (relay-pushed). Cached so widget reattach can re-render without waiting for the next server broadcast. |
-| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username)` since v16. |
-| `cachedPlayerName` | domain | Player identity cache. |
+| `M.feedTicks`, `M.feedVisible` | operational / derived display | Own the 10-second passive-feed lifetime and mirror the resulting background visibility into UMG. |
+| `M.selectedChannel`, `M.channelRole`, `M.channelTouched` | domain / UI choice | Own the match-scoped audience selection, role-specific valid choices, and sticky-selection behavior. |
+| `M.overlayFlags` | operational | Tracks the native `WBP_SettingsHub_C` navigation lifecycle so chat is suppressed while the Escape/settings screen is open. |
+| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username, team, isSpectator)` since v51. |
+
+`chat.lua` deliberately owns no player-name cache. Local display-name ownership
+stays in `identity.lua`, whose session identity source does not depend on a
+match pawn or `PlayerState`.
 
 **BP-owned (correct per contract):**
 
@@ -197,8 +205,13 @@ Audited 2026-04-04 against `mod/OSPlus/scripts/chat.lua`.
 | `IsTyping` | UI-reactive | Drives Send button, click-out-close, animations. Also gates `SetHistory`'s follow-tail ScrollToEnd in v16. |
 | `PendingMessage` | event channel | BP writes on submit, Lua polls and clears (Pattern A). |
 | `ChatInput` | UMG | TextBox sub-widget. Pure UMG. |
-| `ChatHistory.Text` (implied) | derived display | Lua pushes via `:SetHistory()`. RichTextBlock in v16; tags must match rows in `DT_ChatRichTextStyles` (`Default`, `Sender`). |
+| `ChannelTeam`, `ChannelAll`, `ChannelTeam1`, `ChannelTeam2` | input surface / derived display | Lua exposes only the selected choice as one compact control, mirrors `M.selectedChannel` into checked state, and treats a click as a request to cycle. The checkboxes are not a second owner of the selected audience. |
+| `ClickCatcher` | UI-reactive input surface | BP shows this transparent full-screen button only while typing and binds it directly to `CloseInput()`, so an outside click closes chat without treating recipient-control clicks as focus loss. |
+| `IsResizing`, `ResizeHandle` | UI-reactive input surface | BP owns press/release state and Slate pointer capture for the focused-only top drag edge. Lua reads `IsResizing` during the bounded drag, gets the live Slate cursor through `UWidgetLayoutLibrary:GetMousePositionOnViewport`, applies the mouse delta, and BP restores keyboard focus to `ChatInput` on release. |
+| `FocusedHeight` | UI-reactive presentation | BP stores the current focused height so it survives close/reopen within the widget lifetime. Lua initializes it to 280 px, clamps it to 220-420 px, and applies it to the root size box. |
+| `ChatHistory.Text` (implied) | derived display | Lua pushes via `:SetHistory()`. Tags must match rows in `DT_ChatRichTextStyles` (`Default`, `MessageTeam`, `MessageTeam1`, `MessageTeam2`, and `MessageAll`). Lua also restores `ChatScroll` to the end after open, close, or resize layout passes so viewport changes do not dislodge the newest rows. |
 | `PresenceList.Text` (implied) | derived display | Lua pushes via `:SetPresence()`. RichTextBlock sharing the same Text Style Set as `ChatHistory`. |
+| `ChatBackground` visibility and root size-box height | derived display | Lua pushes passive/focused/settings presentation and active resize height; BP does not make audience or match-state decisions from these values. A visible reserve spacer keeps the 40 px composer slot allocated while the composer panel itself is hidden, so existing rows do not jump when focus opens. |
 
 ### Findings
 
@@ -227,19 +240,25 @@ Lua sets visibility to `HitTestInvisible` / `SelfHitTestInvisible` / `Collapsed`
 
 **Risk:** any future visibility state added to either side could conflict. The next feature requiring visibility coordination (e.g., a "minimize chat" toggle) will surface this.
 
-**Recommendation:** defer until the next feature actually needs a new visibility state. At that point, refactor to single-writer (BP owns visibility, Lua signals state via setters).
+**Current resolution:** the chat overhaul makes the division explicit instead of adding mirrored state. BP owns `IsTyping`, keyboard focus, and input mode. Lua owns match/feed/settings presentation and pushes root/background visibility plus height. `CloseInput()` returns the root to its non-interactive mode; Lua then applies the passive or hidden presentation. This remains an ordered cross-context contract and should not gain another writer.
 
-#### Finding 3 (partially addressed): `cachedPlayerName` invalidation
+#### Finding 3 (resolved 2026-07-24): local identity had two owners
 
-`cachedPlayerName` is set in `resolvePlayerName()` and cleared only in `M.reset()`.
+The original chat implementation duplicated an old
+`PlayerState.PlayerNamePrivate` resolver and maintained its own
+`cachedPlayerName`. That contradicted the canonical local identity path in
+`identity.lua` and failed for a custom-game spectator whose match-side player
+state did not yield a friendly name.
 
-As of v22 (`v22-name-resolver-fast-path`), the resolver refuses to cache values that look like an account ID (lowercase hex, ≥20 chars), so the previously-observed failure mode of locking the chat into showing the local player's account ID — surfaced when `PlayerState.PlayerNamePrivate` is read before the player profile finishes replicating — is fixed. See `docs/learnings/playernameprivate-transient-account-id.md`.
+`chat.lua` now calls `identity.resolveDisplayName()` for both room presence and
+local sender labels. It waits for the authoritative
+`UPMPlayerUIData.Profile.Username` value before joining when possible, uses
+`identity.getBestLocalName()` as a neutral fallback, and re-joins automatically
+when the friendly name becomes available. See
+`docs/learnings/identity-display-name-substrate-replaces-heuristics.md`.
 
-The remaining theoretical hole: if `PlayerNamePrivate` *changes* mid-session (alt-account swap, in-game rename) the cache won't notice.
-
-**Risk:** very low. Player name changes mid-session are rare.
-
-**Recommendation:** none for now. Note for posterity.
+**Risk removed:** chat no longer depends on match actor/player-state lifecycle
+for local identity, so players and spectators use the same session-stable name.
 
 #### Finding 4 (positive): `PendingMessage` is the canonical Pattern A example
 
@@ -253,10 +272,10 @@ This is the cleanest possible cross-context shared variable in the codebase. **U
 |---|---|---|
 | 1 | Rename `M.visible` → `M.shownForMatch` in `chat.lua`. Update 8 references. | ~5 min |
 | 2 | Add the contract header comment to `chat.lua` (template above) | ~10 min |
-| 3 | Move visibility orchestration into BP | Deferred |
-| 4 | Add `cachedPlayerName` invalidation hook | Deferred (low value) |
+| 3 | Keep the documented BP-focus/Lua-presentation split; do not add another visibility writer | Ongoing guardrail |
+| 4 | Keep local player identity in `identity.lua`; do not add a chat-level name cache | Resolved 2026-07-24 |
 
-Items 1 and 2 are worth doing as part of the next chat-touching change; not urgent enough to interrupt other work.
+Items 1 and 2 remain cleanup tasks; they do not change the runtime ownership contract above.
 
 ---
 
