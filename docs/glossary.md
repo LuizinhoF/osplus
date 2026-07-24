@@ -132,22 +132,26 @@ Sec 19.
 |---|---|---|---|---|
 | **SteamID** | 17-digit decimal (`76561198022185004`) | Yes, cross-session | `PMIdentitySubsystem:GetSteamId()` | Steam; OSPlus profile binding today |
 | **Prometheus ID** | 24-char hex (`6333a58673a37dc7cb11a7a7`) | Yes (assumed) | `PMPlayerPublicProfile.PlayerId` | Odyssey backend + every OS tracker |
-| **Display name** | Mutable string (`Ispicas`) | No — user-mutable | `PlayerState.PlayerNamePrivate` (after replication) | Human UI |
+| **Display name** | Mutable string (`Ispicas`) | No — user-mutable | Local canonical: `UPMPlayerUIData.Profile.Username`; match replica: `PlayerState.PlayerNamePrivate` | Human UI |
 
 **`PlayerNamePrivate` has THREE observed modes** — see
 [`docs/learnings/playernameprivate-transient-account-id.md`](./learnings/playernameprivate-transient-account-id.md)
 and [`docs/learnings/playernameprivate-machine-name-out-of-match.md`](./learnings/playernameprivate-machine-name-out-of-match.md).
-Don't trust the value without checking which mode you're in.
+Do not use it as the canonical local name. OSPlus resolves the local player's
+friendly name through `identity.lua`, keyed by the authenticated Prometheus ID,
+so the same path works for normal players and spectators without depending on
+a match actor.
 
 **Cache vs. local.** `FindAllOf("PMPlayerPublicProfile")` returns
 ~100+ cached profiles of *other* players. **The local player is NOT in
-this cache** — local identity comes from the `PMPlayerModel` getters,
-not the public-profile cache. Full reachability matrix in
+this cache** — local identity comes from `PMIdentitySubsystem` plus the
+matching `UPMPlayerUIData` row, not the public-profile cache. Full
+reachability matrix in
 [`KNOWLEDGEBASE.md`](../KNOWLEDGEBASE.md) → *Player Identity Reference*.
 
 **Cross-references.**
 - Player perspective: `docs/game/player-systems.md` *(planned)*.
-- Engine perspective: `docs/engine/identity-and-api.md` *(planned)*.
+- Engine perspective: [`docs/engine/identity-and-api.md`](./engine/identity-and-api.md).
 - Learnings:
   [`playernameprivate-transient-account-id`](./learnings/playernameprivate-transient-account-id.md),
   [`playernameprivate-machine-name-out-of-match`](./learnings/playernameprivate-machine-name-out-of-match.md),

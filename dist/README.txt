@@ -2,13 +2,8 @@
  OSPlus - Omega Strikers Mod Platform
 =====================================
 
-OSPlus is a community mod platform for Omega Strikers.
-
-This installer ships the FIRST feature: in-match team text chat,
-synced in real-time between all OSPlus users on the same team.
-
-More features (player profiles, currency, social, analytics) are on
-the roadmap. One install, growing capabilities over time.
+OSPlus is a community mod platform for Omega Strikers. This package includes
+in-match text chat shared between OSPlus users in the same match.
 
 
 INSTALL - WINDOWS
@@ -61,12 +56,15 @@ USAGE
   1. Launch Omega Strikers normally (from Steam)
   2. Join a match
   3. Press ENTER to open the chat box
-  4. Type your message and press ENTER to send
-  5. Press ESCAPE to close the chat without sending
+  4. Press TAB or SHIFT+TAB to change who will receive the message
+  5. Type your message and press ENTER to send
+  6. Press ESCAPE, or click outside chat, to close without sending
 
-Chat only appears during matches and only sends messages to teammates.
-The sidecar (relay client) starts automatically with the game and shuts
-down when you close the game.
+Players can choose Team or All. Spectators can choose All, Team 1, or Team 2.
+The expanded chat shows which players are currently connected to OSPlus.
+
+Chat only appears during matches. The sidecar (relay client) starts
+automatically with the game and shuts down when you close the game.
 
 
 CONFIG

@@ -25,7 +25,7 @@ Changed the sidecar to cache desired state immediately and flush it opportunisti
 - Added `sendIdentity()` so `profile_identity` IPC messages are cached and replayed on reconnect.
 - Extended the existing join flow to carry both `match` and `steamId`, so reconnects restore match-wide emote scope and sender identity without waiting for a fresh Lua event.
 
-**2026-06-18 reconfirmation:** chat audience routing touched this path again and restored the same invariant for the live sidecar shape: `joinRoom(room)` assigns `currentRoom` before checking WebSocket readiness, while `room_change` caches `currentUsername` and `currentTeam` before calling it. See `docs/learnings/chat-match-wide-room-audience-routing.md`.
+**2026-06-18 / 2026-06-19 reconfirmation:** chat audience routing touched this path again and restored the same invariant for the live sidecar shape: `joinRoom(room)` assigns `currentRoom` before checking WebSocket readiness, while `room_change` caches `currentUsername`, `currentTeam`, and `currentSpectator` before calling it. See `docs/learnings/chat-match-wide-room-audience-routing.md`.
 
 ## Lesson
 

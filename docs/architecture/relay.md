@@ -97,7 +97,7 @@ deliberately flat-only). Examples:
 
 ```json
 {"type":"chat","text":"gg","audience":"team","targetTeam":0,"ts":1712345678}
-{"type":"room_change","room":"AAX45ABA","username":"Ispicas","team":0}
+{"type":"room_change","room":"AAX45ABA","username":"Ispicas","team":0,"spectator":false}
 {"type":"profile_upsert","prometheus_id":"6333a58673a37dc7cb11a7a7","display_name":"Ispicas"}
 ```
 
@@ -149,13 +149,16 @@ pay a correlation-ID tax for no gain.
 - **Validated message types.** `join`, `leave`, `chat`, `ping`
   (`presence` is server-out-only and can't be sent by clients).
   Anything else is dropped at the relay's input validator.
-  `join` may carry `team` (`0` or `1`); `chat` may carry
-  `audience:"all"` or `audience:"team"` plus `targetTeam`.
+  `join` may carry `team` (`0` or `1`) and `spectator` (`true`
+  or `false`); `chat` may carry `audience:"all"` or
+  `audience:"team"` plus `targetTeam`.
   Lua maps the game's raw `EAssignedTeam` values (`TeamOne=1`,
   `TeamTwo=2`) into relay routing indices (`0`, `1`) before
-  writing IPC. The relay rejects team-targeted messages from
-  non-spectators when the target is not the sender's own team;
-  spectators (`team:null`) may target either team.
+  writing IPC, but spectator status is derived from PlayerState
+  spectator signals instead of from `AssignedTeam`: spectators can
+  still carry a team-like viewing-side value. The relay rejects
+  team-targeted messages unless the sender is on that team or has
+  `spectator:true`.
 - **Hardening baseline** (relay-side):
   - 4 KB max payload (ws-level cap).
   - 5 connections per source IP.

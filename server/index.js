@@ -113,6 +113,10 @@ function normalizeTeam(value) {
   return Number.isInteger(n) && (n === 0 || n === 1) ? n : null;
 }
 
+function normalizeBoolean(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
 function normalizeAudience(raw) {
   if (raw == null || raw === "") return "all";
   if (typeof raw !== "string") return null;
@@ -248,6 +252,7 @@ wss.on("connection", (ws, req) => {
   ws._ip = ip;
   ws._username = null;
   ws._team = null;
+  ws._spectator = false;
   ws._rateCount = 0;
   ws._rateWindowStart = Date.now();
 
@@ -292,11 +297,12 @@ wss.on("connection", (ws, req) => {
         }
         ws._username = sanitizeUsername(msg.username);
         ws._team = normalizeTeam(msg.team);
+        ws._spectator = normalizeBoolean(msg.spectator);
         if (!rooms.has(room)) rooms.set(room, new Set());
         rooms.get(room).add(ws);
         ws._room = room;
         ws.send(JSON.stringify({ type: "joined", room }));
-        const teamLabel = ws._team === null ? "unknown team" : `team ${ws._team + 1}`;
+        const teamLabel = ws._spectator ? "spectator" : (ws._team === null ? "unknown team" : `team ${ws._team + 1}`);
         log(`[ROOM] ${ws._ip} (${ws._username}, ${teamLabel}) joined ${room} (${rooms.get(room).size} member(s))`);
         broadcastPresence(room);
         break;
@@ -324,7 +330,7 @@ wss.on("connection", (ws, req) => {
             ws.send(JSON.stringify({ type: "error", error: "invalid target team" }));
             return;
           }
-          if (fallbackTeam !== null && msg.targetTeam !== fallbackTeam) {
+          if (!ws._spectator && msg.targetTeam !== fallbackTeam) {
             ws.send(JSON.stringify({ type: "error", error: "players cannot target the other team" }));
             return;
           }

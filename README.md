@@ -21,6 +21,17 @@ Linux / Steam Deck users must also set this Omega Strikers Steam Launch Option:
 WINEDLLOVERRIDES="dwmapi=n,b" %command%
 ```
 
+## In-match chat
+
+Press `Enter` during a match to open chat. The selected recipient appears
+beside the input:
+
+- Players can switch between **Team** and **All** with `Tab` or `Shift+Tab`.
+- Spectators can switch between **All**, **Team 1**, and **Team 2**.
+- Press `Escape`, or click outside the chat, to close it without sending.
+
+The expanded chat also shows which players are currently connected to OSPlus.
+
 ## Update
 
 From an extracted OSPlus package, run:

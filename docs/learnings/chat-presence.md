@@ -7,6 +7,10 @@
 | Tags | chat, presence, websocket, room-membership, json-array-workaround |
 | Status | confirmed |
 
+> **2026-07-24 identity update:** Presence transport is unchanged, but step 1
+> now uses the shared `identity.lua` local display-name resolver. The original
+> `PlayerNamePrivate` / `cachedPlayerName` description is no longer current.
+
 ## Symptom
 
 No symptom — this is the design rationale for the v16 presence feature so the next person doesn't have to re-derive it.
@@ -19,7 +23,7 @@ Pre-v16, players had no way to see who else was connected to the team chat. This
 
 End-to-end pipeline, push-based, server is source of truth:
 
-1. **Lua** resolves the player name via `resolvePlayerName()` (PlayerNamePrivate fast path with PMPlayerPublicProfile fallback — see `docs/learnings/playernameprivate-transient-account-id.md`), caches it as `cachedPlayerName`, and includes it in the `room_change` IPC message: `{type:"room_change", room, username}`. See `mod/OSPlus/scripts/chat.lua` `tryJoinRoom` and `mod/OSPlus/scripts/ipc.lua` `writeRoomChange`.
+1. **Lua** resolves the local player name through `identity.resolveDisplayName()` (`UPMPlayerUIData.Profile.Username`, keyed by authenticated Prometheus ID) and includes it in the `room_change` IPC message. If identity is not ready within the retry budget, chat uses `identity.getBestLocalName()` temporarily and upgrades the same room membership when the friendly name resolves. See `mod/OSPlus/scripts/chat.lua` `tryJoinRoom` and `mod/OSPlus/scripts/ipc.lua` `writeRoomChange`.
 2. **Sidecar** caches `currentUsername` from any `room_change`, then includes it in every `join` message to the relay (including reconnect re-joins). See `sidecar/index.js` `joinRoom` and the `ws.on("open")` re-join path.
 3. **Relay** sanitizes the username (strips C0 controls + DEL, trims, caps at `MAX_USERNAME_LEN=32`, falls back to `Anonymous`), stores it on `ws._username`, and after any room membership change calls `broadcastPresence(room)` which emits `{type:"presence", room, members}` to every member of that room (including the joiner so they see themselves immediately). See `server/index.js`.
 4. **Sidecar** has no presence-specific code — the `presence` message falls through the existing `appendToInbox(str)` path because it isn't `joined`/`left`/`error`.
@@ -55,6 +59,6 @@ When introducing a new server-pushed message type to a system with a hand-rolled
 
 ## Related
 
-- Files: `server/index.js` (`broadcastPresence`, `sanitizeUsername`, `removeFromRoom`), `sidecar/index.js` (`currentUsername`, `joinRoom`), `mod/OSPlus/scripts/ipc.lua` (`writeRoomChange`, presence inbox case), `mod/OSPlus/scripts/chat.lua` (`setPresence`, `M.presence`, `presenceTag`, `resolvePlayerName`)
+- Files: `server/index.js` (`broadcastPresence`, `sanitizeUsername`, `removeFromRoom`), `sidecar/index.js` (`currentUsername`, `joinRoom`), `mod/OSPlus/scripts/ipc.lua` (`writeRoomChange`, presence inbox case), `mod/OSPlus/scripts/chat.lua` (`setPresence`, `M.presence`, `tryJoinRoom`), `mod/OSPlus/scripts/identity.lua` (local display-name owner)
 - Architecture: `docs/architecture/state-contract.md` — `M.presence` and `PresenceList` are added to the audit table
 - Related learning: `docs/learnings/ue-richtextblock-named-rows.md` — the `<Sender>` tag the presence formatter uses is documented there

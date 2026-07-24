@@ -46,9 +46,24 @@ team chat or `/all`; only spectators may choose either team directly. Enforce
 this both in Lua command parsing and on the relay, because old clients may
 still send a forbidden `targetTeam`.
 
+Spectator follow-up (2026-06-19): custom-game spectators can report
+`AssignedTeam=TeamOne`, likely as a viewing-side/camera value. Do not infer
+spectator status from `AssignedTeam` or from relay `team:null`. `chat.lua`
+now sends an explicit `spectator` flag in `room_change` / relay `join`,
+derived from PlayerState spectator signals (`IsOnlyASpectator`,
+`bOnlySpectator`, `IsSpectator`, `bIsSpectator`) and logs those signals at
+room join. Spectators join the relay with `team:nil` for recipient filtering
+but with `spectator:true` for send-policy authorization. Unknown-team players
+join with `team:nil` and `spectator:false`, so they cannot target either team
+directly until their actual team is known.
+
 ## Lesson
 
 Do not encode recipient audience into the room identifier when a feature needs more than one audience in the same match. Use the room for shared match membership and put recipient intent on the message.
+
+Do not use raw `AssignedTeam` as proof that a client is a player on that team.
+For custom-game spectators it can behave like a viewing-side value. Keep
+"player routing team" and "spectator permission" as separate protocol fields.
 
 ## Related
 

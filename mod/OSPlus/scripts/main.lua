@@ -6,11 +6,9 @@
     Keybinds:
       Enter    = Open chat input
       Escape   = Cancel chat input
+      Tab      = Change chat audience
 
-    Channel prefixes:
-      /all msg  = send to everyone
-      /t1 msg   = send to Team 1
-      /t2 msg   = send to Team 2
+    Slash commands remain available as a compatibility fallback.
 ]]
 
 local cfg    = require("config")
@@ -21,15 +19,16 @@ local utils  = require("utils")
 -- local pings  = require("pings")
 -- local wheel  = require("wheel")
 local ipc    = require("ipc")
-local chat   = require("chat")
 local i18n   = require("localization")
 -- identity: required for the side effect of its module-load RegisterHook
 -- on PMIdentitySubsystem:GetIdentityState during cold-start engine init
 -- (BEFORE login completes). Per ADR 0001 R-B substrate +
 -- ue4ss-cold-start-hook-install-pattern learning, a keypress-driven or
 -- lazy install would miss the identity-flow window. profile.lua reads
--- the resolved PID through identity.onPrometheusIdResolved.
+-- the resolved PID through identity.onPrometheusIdResolved, while chat.lua
+-- consumes the same module for local sender and presence names.
 require("identity")
+local chat   = require("chat")
 -- profile: subscribes to identity.onPrometheusIdResolved at init() time and
 -- emits a single profile_upsert IPC message once display name is also
 -- resolved. The sidecar then PUTs /api/profiles/{pid} on the relay. Per
@@ -41,8 +40,8 @@ local profile = require("profile")
 -- pings.onPingFired   = function(pingType, posVec) ipc.writePingToOutbox(pingType, posVec) end
 -- ipc.spawnRemotePing = pings.spawn
 chat.onChatSent       = function(sender, text, audience, targetTeam) ipc.writeChatToOutbox(sender, text, audience, targetTeam) end
-ipc.onChatReceived    = function(sender, text, audience, targetTeam) chat.addMessage(sender, text, audience, targetTeam) end
-chat.onRoomChange     = function(room, username, team) ipc.writeRoomChange(room, username, team) end
+ipc.onChatReceived    = function(sender, text, audience, targetTeam) chat.addMessage(sender, text, audience, targetTeam, true) end
+chat.onRoomChange     = function(room, username, team, isSpectator) ipc.writeRoomChange(room, username, team, isSpectator) end
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
 ipc.onPresenceReceived = function(members) chat.setPresence(members) end
 
@@ -147,7 +146,7 @@ print("[OSPlus] " .. cfg.VERSION .. "\n")
 print("[OSPlus] Keybinds:\n")
 print("[OSPlus]   Enter = Open chat\n")
 print("[OSPlus]   Esc   = Cancel chat\n")
-print("[OSPlus]   /all, /t1, /t2 = chat audiences\n")
+print("[OSPlus]   Tab   = Change chat audience\n")
 print("[OSPlus] IPC:    " .. cfg.IPC_DIR .. "\n")
 print("==============================================\n")
 

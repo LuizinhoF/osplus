@@ -66,13 +66,14 @@ function M.writePingToOutbox(pingType, posVec)
 end
 ]]
 
-function M.writeRoomChange(roomCode, username, team)
+function M.writeRoomChange(roomCode, username, team, isSpectator)
     local msg = json.encode({
-        type     = "room_change",
-        room     = roomCode,
-        username = username,
-        team     = team,
-        ts       = os.time(),
+        type      = "room_change",
+        room      = roomCode,
+        username  = username,
+        team      = team,
+        spectator = isSpectator == true,
+        ts        = os.time(),
     })
     local f = io.open(cfg.OUTBOX_FILE, "a")
     if f then

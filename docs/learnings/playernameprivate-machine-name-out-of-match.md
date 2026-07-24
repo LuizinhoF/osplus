@@ -7,9 +7,12 @@
 | Tags | chat, player-identity, ue4ss, playerstate, machine-name |
 | Status | confirmed (observation) / **superseded for local-player display name** by `identity-display-name-substrate-replaces-heuristics.md` (2026-04-28) |
 
-> **Update 2026-04-28:** the three-mode behavior of `PlayerState.PlayerNamePrivate` documented below (friendly name / account ID / machine name) is real and unchanged. The three-layer rejection prescribed as the fix is **no longer the recommended approach for local-player display name resolution.** Reason: the rejection is a blocklist over hostnames, and Windows decorates `COMPUTERNAME` with workgroup/DNS-style suffixes in some out-of-match contexts (we observed `DESKTOP-EJ47PRO-D197` while `COMPUTERNAME=DESKTOP-EJ47PRO`), so strict equality fails and the bad value leaks through. It also fails closed on legitimate names that happen to match the heuristic. The substrate path (Prometheus ID → `PMPlayerPublicProfile.Username`) sidesteps the entire problem class. See `identity-display-name-substrate-replaces-heuristics.md`.
+> **Update 2026-04-28:** the three-mode behavior of `PlayerState.PlayerNamePrivate` documented below (friendly name / account ID / machine name) is real and unchanged. The three-layer rejection prescribed as the fix is **no longer the recommended approach for local-player display name resolution.** Reason: the rejection is a blocklist over hostnames, and Windows decorates `COMPUTERNAME` with workgroup/DNS-style suffixes in some out-of-match contexts (we observed `DESKTOP-EJ47PRO-D197` while `COMPUTERNAME=DESKTOP-EJ47PRO`), so strict equality fails and the bad value leaks through. It also fails closed on legitimate names that happen to match the heuristic. The substrate path (authenticated Prometheus ID plus `UPMPlayerUIData.Profile.Username`) sidesteps the entire problem class. See `identity-display-name-substrate-replaces-heuristics.md`.
 >
-> The heuristics ARE still active in `chat.lua` for inbound **remote** chat sender names — that path doesn't have a substrate equivalent and the heuristics there are still load-bearing.
+> **2026-07-24 correction:** the claim that these heuristics remained in
+> `chat.lua` for remote sender names was wrong. They resolved the local sender
+> and room-presence name. Chat now consumes `identity.lua`, so the old
+> `PlayerNamePrivate` path is no longer active there.
 
 ## Symptom
 
@@ -27,7 +30,7 @@ The first profile/emote groundwork pass only rejected the account-ID shape. Anyt
 
 ## Fix
 
-Added a three-layer rejection path:
+The original fix added a three-layer rejection path:
 
 - `mod/OSPlus/scripts/identity.lua` now rejects the exact local machine name (`COMPUTERNAME` / `HOSTNAME`) in addition to account IDs, and falls back to a synthetic runtime label `Player-<steamId suffix>` instead of reusing the bad value.
 - `sidecar/index.js` refuses to cache or send machine-name/account-ID values as profile display names, and only uses the synthetic fallback for runtime room joins.
@@ -35,7 +38,11 @@ Added a three-layer rejection path:
 
 ## Lesson
 
-For UE identity fields, "not an account ID" is not the same thing as "safe game-derived display name". When a field's meaning changes across menu, practice, and live-match contexts, reject known-bad shapes explicitly and use a synthetic fallback until a confirmed game name is available.
+For UE identity fields, "not an account ID" is not the same thing as "safe
+game-derived display name." When a field changes meaning across menu, practice,
+and live-match contexts, do not make it a canonical identity source. Read the
+friendly name from the authenticated identity substrate and use a neutral
+synthetic fallback only while that authoritative value is unavailable.
 
 ## Related
 

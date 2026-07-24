@@ -142,10 +142,11 @@ that's not strictly in-match:
 - **Pawn.** None.
 - **Identity.** `PMIdentitySubsystem` is reachable (SteamID,
   Prometheus ID via `GetAuthenticatedPlayerId`).
-- **Display name caveat.** `PlayerState.PlayerNamePrivate` is the
-  engine base class (no `PlayerState_Game_C`). Display name out of
-  match has gone through the *machine name* mode — see
-  [`playernameprivate-machine-name-out-of-match`](../learnings/playernameprivate-machine-name-out-of-match.md).
+- **Display name.** No Pawn is required: the canonical local name is available
+  through the authenticated identity plus `UPMPlayerUIData.Profile.Username`.
+  `PlayerState.PlayerNamePrivate` on the engine base class has gone through the
+  *machine name* mode out of match and must not be treated as authoritative —
+  see [`playernameprivate-machine-name-out-of-match`](../learnings/playernameprivate-machine-name-out-of-match.md).
 
 ## Open questions
 

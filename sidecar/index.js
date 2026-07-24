@@ -153,14 +153,25 @@ let connected = false;
 let currentRoom = null;
 // Latest username Lua told us about. Cached so reconnects can re-join with
 // the right identity without a fresh room_change. Lua resolves it from the
-// PlayerState; sidecar never invents one.
+// session identity substrate; sidecar never invents one.
 let currentUsername = null;
 let currentTeam = null;
+let currentSpectator = false;
 
 function normalizeTeam(value) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isInteger(n) && (n === 0 || n === 1) ? n : null;
+}
+
+function normalizeBoolean(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function describeRoomIdentity() {
+  if (currentSpectator) return "spectator";
+  if (currentTeam === null) return "unknown team";
+  return `team ${currentTeam + 1}`;
 }
 
 function joinRoom(room) {
@@ -171,9 +182,8 @@ function joinRoom(room) {
     ws.send(JSON.stringify({ type: "leave", room: previousRoom }));
     console.log(`[WS] Leaving room: ${previousRoom}`);
   }
-  ws.send(JSON.stringify({ type: "join", room, username: currentUsername, team: currentTeam }));
-  const teamLabel = currentTeam === null ? "unknown team" : `team ${currentTeam + 1}`;
-  console.log(`[WS] Joining room: ${room} as ${currentUsername || "(no username)"} (${teamLabel})`);
+  ws.send(JSON.stringify({ type: "join", room, username: currentUsername, team: currentTeam, spectator: currentSpectator }));
+  console.log(`[WS] Joining room: ${room} as ${currentUsername || "(no username)"} (${describeRoomIdentity()})`);
 }
 
 function leaveCurrentRoom() {
@@ -215,9 +225,8 @@ function connect() {
     console.log(`[WS] Connected (no room yet, waiting for match)`);
     startKeepalive(ws);
     if (currentRoom) {
-      ws.send(JSON.stringify({ type: "join", room: currentRoom, username: currentUsername, team: currentTeam }));
-      const teamLabel = currentTeam === null ? "unknown team" : `team ${currentTeam + 1}`;
-      console.log(`[WS] Re-joining room: ${currentRoom} as ${currentUsername || "(no username)"} (${teamLabel})`);
+      ws.send(JSON.stringify({ type: "join", room: currentRoom, username: currentUsername, team: currentTeam, spectator: currentSpectator }));
+      console.log(`[WS] Re-joining room: ${currentRoom} as ${currentUsername || "(no username)"} (${describeRoomIdentity()})`);
     }
   });
 
@@ -285,6 +294,7 @@ fs.watchFile(OUTBOX, { interval: 50 }, () => {
         currentUsername = msg.username;
       }
       currentTeam = normalizeTeam(msg.team);
+      currentSpectator = normalizeBoolean(msg.spectator);
       joinRoom(msg.room);
       continue;
     }

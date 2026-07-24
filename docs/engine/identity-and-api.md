@@ -65,7 +65,7 @@ of which identifier to use as OSPlus's primary key lives in
 |---|---|---|---|---|
 | **SteamID** | 17-digit decimal (e.g., `76561198022185004`) | Yes — cross-session, cross-platform | `PMIdentitySubsystem:GetSteamId()` | Steam itself; OSPlus profile binding (early version, pre-ADR-0001) |
 | **Prometheus ID** | 24-char hex / MongoDB ObjectID (e.g., `6333a58673a37dc7cb11a7a7`) | Yes (assumed) | Game backend; appears as `PMPlayerPublicProfile.PlayerId` | Odyssey's backend API; every OS tracker as the canonical player key; OSPlus's primary key per [ADR 0001](../decisions/0001-identity-model.md) |
-| **Display name** | Friendly, mutable string (e.g., `"Ispicas"`) | No — user-mutable | `PlayerState.PlayerNamePrivate` (after replication) | Human UI |
+| **Display name** | Friendly, mutable string (e.g., `"Ispicas"`) | No — user-mutable | Local canonical: `UPMPlayerUIData.Profile.Username`; replicated match field: `PlayerState.PlayerNamePrivate` (three-mode caveat) | Human UI |
 
 **Three separate namespaces.** A Prometheus ID cannot be
 derived from a SteamID (or vice versa) without going through
@@ -96,8 +96,8 @@ Display name only resolves in custom / real games.
 **The fix:** don't use `PlayerNamePrivate` as the canonical
 display-name source. Use the local-identity path
 ([§"Lua-side reachability"](#lua-side-reachability)) which
-returns the `Username` field of the PlayerPublicProfile struct
-directly. See production code at
+matches the local Prometheus ID to `UPMPlayerUIData` and reads
+its embedded `Profile.Username` field directly. See production code at
 [`mod/OSPlus/scripts/identity.lua`](../../mod/OSPlus/scripts/identity.lua).
 
 ## The backend API
