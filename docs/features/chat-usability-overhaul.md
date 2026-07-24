@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Slug | `chat-usability-overhaul` |
-| Status | `building` |
+| Status | `shipped` |
 | Created | 2026-07-09 |
 | Last updated | 2026-07-24 |
 | Owner | Codex + maintainer |
@@ -124,6 +124,7 @@ Build verification completed on 2026-07-23 and production acceptance completed o
 - The 12 px resize hit target keeps pointer capture outside the visible grip, follows upward and downward movement continuously, and restores input focus on release.
 - Player-controlled verification confirmed Enter, Escape, outside-click close, settings suppression, incoming sound, and live resize behavior in Practice.
 - The first two-client spectator test exposed one remaining identity bug: the spectator joined chat without a friendly name because chat still read its own match-side `PlayerState` path. Chat now uses the shared session identity resolver for both presence and sender labels, independent of whether the local client has a gameplay pawn.
+- A final two-client custom-game pass confirmed that the spectator now appears under the correct friendly name and that the completed `0.3.0` chat works in live play.
 
 ---
 
