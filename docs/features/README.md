@@ -45,7 +45,7 @@ Newest first. Empty until the first feature gets a doc.
 
 | Status | Slug | One-line summary |
 |---|---|---|
-| `accepted for v0.4.1` | [`update-availability-notification`](./update-availability-notification.md) | Notify players with a quiet, non-blocking in-game notice when a newer stable OSPlus release is available, checking at startup, matchmaking queue entry, and match completion. |
+| `shipped v0.4.1` | [`update-availability-notification`](./update-availability-notification.md) | Notify players with a quiet, non-blocking in-game notice when a newer stable OSPlus release is available, checking at startup, matchmaking queue entry, and match completion. |
 | `building` | [`chat-usability-overhaul`](./chat-usability-overhaul.md) | Replace the fixed slash-command chat panel with a compact passive feed, reliable focused composer, and visible audience controls for players and spectators. |
 | `building` | [`install-uninstall-cross-platform`](./install-uninstall-cross-platform.md) | Add Linux/Steam Deck installer support, first-class uninstallers, and Proton-aware sidecar launch behavior. |
 | `framed` | [`emote-loadout-ui-improvement`](./emote-loadout-ui-improvement.md) | Replace the native Cosmetics → Emote sub-tab body with an OSPlus widget (search bar, per-Striker grouping, preview-with-Equip, 7 equipped slots). Feature 1 of a 2-feature split (sibling: custom emotes / in-game render — Brief pending). Feasibility Pass-2 A0 closed (verified host widget tree); A1 (swap reinstall reliability) pending. ADR-gated on [0004](../decisions/0004-emote-loadout-as-osplus-layer.md). |

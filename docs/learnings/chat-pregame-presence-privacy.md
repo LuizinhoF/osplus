@@ -84,21 +84,36 @@ Invalidating the cached join seed before retry fixed it; three focused recovery
 cases passed afterward. Lua parse checks and `git diff --check` also passed.
 The existing sidecar Windows build completed successfully.
 
-Local preparation: `deploy.ps1` synchronized Lua/data and the rebuilt sidecar
+Initial pre-release preparation: `deploy.ps1` synchronized Lua/data and the rebuilt sidecar
 was copied into the existing game mod directory; changed-file hashes matched.
 The prior three changed scripts and executable are backed up under
 `%LOCALAPPDATA%/OSPlus/dev-backups/pregame-presence-56b6438b-cfc1-4cd3-8cbc-715efc0c86d0/`.
-The cooked widget/pak did not need to change. No version bump, release, or
-public-relay deployment was performed; this fix remains uncommitted for testing.
+The cooked widget/pak did not need to change for this fix. At that checkpoint,
+no version bump, release, or public-relay deployment had been performed and the
+fix was uncommitted for testing. The release follow-up below supersedes that state.
 
-**Local test setup still needs a relay restart.** The installation remains on
+**Initial local test setup needed a relay restart.** The installation was on
 `ws://127.0.0.1:3100`. Restarting its existing process was blocked by execution
-policy, before the command ran. It still serves the old protocol, so the new
-client intentionally rejects its untagged presence snapshots and shows an empty
-list. Restart that local relay on current source with its existing port, data
-directory and fake `0.4.0` release override before testing. Other test players
-must use the same relay; users on the public relay are in a different room
-service and will not appear on this local instance.
+policy, before the command ran. That instance served the old protocol, so the
+new client intentionally rejected its untagged presence snapshots. This local
+setup was superseded by the public deployment below; no local restart is now
+required to use the maintainer's installed mod. Players must use the same relay
+to share a chat room.
+
+### Release follow-up (2026-09-05)
+
+Committed as `dc578e1`, merged to `main`, and published in v0.4.1 with the update
+notification. The public relay was deployed before client publication. An
+isolated live test using synthetic players on that relay passed pregame
+filtering, gameplay disclosure, legacy fallback, revision tagging, chat routing,
+and disconnect cleanup. All test sockets closed; no real player room was used.
+
+The maintainer installed the actual release ZIP successfully. Installed files
+match the package, and the mod now points to the public relay rather than port
+3100. The installed sidecar confirmed v0.4.1 as current. The in-game phase test
+is still explicitly deferred to the maintainer; the live relay test does not
+establish engine field readability or transition timing. See the
+[release record](../releases/2026-09-05-osplus-0.4.1.md).
 
 User's in-game checklist:
 
