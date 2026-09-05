@@ -72,6 +72,12 @@ The script reads `dist/version.json`, builds `dist/OSPlus.zip`, verifies that
 the archive's root manifest matches the release/tag version, creates tag
 `v<version>`, and uploads the zip.
 
+Add `-NotesPath .\path\to\release-notes.md` to supply nonempty UTF-8 Markdown
+notes, including English and Portuguese sections. The script validates the file
+before publishing and preserves its text when creating the release. Without
+this option it uses the default description; reusing an existing release does
+not overwrite that release's notes.
+
 If the zip has already been built and verified:
 
 ```powershell

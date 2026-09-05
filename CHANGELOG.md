@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1 - 2026-09-05
+
+- Add a small, non-blocking update notice above the Home Hub's queue selector,
+  with a gentle sound/animation and a link to the matching GitHub release.
+- Check for updates at startup, after a match, and when entering queue;
+  keep the notice within the Home Hub and beneath native transitions.
+- Support English and Brazilian Portuguese, fit longer translated text, and
+  use an inline hover hint to avoid stranded floating tooltips.
+- Hide opponent names from chat presence until gameplay is detected, retaining
+  the full list through goals and between-set selections afterward.
+- Reject stale player lists across room/team changes and reconnects; keep
+  unknown-team players and spectators restricted until gameplay is confirmed.
+- Record the installed release version so update checks compare the right build.
+- Older clients remain teammate-only (spectators: self-only) until upgraded.
+- Automated chat privacy checks pass; in-game phase validation remains pending
+  with the maintainer, who explicitly deferred it for this release.
+
+Full English and pt-BR notes: [v0.4.1](docs/releases/0.4.1-patch-notes.md).
+
 ## 0.3.0 - 2026-07-24
 
 - Redesign the in-match chat as a compact passive feed with a focused,

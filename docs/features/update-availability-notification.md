@@ -408,7 +408,14 @@ and
 
 ## Outcome
 
-*Not landed.*
+Accepted for v0.4.1 after maintainer review of the Home Hub notification,
+localization, layout, sound, and release-page click behavior. Implementation
+commit: `09bd218`.
+
+The release also includes the separately investigated pregame chat-presence
+privacy fix. Its automated checks pass; the maintainer explicitly deferred
+the in-game phase test. See [patch notes](../releases/0.4.1-patch-notes.md) and
+[the chat investigation](../learnings/chat-pregame-presence-privacy.md).
 
 ---
 
