@@ -171,7 +171,7 @@ Sec 6.
 
 - **Online match — confirmed.** `GameState_Game_C` is the GameState
   class. Phase model documented in
-  [`KNOWLEDGEBASE.md`](../KNOWLEDGEBASE.md) → *Game Lifecycle & Phase Detection*.
+  [`game-state.md`](./engine/game-state.md).
 - **Practice mode — confirmed.** `GameState_Tutorial_C`. Different
   PlayerController (`PlayerController_Practice_C`).
   `PlayerNamePrivate` returns hex Prometheus ID instead of display
@@ -179,17 +179,24 @@ Sec 6.
 - **Custom lobby — TBD.** Whether custom lobbies use
   `GameState_Game_C` or a different class is not yet investigated.
 
-**Identity key — `CurrentMatchSeed`.** The canonical "is a match
-active" signal lives at `GameState_Game_C.CurrentMatchSeed` (non-zero
-⇒ match in progress; stable across KOs, respawns, awakening
-transitions, round resets). See
+**Identity key — `CurrentMatchSeed`.** A nonzero seed identifies
+the match room, including pregame steps, and remains stable across
+KOs, respawns, awakening transitions, and round resets. It does
+not prove active play has begun or permit revealing opponent names. See
 [`docs/learnings/chat-match-detection-via-seed.md`](./learnings/chat-match-detection-via-seed.md).
 **Do not gate match-active state on local-player presence
 (`Pawn ~= nil`)** — that signal blips during normal mid-match events.
 
+**Phase — stored schema confirmed.** `PMGameState.CurrentMatchPhase`
+uses `EMatchPhase`, catalogued in
+[`game-state.md`](./engine/game-state.md#reflected-match-phase).
+OSPlus separately waits for an explicit same-seed `InGame` observation
+before revealing opponents in presence. Current runtime phase timing
+remains untested; see [the privacy investigation](./learnings/chat-pregame-presence-privacy.md).
+
 **Cross-references.**
-- Player perspective: `docs/game/match-lifecycle.md` *(planned)*.
-- Engine perspective: `docs/engine/game-state-phases.md` *(planned)*.
+- Player perspective: [`match-lifecycle.md`](./game/match-lifecycle.md).
+- Engine perspective: [`game-state.md`](./engine/game-state.md).
 - Learning: [`chat-match-detection-via-seed`](./learnings/chat-match-detection-via-seed.md) (the seed-vs-pawn lesson).
 
 ---
@@ -322,12 +329,12 @@ Sec 15.
 
 **Engine — TBD.** What's known:
 
-- **Phase exists in the lifecycle.** Detection: same as active
-  gameplay (`PlayerState_Game_C` + valid Pawn) — see
-  [`KNOWLEDGEBASE.md`](../KNOWLEDGEBASE.md) → *Awakening Select*.
-  KB labels this phase "between rounds" but the player-side authority
-  ([`OMEGA_STRIKERS_GAME.md`](./game/OMEGA_STRIKERS_GAME.md) Sec 15)
-  says **"between sets"** — KB is the suspected stale doc.
+- **Phase exists in the lifecycle.** Drafts occur at match start
+  and between sets. A valid Pawn does not identify the draft, and
+  Pawn loss does not end a match. Stored phase enum members are
+  catalogued, but their exact mapping to starting versus between-set
+  drafts is still unverified; see
+  [`game-state.md`](./engine/game-state.md#reflected-match-phase).
 - **Engine class for Awakening data — TBD.** No class confirmed yet.
   Probably under `/Script/Prometheus.*` with `Awakening` in the name.
 - **Draft UI widget — TBD.** Probably under the `WBP_*Awakening*`
@@ -342,7 +349,7 @@ two TBDs from this entry. Plan for a Stage-3 RE pass per
 **Cross-references.**
 - Player perspective: `docs/game/awakenings.md` *(planned)*.
 - Engine perspective: `docs/engine/awakenings.md` *(planned, blocked on probe)*.
-- Open question: KB "between rounds" vs game-doc "between sets" — confirm and reconcile.
+- Open question: map the known phase enum to starting and between-set drafts in current runtime.
 
 ---
 
@@ -361,8 +368,10 @@ Sec 7.
 - **Goal-area entry per player — confirmed.**
   `PMPlayerMatchSummary.HitRockIntoGoalArea` is a per-player counter
   (matches `EPMEndOfGameStat::ShotsOnGoal`).
-- **Match-phase events — confirmed.** `MatchPhaseChanged` fires on
-  phase transitions including (presumably) goal scored → round reset.
+- **Match-phase event schema — confirmed in stored dumps.**
+  `MatchPhaseChanged(OldPhase, NewPhase)` uses `EMatchPhase`.
+  Goal/reset timing and hook coverage require runtime verification;
+  see [`game-state.md`](./engine/game-state.md#reflected-match-phase).
 - **Barrier object class — TBD.** Player-doc Sec 7 implies a distinct
   breakable object. Engine class not confirmed; candidate search
   terms: `Gate`, `Barrier`, `GoalBarrier`, `GoalArc`.

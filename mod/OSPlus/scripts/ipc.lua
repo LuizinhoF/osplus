@@ -67,13 +67,15 @@ function M.writePingToOutbox(pingType, posVec)
 end
 ]]
 
-function M.writeRoomChange(roomCode, username, team, isSpectator)
+function M.writeRoomChange(roomCode, username, team, isSpectator, revealOpponents, presenceRevision)
     local msg = json.encode({
         type      = "room_change",
         room      = roomCode,
         username  = username,
         team      = team,
         spectator = isSpectator == true,
+        revealOpponents = revealOpponents == true,
+        presenceRevision = presenceRevision,
         ts        = os.time(),
     })
     local f = io.open(cfg.OUTBOX_FILE, "a")
@@ -219,7 +221,7 @@ function M.readInbox()
             end
             log.log("[IPC] Presence update: " .. tostring(#list) .. " member(s)")
             if M.onPresenceReceived then
-                M.onPresenceReceived(list)
+                M.onPresenceReceived(list, msg.room, msg.presenceRevision, msg.revealOpponents)
             end
         elseif msg and msg.type == "update_available" then
             local latestVersion = cleanVersion(msg.latestVersion)

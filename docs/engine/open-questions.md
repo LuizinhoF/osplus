@@ -58,12 +58,12 @@ Cross-references inline.
   but a complete enumeration (online vs practice vs custom
   availability) is missing.
   See also: [`setup.md` → "Maps"](./setup.md#maps).
-- **Game phase transitions — `MatchPhaseChanged` enum values.**
-  The UFunction fires reliably at every phase transition; the
-  argument's actual phase enum value is **not catalogued**.
-  Probing the param shape inside a `RegisterHook` callback
-  closes this. High-value because every match-phase feature
-  currently has to use class-tuple detection.
+- **Game phase transitions — current values and hook timing.**
+  Stored 2026-04-24 dumps confirm `CurrentMatchPhase`, all
+  `EMatchPhase` members, and the `(OldPhase, NewPhase)` signature.
+  Current runtime values, UE4SS marshaling, and coverage of the
+  Blueprint override remain untested. Class tuples are historical
+  observations, not reliable substitutes for phase or match identity.
   See also: [`game-state.md` → "Open questions"](./game-state.md#open-questions).
 - **What triggers map loads.** Is there a `MatchManager` or
   similar coordinator? KB flagged this; still unanswered.
@@ -80,8 +80,8 @@ Cross-references inline.
   surface for awakenings is **blocked on probe.** The KB called
   this phase "between rounds"; the player-side canonical
   doc calls it "between sets" (drafts at match start AND between
-  sets). Engine-side reconciliation requires probing
-  `MatchPhaseChanged` argument values + finding the
+  sets). Engine-side reconciliation requires mapping the already
+  catalogued phase members to the actual draft moments and finding the
   Awakening-specific UFunction (if any).
 - **Post-match phase class-tuple shape.** What classes are live
   during the post-match results screen? Affects any feature

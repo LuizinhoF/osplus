@@ -195,16 +195,16 @@ widget survives the lobby → match → post-match → lobby cycle:
 it's parented to `GameInstance_Base_C`, not to the level player.
 Detail in [`widgets.md` → "GameInstance persistence"](./widgets.md#gameinstance-persistence-the-persistent-root).
 
-### Phase detection is not enum-based (yet)
+### Match identity and gameplay phase are separate
 
-The match progresses through phases (Main Menu → Character Select
-→ Active Gameplay → Awakening Select → ...) but the *phase enum
-values* are not catalogued. Phase detection is done by
-**class-tuple inspection** instead — checking which combination
-of `GameStateBase`, `PlayerController`, `PlayerState`, and `Pawn`
-classes are currently live. Full machinery is in the planned
-`game-state.md` (KB §"Game Lifecycle & Phase Detection" until
-that doc lands).
+The nonzero match seed identifies the room, including pregame steps;
+it does not prove active play has started. Stored 2026-04-24 dumps
+expose `PMGameState.CurrentMatchPhase` and the complete `EMatchPhase`
+enum. Current runtime values, timing, and hook coverage remain untested
+in the 2026-09-05 correction. Class tuples are historical observations,
+and Pawn presence is not a reliable match gate. See
+[`game-state.md`](./game-state.md#match-detection) for the evidence,
+enum catalog, and separate pregame presence boundary.
 
 ### UE4SS has no networking
 

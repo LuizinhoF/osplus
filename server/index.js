@@ -131,13 +131,17 @@ function sanitizeUsername(s) {
 }
 
 function normalizeTeam(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  return Number.isInteger(n) && (n === 0 || n === 1) ? n : null;
+  if (value === 0 || value === "0") return 0;
+  if (value === 1 || value === "1") return 1;
+  return null;
 }
 
 function normalizeBoolean(value) {
   return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function normalizePresenceRevision(value) {
+  return Number.isSafeInteger(value) && value > 0 ? value : 0;
 }
 
 function normalizeAudience(raw) {
@@ -147,8 +151,9 @@ function normalizeAudience(raw) {
   return audience === "team" || audience === "all" ? audience : null;
 }
 
-// Snapshot the current member usernames for a room and broadcast it to every
-// member (including the joiner so they see themselves immediately).
+// Build each recipient's snapshot separately: joining a match-wide chat room
+// must not reveal pregame opponents. Lua permits wider disclosure only after
+// observing gameplay for this match. See docs/learnings/chat-presence.md.
 //
 // Wire format: `members` is a single string with usernames joined by "\n".
 // We don't ship a JSON array because the mod's Lua json decoder is
@@ -160,13 +165,24 @@ function normalizeAudience(raw) {
 function broadcastPresence(room) {
   const members = rooms.get(room);
   if (!members) return;
-  const list = [];
-  for (const client of members) {
-    if (client._username) list.push(client._username);
-  }
-  const raw = JSON.stringify({ type: "presence", room, members: list.join("\n") });
-  for (const client of members) {
-    if (client.readyState === 1) client.send(raw);
+  for (const recipient of members) {
+    if (recipient.readyState !== 1) continue;
+    const revealOpponents = recipient._revealOpponents === true;
+    const hasPlayerTeam = !recipient._spectator &&
+      (recipient._team === 0 || recipient._team === 1);
+    const list = [];
+    for (const client of members) {
+      if (client.readyState !== 1) continue;
+      const samePlayerTeam = hasPlayerTeam && !client._spectator &&
+        client._team === recipient._team;
+      if (client === recipient || revealOpponents || samePlayerTeam) {
+        if (client._username) list.push(client._username);
+      }
+    }
+    recipient.send(JSON.stringify({
+      type: "presence", room, members: list.join("\n"),
+      presenceRevision: recipient._presenceRevision, revealOpponents,
+    }));
   }
 }
 
@@ -191,6 +207,8 @@ function broadcastChat(room, sender, message) {
 }
 
 function removeFromRoom(ws) {
+  ws._revealOpponents = false;
+  ws._presenceRevision = 0;
   if (!ws._room) return;
   const room = ws._room;
   const members = rooms.get(room);
@@ -282,6 +300,8 @@ wss.on("connection", (ws, req) => {
   ws._username = null;
   ws._team = null;
   ws._spectator = false;
+  ws._revealOpponents = false;
+  ws._presenceRevision = 0;
   ws._rateCount = 0;
   ws._rateWindowStart = Date.now();
 
@@ -327,6 +347,8 @@ wss.on("connection", (ws, req) => {
         ws._username = sanitizeUsername(msg.username);
         ws._team = normalizeTeam(msg.team);
         ws._spectator = normalizeBoolean(msg.spectator);
+        ws._revealOpponents = msg.revealOpponents === true;
+        ws._presenceRevision = normalizePresenceRevision(msg.presenceRevision);
         if (!rooms.has(room)) rooms.set(room, new Set());
         rooms.get(room).add(ws);
         ws._room = room;

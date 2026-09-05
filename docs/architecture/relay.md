@@ -98,7 +98,8 @@ deliberately flat-only). Examples:
 
 ```json
 {"type":"chat","text":"gg","audience":"team","targetTeam":0,"ts":1712345678}
-{"type":"room_change","room":"AAX45ABA","username":"Ispicas","team":0,"spectator":false}
+{"type":"room_change","room":"AAX45ABA","username":"Ispicas","team":0,"spectator":false,"revealOpponents":false,"presenceRevision":1}
+{"type":"presence","room":"AAX45ABA","members":"Ispicas\nTeammate","revealOpponents":false,"presenceRevision":1}
 {"type":"profile_upsert","prometheus_id":"6333a58673a37dc7cb11a7a7","display_name":"Ispicas"}
 {"type":"update_check","reason":"match_completed","ts":1712345678}
 {"type":"update_available","installedVersion":"0.3.0","latestVersion":"0.4.0","releaseUrl":"https://github.com/LuizinhoF/osplus/releases/tag/v0.4.0","assetUrl":"https://github.com/LuizinhoF/osplus/releases/download/v0.4.0/OSPlus.zip","ts":1712345678}
@@ -162,6 +163,29 @@ pay a correlation-ID tax for no gain.
   still carry a team-like viewing-side value. The relay rejects
   team-targeted messages unless the sender is on that team or has
   `spectator:true`.
+- **Presence is recipient-specific, not the room roster.** `room_change`
+  and `join` also carry `revealOpponents` (only boolean `true` enables it)
+  and `presenceRevision` (positive safe integer, invalid/missing becomes 0).
+  Lua defaults to restricted and enables opponents only after observing
+  `CurrentMatchPhase == EMatchPhase.InGame` (5) for that match seed. This
+  permission survives goals/KOs/intermissions but resets on seed/map/room exit.
+  The existing throttled room checks read phase; no new phase hook is assumed.
+  Until enabled, the relay includes self plus confirmed same-team players;
+  spectators and unknown-team recipients see only themselves, and are not
+  included as teammates. Once enabled, all connected room members are shown.
+  Chat message audiences and room identifiers are unchanged.
+- **Presence snapshots echo the recipient's revision and permission.** The
+  sidecar caches these with the join identity, including across reconnects.
+  Both sidecar and Lua reject snapshots with another room, revision, or
+  permission, as well as legacy untagged snapshots. Lua clears cached presence
+  before changing audience, including while waiting for identity to resolve;
+  revisions do not restart on map changes. Existing newline-separated names
+  remain flat JSON, with no extra per-member delimiter scheme.
+  A new client on an old relay therefore shows no presence list; an old client
+  on a new relay stays restricted. Deploy the relay before distributing the
+  matching Lua/sidecar build. These client-reported fields prevent accidental
+  disclosure in OSPlus; they are not authenticated game-state/anti-cheat proof.
+  See [investigation and pending in-game checks](../learnings/chat-pregame-presence-privacy.md).
 - **Hardening baseline** (relay-side):
   - 4 KB max payload (ws-level cap).
   - 5 connections per source IP.

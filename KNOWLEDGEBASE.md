@@ -240,12 +240,10 @@ they too move (per the migration banner at the top of this file).
 
 > **Migrated → [`docs/engine/game-state.md` → "Phase model"](docs/engine/game-state.md#phase-model)
 > and [→ "Match detection"](docs/engine/game-state.md#match-detection).**
-> All five phase class-tuples (Main Menu, Character Select,
-> Active Gameplay, Awakening Select, Practice Mode) and the
-> proven `isInMatch()` predicate are preserved. The "between
-> rounds" terminology in the original was reconciled with the
-> player-side canonical "between sets" — see migrated doc's
-> note on the Awakening Select phase.
+> The canonical reference separates seed-based match identity from
+> reflected phase state, catalogs the stored enum, and labels class
+> tuples as historical observations. Runtime phase timing and draft
+> boundaries remain explicit verification questions there.
 > Section retained as a stub so existing references still resolve.
 
 ### Class Hierarchy Reference

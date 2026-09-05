@@ -170,15 +170,42 @@ let currentRoom = null;
 let currentUsername = null;
 let currentTeam = null;
 let currentSpectator = false;
+let currentRevealOpponents = false;
+let currentPresenceRevision = 0;
 
 function normalizeTeam(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  return Number.isInteger(n) && (n === 0 || n === 1) ? n : null;
+  if (value === 0 || value === "0") return 0;
+  if (value === 1 || value === "1") return 1;
+  return null;
 }
 
 function normalizeBoolean(value) {
   return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function normalizePresenceRevision(value) {
+  return Number.isSafeInteger(value) && value > 0 ? value : 0;
+}
+
+function currentJoinMessage() {
+  return {
+    type: "join", room: currentRoom, username: currentUsername,
+    team: currentTeam, spectator: currentSpectator,
+    revealOpponents: currentRevealOpponents, presenceRevision: currentPresenceRevision,
+  };
+}
+
+function presenceMatchesCurrentContext(message) {
+  // Delayed snapshots can outlive a room/team/phase change. Reject them before
+  // writing either names to IPC or raw payloads to persistent logs. Legacy
+  // relay snapshots without these explicit tags cannot prove their scope.
+  // See docs/learnings/chat-presence.md.
+  return currentRoom !== null && message.room === currentRoom &&
+    Number.isSafeInteger(message.presenceRevision) && message.presenceRevision >= 0 &&
+    message.presenceRevision === currentPresenceRevision &&
+    typeof message.revealOpponents === "boolean" &&
+    message.revealOpponents === currentRevealOpponents &&
+    typeof message.members === "string";
 }
 
 function describeRoomIdentity() {
@@ -195,13 +222,15 @@ function joinRoom(room) {
     ws.send(JSON.stringify({ type: "leave", room: previousRoom }));
     console.log(`[WS] Leaving room: ${previousRoom}`);
   }
-  ws.send(JSON.stringify({ type: "join", room, username: currentUsername, team: currentTeam, spectator: currentSpectator }));
+  ws.send(JSON.stringify(currentJoinMessage()));
   console.log(`[WS] Joining room: ${room} as ${currentUsername || "(no username)"} (${describeRoomIdentity()})`);
 }
 
 function leaveCurrentRoom() {
   const room = currentRoom;
   currentRoom = null;
+  currentRevealOpponents = false;
+  currentPresenceRevision = 0;
   if (!connected || !ws || ws.readyState !== WebSocket.OPEN) return;
   if (!room) return;
   ws.send(JSON.stringify({ type: "leave", room }));
@@ -238,7 +267,7 @@ function connect() {
     console.log(`[WS] Connected (no room yet, waiting for match)`);
     startKeepalive(ws);
     if (currentRoom) {
-      ws.send(JSON.stringify({ type: "join", room: currentRoom, username: currentUsername, team: currentTeam, spectator: currentSpectator }));
+      ws.send(JSON.stringify(currentJoinMessage()));
       console.log(`[WS] Re-joining room: ${currentRoom} as ${currentUsername || "(no username)"} (${describeRoomIdentity()})`);
     }
   });
@@ -255,6 +284,8 @@ function connect() {
     } catch {
       return;
     }
+    if (!msg || typeof msg !== "object") return;
+    if (msg.type === "presence" && !presenceMatchesCurrentContext(msg)) return;
 
     if (msg.type === "joined") {
       console.log(`[WS] Joined room: ${msg.room}`);
@@ -308,6 +339,10 @@ fs.watchFile(OUTBOX, { interval: 50 }, () => {
       }
       currentTeam = normalizeTeam(msg.team);
       currentSpectator = normalizeBoolean(msg.spectator);
+      // Cache desired privacy context before checking transport readiness so
+      // initial joins and reconnects apply the same recipient policy.
+      currentRevealOpponents = msg.revealOpponents === true;
+      currentPresenceRevision = normalizePresenceRevision(msg.presenceRevision);
       joinRoom(msg.room);
       continue;
     }

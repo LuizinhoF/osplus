@@ -11,6 +11,13 @@
 > now uses the shared `identity.lua` local display-name resolver. The original
 > `PlayerNamePrivate` / `cachedPlayerName` description is no longer current.
 
+> **2026-09-05 privacy correction:** The pipeline below describes the original
+> roster transport. Presence is now filtered per recipient before gameplay,
+> and both sidecar and Lua validate room/revision/audience metadata before
+> accepting it. Steps 3-5 and the old compatibility description below are
+> historical; see [chat-pregame-presence-privacy](chat-pregame-presence-privacy.md)
+> and [the current protocol](../architecture/relay.md#websocket--chat--ping-fanout).
+
 ## Symptom
 
 No symptom — this is the design rationale for the v16 presence feature so the next person doesn't have to re-derive it.

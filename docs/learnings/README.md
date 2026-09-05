@@ -27,6 +27,7 @@ Add new entries here, newest first.
 
 | Date | Slug | Area | One-line summary |
 |---|---|---|---|
+| 2026-09-05 | [chat-pregame-presence-privacy](chat-pregame-presence-privacy.md) | mod / sidecar / relay | Filter presence to confirmed teammates until same-seed gameplay evidence; reject stale audience snapshots. Stored phase schema and offline behavior checked; user will test in-game. |
 | 2026-09-05 | [update-notice-release-link-input](update-notice-release-link-input.md) | ue-editor | Inline EN/PT hints and exact-tag clicks work live; native tooltips had stranded on minimize. Settings input uses the native router because UE4SS 3.0.1 custom events retain the first registration. The corrected 27-scenario mock and live Settings cover/restore click tests pass; exact minimize remains unverified. |
 | 2026-07-28 | [ue4ss-stale-uobject-getclass-crash](ue4ss-stale-uobject-getclass-crash.md) | mod / UE4SS | A one-hertz router probe crashed at `UE4SS.dll+0x229E17`: `UObject:GetClass()` dereferenced a stale wrapper's null remote pointer. Use lifecycle events and null-guarded `GetFullName()` filtering instead of polling transient UI objects. |
 | 2026-07-28 | [home-hub-visibility-requires-router-and-loading-state](home-hub-visibility-requires-router-and-loading-state.md) | mod / re | Persistent Home Hub widget existence is not visibility, and a global viewport child cannot inherit its transition. Parent Home Hub-only UI into `UIContainer`, use router display state, and let native loading/modal layers cover it without a settle timer. |

@@ -42,9 +42,13 @@ local update_notification = require("update_notification")
 -- ipc.spawnRemotePing = pings.spawn
 chat.onChatSent       = function(sender, text, audience, targetTeam) ipc.writeChatToOutbox(sender, text, audience, targetTeam) end
 ipc.onChatReceived    = function(sender, text, audience, targetTeam) chat.addMessage(sender, text, audience, targetTeam, true) end
-chat.onRoomChange     = function(room, username, team, isSpectator) ipc.writeRoomChange(room, username, team, isSpectator) end
+chat.onRoomChange     = function(room, username, team, isSpectator, revealOpponents, presenceRevision)
+    ipc.writeRoomChange(room, username, team, isSpectator, revealOpponents, presenceRevision)
+end
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
-ipc.onPresenceReceived = function(members) chat.setPresence(members) end
+ipc.onPresenceReceived = function(members, room, revision, revealOpponents)
+    chat.setPresence(members, room, revision, revealOpponents)
+end
 update_notification.onUpdateCheckRequested = function(reason) return ipc.writeUpdateCheck(reason) end
 ipc.onUpdateAvailable = function(latestVersion, installedVersion, releaseUrl, assetUrl)
     update_notification.onUpdateAvailable(latestVersion, installedVersion, releaseUrl, assetUrl)

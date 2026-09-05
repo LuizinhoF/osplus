@@ -183,16 +183,19 @@ Audited 2026-07-24 against `mod/OSPlus/scripts/chat.lua` and the rebuilt `WBP_Mo
 | `M.widget` | operational | Cached UE object reference. Single owner. |
 | `M.inMatch` | operational | Cached polling result. |
 | `M.currentRoom` | domain | Match-wide WebSocket room code. |
+| `M.currentSeed` | domain | Raw seed for the cached valid join, compared separately from the encoded room. Cleared while a changed context awaits rejoin, including identity retries. |
 | `M.currentTeam` | domain | Local relay routing team (`0` for game `TeamOne`, `1` for game `TeamTwo`; `nil` for spectator or unknown). Spectator status is tracked separately; `nil` team alone is not a caster permission signal. |
 | `M.currentSpectator` | domain | Explicit local spectator flag derived from PlayerState spectator signals. Used for relay policy, because spectators may still carry an `AssignedTeam` viewing-side value. |
 | `M.currentUsername` | domain | Last username sent to the relay for room membership; sourced from `identity.lua`, and changed names trigger a same-room rejoin. |
 | `M.roomDelayTicks`, `roomRetries`, `matchProbeTimer`, `matchExitTimer` | operational | Timer state. |
 | `M.messages` | domain | Array of `{sender, text, audience, targetTeam, time}`. Painful in BP. |
-| `M.presence` | domain | Array of usernames in the current room (relay-pushed). Cached so widget reattach can re-render without waiting for the next server broadcast. |
+| `M.currentRevealOpponents`, `presenceSeed`, `opponentsRevealed` | domain | Requested presence audience plus same-seed gameplay evidence. Defaults restricted; explicit `InGame=5` permits opponents until seed/map/room exit. Unknown phases cannot grant permission. |
+| `M.presenceRevision` | operational | Monotonic Lua-session snapshot revision, echoed by relay. Invalidates delayed lists across room/team/audience changes and map resets. |
+| `M.presence` | domain | Array of currently permitted usernames, not the full room roster. Relay filters by team before gameplay; Lua accepts only matching room/revision/audience and caches that list for widget reattach. |
 | `M.feedTicks`, `M.feedVisible` | operational / derived display | Own the 10-second passive-feed lifetime and mirror the resulting background visibility into UMG. |
 | `M.selectedChannel`, `M.channelRole`, `M.channelTouched` | domain / UI choice | Own the match-scoped audience selection, role-specific valid choices, and sticky-selection behavior. |
 | `M.overlayFlags` | operational | Tracks the native `WBP_SettingsHub_C` navigation lifecycle so chat is suppressed while the Escape/settings screen is open. |
-| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username, team, isSpectator)` since v51. |
+| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username, team, isSpectator, revealOpponents, presenceRevision)`. Presence returns through `setPresence(members, room, revision, revealOpponents)`; the Blueprint still only receives formatted text. |
 
 `chat.lua` deliberately owns no player-name cache. Local display-name ownership
 stays in `identity.lua`, whose session identity source does not depend on a
