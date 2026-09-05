@@ -34,6 +34,7 @@ local chat   = require("chat")
 -- resolved. The sidecar then PUTs /api/profiles/{pid} on the relay. Per
 -- ADR 0002 + in-game-profile-mvp Slice 1-C.
 local profile = require("profile")
+local update_notification = require("update_notification")
 
 -- Wire cross-module callbacks
 -- DISABLED: ping callbacks
@@ -44,6 +45,13 @@ ipc.onChatReceived    = function(sender, text, audience, targetTeam) chat.addMes
 chat.onRoomChange     = function(room, username, team, isSpectator) ipc.writeRoomChange(room, username, team, isSpectator) end
 chat.onRoomLeave      = function() ipc.writeRoomLeave() end
 ipc.onPresenceReceived = function(members) chat.setPresence(members) end
+update_notification.onUpdateCheckRequested = function(reason) return ipc.writeUpdateCheck(reason) end
+ipc.onUpdateAvailable = function(latestVersion, installedVersion, releaseUrl, assetUrl)
+    update_notification.onUpdateAvailable(latestVersion, installedVersion, releaseUrl, assetUrl)
+end
+chat.onMatchEnded = function()
+    update_notification.onMatchCompleted()
+end
 
 -- Wire each feature's engine integration. Per .cursor/rules/mod-architecture.mdc
 -- "feature owns its engine integration": each module's M.init() registers
@@ -63,6 +71,7 @@ end
 i18n.init()
 chat.init()
 profile.init()
+update_notification.init()
 
 -- Production emote-tab override. Hooks WBP_Panel_StrikerCosmetics_C:SetActivePanel
 -- via RegisterCustomEvent, redirects Emote-sub-tab clicks to our cooked
@@ -152,13 +161,16 @@ print("==============================================\n")
 
 RegisterLoadMapPostHook(function()
     log.log("[EVENT] Map loaded")
-    chat.reset()
     ipc.truncateInbox()
+    chat.reset()
+    update_notification.reset()
     chat.onMapLoaded()
+    update_notification.onMapLoaded()
 end)
 
 -- Probe for the initial map (already loaded before mod starts)
 chat.onMapLoaded()
+update_notification.onMapLoaded()
 
 local tickLoopStarted = false
 

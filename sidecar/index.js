@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
 const { createProfileClient } = require("./profile");
+const { createUpdateClient } = require("./update");
 
 // ---------------------------------------------------------------------------
 // Persistent log
@@ -143,6 +144,18 @@ function appendToInbox(jsonStr) {
     console.error(`[IPC] Inbox write error: ${err.message}`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Update client - owns release HTTP, installed-version comparison, and the
+// flat update_available inbox event. Lua owns presentation and session dedupe.
+// ---------------------------------------------------------------------------
+
+const updateClient = createUpdateClient({
+  log: console.log,
+  emit: (event) => appendToInbox(JSON.stringify(event)),
+  relayUrl: RELAY_URL,
+  config: CONFIG,
+});
 
 // ---------------------------------------------------------------------------
 // WebSocket connection
@@ -313,6 +326,14 @@ fs.watchFile(OUTBOX, { interval: 50 }, () => {
       });
       continue;
     }
+    if (msg.type === "update_check") {
+      // update_check is local sidecar work and must never fall through to the
+      // chat WebSocket. The update client validates the lifecycle reason.
+      updateClient.handleUpdateCheck(msg).catch((err) => {
+        console.error(`[UPDATES] [ERR] handleUpdateCheck threw: ${err && err.stack ? err.stack : String(err)}`);
+      });
+      continue;
+    }
 
     if (!connected || !ws || ws.readyState !== WebSocket.OPEN) {
       console.log(`[IPC] Not connected, dropping: ${line.slice(0, 80)}`);
@@ -366,4 +387,7 @@ console.log(`[SIDECAR] Room:   auto (derived from match seed; messages carry aud
 console.log(`[SIDECAR] IPC:    ${IPC_DIR}`);
 console.log(`[SIDECAR] Watchdog: ${HEARTBEAT_TIMEOUT_MS / 1000}s heartbeat timeout`);
 
+updateClient.check("startup").catch((err) => {
+  console.error(`[UPDATES] [ERR] startup check threw: ${err && err.stack ? err.stack : String(err)}`);
+});
 connect();

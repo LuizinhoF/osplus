@@ -83,11 +83,19 @@ set "DATA_DIR=!MOD_DIR!\data"
 set "PAK_DIR=!GAME_PATH!\OmegaStrikers\Content\Paks\LogicMods"
 set "THIS_DIR=%~dp0"
 set "UE4SS_SRC=!THIS_DIR!ue4ss-files"
+set "VERSION_SRC=!THIS_DIR!version.json"
 
 if not exist "!BIN_DIR!" (
     echo [ERROR] Game Binaries\Win64 folder not found at:
     echo         !BIN_DIR!
     echo         Verify your game files in Steam.
+    pause
+    exit /b 1
+)
+if not exist "!VERSION_SRC!" (
+    echo [ERROR] Release version marker missing from installer:
+    echo         !VERSION_SRC!
+    echo         Re-extract the official OSPlus.zip and try again.
     pause
     exit /b 1
 )
@@ -135,12 +143,37 @@ if exist "!BIN_DIR!\UE4SS.dll" (
     )
 
     copy /y "!UE4SS_SRC!\dwmapi.dll"          "!BIN_DIR!\" >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to copy dwmapi.dll
+        pause
+        exit /b 1
+    )
     copy /y "!UE4SS_SRC!\UE4SS.dll"           "!BIN_DIR!\" >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to copy UE4SS.dll
+        pause
+        exit /b 1
+    )
     copy /y "!UE4SS_SRC!\UE4SS-settings.ini"  "!BIN_DIR!\" >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to copy UE4SS-settings.ini
+        pause
+        exit /b 1
+    )
     copy /y "!UE4SS_SRC!\UE4SS-LICENSE.txt"   "!BIN_DIR!\" >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to copy UE4SS license
+        pause
+        exit /b 1
+    )
 
     if not exist "!MODS_DIR!" mkdir "!MODS_DIR!"
     xcopy /y /q /e /i "!UE4SS_SRC!\Mods" "!MODS_DIR!" >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to copy the bundled UE4SS Mods folder
+        pause
+        exit /b 1
+    )
 
     :: Strip Mark-of-the-Web from extracted DLLs (Windows blocks unblocked DLLs silently)
     del "!BIN_DIR!\dwmapi.dll:Zone.Identifier"          2>nul
@@ -167,7 +200,7 @@ if not exist "!DATA_DIR!\emotes" mkdir "!DATA_DIR!\emotes"
 if not exist "!DATA_DIR!\localization\screens" mkdir "!DATA_DIR!\localization\screens"
 if not exist "!PAK_DIR!" mkdir "!PAK_DIR!"
 
-echo   [1/5] Copying Lua scripts...
+echo   [1/6] Copying Lua scripts...
 xcopy /y /q "!THIS_DIR!mod\scripts\*.lua" "!SCRIPTS_DIR!\" >nul
 if errorlevel 1 (
     echo [ERROR] Failed to copy Lua scripts
@@ -175,7 +208,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   [2/5] Copying emote metadata...
+echo   [2/6] Copying runtime data...
 xcopy /y /q /e /i "!THIS_DIR!mod\data" "!DATA_DIR!" >nul
 if errorlevel 1 (
     echo [ERROR] Failed to copy emote metadata
@@ -183,7 +216,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   [3/5] Copying sidecar...
+echo   [3/6] Copying sidecar...
 :: Kill any running sidecar so the copy doesn't fail with "file in use"
 taskkill /f /im OSPlus.exe          >nul 2>&1
 taskkill /f /im OmegaStrikersChat.exe >nul 2>&1
@@ -194,16 +227,36 @@ if errorlevel 1 (
     exit /b 1
 )
 copy /y "!THIS_DIR!mod\sidecar\launch_hidden.vbs"     "!SIDECAR_DIR!\" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to copy sidecar launcher
+    pause
+    exit /b 1
+)
 del "!SIDECAR_DIR!\OSPlus.exe:Zone.Identifier"        2>nul
 del "!SIDECAR_DIR!\launch_hidden.vbs:Zone.Identifier" 2>nul
 if not exist "!SIDECAR_DIR!\config.json" (
     copy /y "!THIS_DIR!mod\sidecar\config.json" "!SIDECAR_DIR!\" >nul
+    if errorlevel 1 (
+        echo [ERROR] Failed to copy sidecar configuration
+        pause
+        exit /b 1
+    )
 )
 
-echo   [4/5] Copying Blueprint pak...
+echo   [4/6] Copying Blueprint pak...
+if not exist "!THIS_DIR!mod\OSPlus.pak" (
+    echo [ERROR] OSPlus.pak is missing from the installer
+    pause
+    exit /b 1
+)
 copy /y "!THIS_DIR!mod\OSPlus.pak" "!PAK_DIR!\" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to copy OSPlus.pak
+    pause
+    exit /b 1
+)
 
-echo   [5/5] Enabling mod in mods.txt...
+echo   [5/6] Enabling mod in mods.txt...
 set "MODS_TXT=!MODS_DIR!\mods.txt"
 findstr /c:"OSPlus" "!MODS_TXT!" >nul 2>&1
 if errorlevel 1 (
@@ -222,6 +275,20 @@ if errorlevel 1 (
 if exist "!MODS_TXT!" (
     findstr /v /c:"OmegaStrikersTest" "!MODS_TXT!" > "!MODS_TXT!.tmp" 2>nul
     move /y "!MODS_TXT!.tmp" "!MODS_TXT!" >nul 2>&1
+)
+findstr /c:"OSPlus" "!MODS_TXT!" >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Failed to enable OSPlus in mods.txt
+    pause
+    exit /b 1
+)
+
+echo   [6/6] Recording installed version...
+copy /y "!VERSION_SRC!" "!MOD_DIR!\version.json" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to record the installed OSPlus version
+    pause
+    exit /b 1
 )
 
 :: ---------------------------------------------------------------------------

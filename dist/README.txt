@@ -3,7 +3,9 @@
 =====================================
 
 OSPlus is a community mod platform for Omega Strikers. This package includes
-in-match text chat shared between OSPlus users in the same match.
+in-match text chat shared between OSPlus users in the same match. When a newer
+stable OSPlus release is available, the Home Hub also shows a small,
+non-blocking update notice above the Competitive selector.
 
 
 INSTALL - WINDOWS
@@ -81,9 +83,11 @@ If you want to run your own relay (closed group, LAN, dev), edit:
   <game>\Binaries\Win64\Mods\OSPlus\sidecar\config.json
 
   {
-    "relay_url": "wss://your-server.example.com"
+    "relay_url": "wss://your-server.example.com",
+    "update_url": "https://your-server.example.com/updates/latest"
   }
 
+If update_url is omitted, OSPlus derives it from relay_url automatically.
 Use wss:// (TLS) for anything reachable over the internet. ws:// is
 fine for localhost / LAN testing only.
 
@@ -147,6 +151,10 @@ UPDATE
 OSPlus releases now live on GitHub:
 
   https://github.com/LuizinhoF/osplus/releases/latest
+
+When the game detects a newer stable release, it plays one quiet cue and shows
+a compact notice in the Home Hub. The notice is informational only: it never
+blocks play, downloads files, closes the game, or installs the update for you.
 
 To update from an extracted OSPlus package:
 

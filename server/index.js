@@ -1,7 +1,7 @@
 /**
- * OSPlus chat/ping relay + profile persistence
- * --------------------------------------------
- * Two responsibilities under one process (per ADR 0002 S-A):
+ * OSPlus chat/ping relay + HTTP services
+ * ---------------------------------------
+ * Three responsibilities under one process:
  *
  *   1. WebSocket chat/ping fanout — room-scoped, ephemeral, no persistence.
  *      Rooms vanish on process restart by design.
@@ -10,6 +10,9 @@
  *      by `data/osplus.sqlite3` via the persistence module in `server/api/`.
  *      Boundary discipline: only `api.handleHttp(req, res)` is called from
  *      this file; the DB instance is owned by that module.
+ *
+ *   3. Public GET `/updates/latest`, a short-lived in-memory projection of
+ *      the latest stable GitHub Release. No auth and no persistence.
  *
  * Deployment:
  *   - Bound to 127.0.0.1; reverse-proxied by Caddy on the public TLS endpoint.
@@ -36,6 +39,12 @@ const http = require("http");
 const path = require("path");
 const { WebSocketServer } = require("ws");
 const { createApi } = require("./api");
+const {
+  DEFAULT_ASSET_NAME,
+  DEFAULT_CACHE_TTL_MS,
+  DEFAULT_REPO,
+  createUpdates,
+} = require("./updates");
 
 // === Configuration ============================================================
 
@@ -44,6 +53,14 @@ const HOST          = process.env.HOST || "127.0.0.1";
 const RELAY_TOKEN   = process.env.RELAY_TOKEN || "";
 const TRUST_PROXY   = process.env.TRUST_PROXY === "1";
 const DATA_DIR      = process.env.OSPLUS_DATA_DIR || path.join(__dirname, "data");
+const RELEASE_REPO  = process.env.OSPLUS_RELEASE_REPO || DEFAULT_REPO;
+const RELEASE_ASSET = process.env.OSPLUS_RELEASE_ASSET || DEFAULT_ASSET_NAME;
+const RELEASE_CACHE_TTL_MS = parsePositiveInt(
+  process.env.OSPLUS_RELEASE_CACHE_TTL_MS,
+  DEFAULT_CACHE_TTL_MS,
+);
+const RELEASE_OVERRIDE_VERSION = process.env.OSPLUS_RELEASE_OVERRIDE_VERSION || "";
+const GITHUB_TOKEN = process.env.OSPLUS_GITHUB_TOKEN || "";
 
 // === Limits ===================================================================
 
@@ -76,6 +93,12 @@ const connsPerIp   = new Map(); // ip -> count
 
 function log(msg) {
   console.log(`${new Date().toISOString()} ${msg}`);
+}
+
+function parsePositiveInt(raw, fallback) {
+  if (raw === undefined || raw === null || raw === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function getClientIp(req) {
@@ -188,16 +211,22 @@ function removeFromRoom(ws) {
 // === Persistence (REST /api/*) ================================================
 
 const api = createApi({ dataDir: DATA_DIR, log });
+const updates = createUpdates({
+  log,
+  repo: RELEASE_REPO,
+  assetName: RELEASE_ASSET,
+  cacheTtlMs: RELEASE_CACHE_TTL_MS,
+  githubToken: GITHUB_TOKEN,
+  overrideVersion: RELEASE_OVERRIDE_VERSION,
+});
 
 // === HTTP server ==============================================================
 
 const httpServer = http.createServer(async (req, res) => {
-  // /api/* is owned by the persistence module. handleHttp returns true if it
-  // responded; we only fall through to /health and the 404 default on false.
-  // Async errors inside the dispatcher are caught there and turned into 500
-  // JSON; this outer try/catch is belt-and-suspenders so a bug can't take
-  // the relay down on a malformed request.
+  // Public update metadata and authenticated /api/* persistence are separate
+  // modules. Each returns true only when it owns the request.
   try {
+    if (await updates.handleHttp(req, res)) return;
     if (await api.handleHttp(req, res)) return;
   } catch (err) {
     log(`[ERR] HTTP dispatch crashed: ${err && err.stack ? err.stack : String(err)}`);
@@ -370,6 +399,7 @@ httpServer.listen(PORT, HOST, () => {
   log(`[RELAY] Trust X-Forwarded-For: ${TRUST_PROXY ? "yes" : "no"}`);
   log(`[RELAY] WS limits:           ${MAX_PAYLOAD_BYTES}B/msg, ${MAX_CONNS_PER_IP} conns/ip, ${MAX_MSG_RATE} msg/s`);
   log(`[RELAY] Data dir:            ${DATA_DIR}`);
+  log(`[RELAY] Update cache TTL:    ${RELEASE_CACHE_TTL_MS}ms`);
 });
 
 function shutdown(sig) {

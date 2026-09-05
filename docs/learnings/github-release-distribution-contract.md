@@ -25,6 +25,9 @@ or check.
 The release contract is now:
 
 - `dist/version.json` is the source of truth for the public version.
+- `build_dist.ps1` places that manifest at the root of `OSPlus.zip`.
+- Windows and Linux installers write the same manifest to
+  `Mods/OSPlus/version.json` only after required installation steps succeed.
 - GitHub tags are `v<version>`.
 - GitHub Releases upload `OSPlus.zip`.
 - `update.bat` and `update.sh` download
@@ -33,12 +36,14 @@ The release contract is now:
 
 ## Lesson
 
-Keep the asset name stable and put the changing version in the tag and local
-release manifest. That gives users and scripts a permanent latest-release URL
-without exposing maintainer metadata as a separate player-facing asset.
+Keep the asset name stable and put the changing version in the tag and one
+packaged manifest. Carrying that exact manifest from source to archive to
+installed mod gives release tooling and the sidecar one public-version fact
+without a duplicated executable or Lua constant.
 
 ## Related
 
-- Files: `dist/version.json`, `dist/update.ps1`, `dist/update.sh`,
+- Files: `dist/version.json`, `build_dist.ps1`, `dist/install.bat`,
+  `dist/install.sh`, `dist/update.ps1`, `dist/update.sh`,
   `tools/release/publish_github_release.ps1`
 - Docs: `docs/ops/github-release-distribution.md`

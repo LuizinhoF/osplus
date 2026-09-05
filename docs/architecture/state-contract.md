@@ -279,6 +279,69 @@ Items 1 and 2 remain cleanup tasks; they do not change the runtime ownership con
 
 ---
 
+## Update availability notification contract
+
+`update_notification.lua` owns the release fact received from IPC, the pending
+notice, Home Hub display/attachment state, the decision to request a check when
+chat publishes its existing match-ended edge, and the set of versions already
+presented during this game session. Blueprint does not compare versions or
+decide whether a notice is eligible.
+
+The cooked `WBP_OSPlusUpdateNotice` owns card visibility, rendered text, its
+one-shot entrance animation, its one quiet sound, and the release-link button's
+active target, hover state, enabled state, and inline hover hint. Lua pushes
+five commands:
+
+- `OSPlus_SetLocalizedText(titleString, versionLineString)` — convert ordinary
+  Lua strings to BP-owned text and write both text blocks. Lua must not call
+  UMG `SetText` directly on UE4SS 3.0.1.
+- `OSPlus_SetReleaseLink(releaseUrlString, tooltipString)` — populate the
+  validated destination and convert the localized inline hint into BP text.
+  The `tooltipString` name is retained for compatibility; BP does not create
+  a standard tooltip popup. An empty URL clears the target and hint, disables
+  the button, and resets the hover display. Lua only permits the
+  exact HTTPS OSPlus release tag matching the displayed stable version, and
+  retains that visible release fact for language refresh/restoration.
+- `OSPlus_ShowUpdateNotice(latestVersion)` — make the already-populated card
+  visible. The version argument stays in the contract for compatibility but
+  the function does not format English copy.
+- `OSPlus_PlayUpdateNoticeCue()` — restart the one-shot entrance animation and
+  play the quiet sound after the native loading screen has finished hiding, or
+  immediately if it is already gone.
+- `OSPlus_HideUpdateNotice()` — collapse the card when the Home Hub visit ends.
+
+There is no update-widget BP-to-Lua state for this feature. Lua never polls its
+animation state. The bounded button handles `OnClicked` in Blueprint and calls
+`OSPlus_OpenReleasePage`, which guards an empty target before using the engine's
+`LaunchURL`. BP handles `OnHovered`/`OnUnhovered` through
+`OSPlus_SetReleaseHover`, swapping the secondary line inside `VersionDisplay`.
+The version remains `Hidden` while the hint shows so its layout space remains.
+The localization key is still `update_notification.view_release`.
+
+This interaction does not emit IPC or install the update. The widget never
+sees relay, cache, installed-version, or lifecycle-trigger details. Lua uses
+native loading events and its existing
+`OdyUIRouter:OnMenuDisplayStateChanged` hook to suspend link input and clear the applied
+hint while those overlays cover the Home Hub, then restores the saved visible
+release without ending the visit or replaying the consumed cue. Loading
+hide-completion also releases the cue at the right moment. Lua owns
+reparenting the collapsed widget into
+`WBP_HomeHub_PC_C.UIContainer`; Blueprint remains responsible only for the
+card's internal rendering, sound, animation, and click interaction after that
+native attachment. The outer full-screen widget is `SelfHitTestInvisible` when
+link input is allowed, so descendant buttons can receive input without blocking
+neighboring controls. It becomes `HitTestInvisible` while native overlays cover
+the hub or when the link setter fails.
+
+For `WBP_SettingsHub_C`, a numeric nonzero router state enables the input
+cover, `NotShowing` (`0`) clears it, and unreadable state preserves it. Settings
+does not depend on a second `RegisterCustomEvent` navigation subscription:
+chat initializes first, and UE4SS 3.0.1 retains only the first callback per
+short event name. The notice's native router hook is also its primary Home Hub
+state source; remaining Home Hub custom navigation callbacks are best effort.
+
+---
+
 ## Future features will use this contract from day one
 
 When Profile, Friends, Cosmetics, etc. land, each starts with the contract block at the top of its Lua module (see template above). The reviewer's first job (whether human or agent) is to verify the contract is honored: every state variable in one bucket, one owner, no mirroring, no two-writer races.

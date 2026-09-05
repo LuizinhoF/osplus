@@ -74,6 +74,11 @@ Invoke-External "scp api/" {
     & scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" -r "$serverDir\api" "${User}@${VmHost}:$RemoteStaging/server/"
 }
 
+Write-Step "Uploading updates/"
+Invoke-External "scp updates/" {
+    & scp -i $KeyPath -o "StrictHostKeyChecking=accept-new" -r "$serverDir\updates" "${User}@${VmHost}:$RemoteStaging/server/"
+}
+
 # 3b. Normalize line endings on the remote side. Even with .gitattributes
 #     enforcing LF on *.sh / *.service / Caddyfile, files can still end up
 #     with CRLF if they were edited outside Git's normalization (e.g.

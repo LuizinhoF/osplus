@@ -55,6 +55,29 @@ if (-not (Test-Path $zipPath)) {
     throw "Release zip not found: $zipPath"
 }
 
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+try {
+    $versionEntry = $archive.GetEntry("version.json")
+    if (-not $versionEntry) {
+        throw "Release zip is missing version.json at its root."
+    }
+
+    $reader = [System.IO.StreamReader]::new($versionEntry.Open())
+    try {
+        $archivedManifest = $reader.ReadToEnd() | ConvertFrom-Json
+    } finally {
+        $reader.Dispose()
+    }
+
+    $archivedVersion = [string]$archivedManifest.version
+    if ($archivedVersion -ne $version) {
+        throw "Release zip version '$archivedVersion' does not match manifest/tag version '$version'."
+    }
+} finally {
+    $archive.Dispose()
+}
+
 $headers = @{
     "Authorization" = "Bearer $token"
     "Accept" = "application/vnd.github+json"

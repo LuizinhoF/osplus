@@ -35,12 +35,13 @@ linked to the version-sensitive learnings under
   (`pcall` everything, game thread, hook param wrapping,
   Blueprint events vs native, Lua 5.4 quirks, etc.) — see
   [§"Common pitfalls"](#common-pitfalls).
-- **Five UE4SS-3.0.1-specific known bugs** with documented
+- **Six UE4SS-3.0.1-specific known bugs** with documented
   workarounds in `docs/learnings/`:
   out-param marshaling shape, multicast delegate `Add` no-op,
   cold-start hook install pattern, `ExecuteInGameThread` +
   `UnregisterHook` corruption, and BP-function-name resolution
-  by display-name-without-spaces. See
+  by display-name-without-spaces, plus first-registration-wins
+  custom-event names. See
   [§"UE4SS 3.0.1 known bugs"](#ue4ss-301-known-bugs).
 
 ## The version pin and why it bites
@@ -74,7 +75,7 @@ releases — and that's exactly the surface OSPlus depends on most.
 - Re-run any version-sensitive probes.
 - Revisit `docs/learnings/ue4ss-*.md` — each carries a "tested
   under" note; verify still applies.
-- Specifically re-test the five known bugs in
+- Specifically re-test the six known bugs in
   [§"UE4SS 3.0.1 known bugs"](#ue4ss-301-known-bugs) — some may
   be fixed upstream; others may be replaced by new ones.
 
@@ -88,6 +89,7 @@ releases — and that's exactly the surface OSPlus depends on most.
 | `RegisterBeginPlayPostHook(cb)` | After any actor's `BeginPlay` | Fires per-actor; used carefully, can be high-cadence. |
 | `NotifyOnNewObject(className, cb)` | When any instance of `className` is constructed | Class name short form, no `_C` suffix typically. Use for catching constructor moments (e.g., first `PMPlayerPublicProfile` = local player — see [`docs/learnings/os-runtime-data-model.md`](../learnings/os-runtime-data-model.md)). |
 | `RegisterHook(funcPath, cb)` | Before/after a UFunction executes | The workhorse. See [§"RegisterHook"](#registerhook) below. |
+| `RegisterCustomEvent(eventName, cb)` | A matching Blueprint event executes | Only the first registration for a name is retained on 3.0.1; do not assume independent subscriptions. See [known bug 6](#6-registercustomevent-retains-only-the-first-registration). |
 | `RegisterKeyBind(keyCode, cb)` | On key press (game must be focused) | Fires on the input thread, not the game thread — wrap engine calls in `ExecuteInGameThread`. |
 
 ### Execution helpers
@@ -242,7 +244,7 @@ reference:
 
 ## UE4SS 3.0.1 known bugs
 
-Five UE4SS-3.0.1-specific behaviors that have bitten OSPlus
+Six UE4SS-3.0.1-specific behaviors that have bitten OSPlus
 hard enough to earn dedicated learnings. Each links to its
 canonical source.
 
@@ -363,6 +365,22 @@ later. The trade is asymmetric — keep the hook.
 **Canonical reference:**
 [`docs/learnings/ue4ss-execute-in-game-thread-unregister-hook-corruption.md`](../learnings/ue4ss-execute-in-game-thread-unregister-hook-corruption.md).
 
+### 6. `RegisterCustomEvent` retains only the first registration
+
+**Source-confirmed:** the pinned implementation inserts into a static map with
+`emplace`; an existing event-name entry is neither replaced nor appended.
+Registering the same name in another module is not a second subscription.
+See [v3.0.1 registration source](https://github.com/UE4SS-RE/RE-UE4SS/blob/v3.0.1/UE4SS/src/Mod/LuaMod.cpp)
+and [registry declaration](https://github.com/UE4SS-RE/RE-UE4SS/blob/v3.0.1/UE4SS/include/Mod/LuaMod.hpp).
+
+In OSPlus, `chat.init()` registers navigation names before
+`update_notification.init()`. The notice therefore uses its existing native
+`OdyUIRouter:OnMenuDisplayStateChanged` hook for Home Hub and Settings state;
+its remaining Home Hub navigation callbacks are best effort. This is not a
+shared navigation dispatcher. See
+[`update-notice-release-link-input`](../learnings/update-notice-release-link-input.md)
+for the failed assumption and verification boundary.
+
 ## Cross-references
 
 - **Engine + UE4SS version pin:** [`overview.md` → "The engine pin"](./overview.md#the-engine-pin)
@@ -384,7 +402,7 @@ later. The trade is asymmetric — keep the hook.
   [`docs/learnings/ue4ss-ufunction-out-param-marshaling-3-0-1.md`](../learnings/ue4ss-ufunction-out-param-marshaling-3-0-1.md).
 - **Whether UE4SS 3.1+ fixes any of the known bugs above.** The
   team has not done a UE4SS upgrade pass; before any future
-  upgrade, re-check each of the five known bugs against the
+  upgrade, re-check each of the six known bugs against the
   fixed-version metadata in upstream issues.
 - **Full enumeration of UE4SS Lua API methods on this build.**
   The auto-dumped type stubs at

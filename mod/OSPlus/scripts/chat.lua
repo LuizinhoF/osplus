@@ -31,6 +31,7 @@ M.presence = {}
 M.onChatSent = nil
 M.onRoomChange = nil
 M.onRoomLeave = nil
+M.onMatchEnded = nil
 
 -- ---------------------------------------------------------------------------
 -- Rich text formatting
@@ -931,6 +932,9 @@ local function endMatch(reason)
     M.hideWidget()
     leaveRoom()
     matchProbeTimer = MATCH_PROBE_TICKS
+    if M.onMatchEnded then
+        pcall(M.onMatchEnded, reason)
+    end
 end
 
 -- Called when match state changes (via OnRep_MatchState hook).
@@ -1168,6 +1172,7 @@ end
 -- ---------------------------------------------------------------------------
 
 function M.reset()
+    local matchEndedByMapLoad = M.inMatch
     leaveRoom()
     -- The previous map's widget is being destroyed by the engine right now.
     -- Touching it (SetVisibility, CloseInput, anything) can crash natively
@@ -1199,6 +1204,9 @@ function M.reset()
     notificationLoadFailed = false
     resizeMouseReadFailed = false
     resetResizeDrag(false)
+    if matchEndedByMapLoad and M.onMatchEnded then
+        pcall(M.onMatchEnded, "map loaded")
+    end
 end
 
 -- ---------------------------------------------------------------------------
