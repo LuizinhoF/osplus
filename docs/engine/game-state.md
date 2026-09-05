@@ -10,19 +10,17 @@ Hierarchy Reference" + the "Key UFunctions" sub-section
 (GameState_Game_C, GameState_Tutorial_C, PlayerController_Game_C,
 PlayerController_Practice_C, GameInstance_Base_C).
 
-> **Status:** seeded 2026-05-01 from
-> [`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md). The class-tuple
-> phase-detection model and the `isInMatch` Lua function were
-> the foundation of the chat feature's seed-gate work — they
-> are well-validated. Open questions (the actual `MatchPhaseChanged`
-> enum values, the exact between-rounds vs between-sets boundary)
-> remain unprobed.
+> **Status:** corrected 2026-09-05 against current chat code and the
+> stored 2026-04-24 UE4SS object/type dumps. The seed-based match
+> detector has prior runtime validation; the phase field, enum, and
+> function signatures below are confirmed from stored schema only.
+> Current runtime phase values, timing, and hook behavior have not
+> been tested in this pass, at the user's request.
 >
-> **Stability:** class-tuple detection is robust against
-> single-game-version drift. UFunction names listed below were
-> dumped at a specific moment in time and may grow / shrink
-> across patches; treat the list as a starting grep, not a
-> finalized API.
+> **Stability:** class tuples below are historical observations,
+> not reliable phase gates. Local Pawn presence can change during
+> a match. Stored schema may also drift across patches; distinguish
+> a known field/signature from a currently verified runtime value.
 
 This doc is the *phase model + lifecycle hooks*. The *per-player
 state* layer lives in [`player-state.md`](./player-state.md);
@@ -31,14 +29,14 @@ the *backend identity* in [`identity-and-api.md`](./identity-and-api.md).
 
 ## TL;DR
 
-- **No phase enum is exposed (yet).** Phase is detected by
-  inspecting the *class tuple* `(GameState, PlayerController,
-  PlayerState, Pawn, GameInstance)` — different phases have
-  different combinations. See [§"Phase model"](#phase-model).
-- **The `isInMatch()` predicate is the canonical detector.**
-  `PlayerState_Game_C` exists AND `PlayerController.Pawn` is
-  valid. Works across active gameplay, between-rounds, and
-  practice. See [§"Match detection"](#match-detection).
+- **Match identity and gameplay phase are different signals.**
+  A nonzero `CurrentMatchSeed` identifies the match room, including
+  pregame steps; it does not prove that active play has started.
+  See [§"Match detection"](#match-detection).
+- **A phase enum is present in the stored schema.**
+  `PMGameState.CurrentMatchPhase` uses `EMatchPhase`; the complete
+  value table is in [§"Reflected match phase"](#reflected-match-phase).
+  Current runtime timing remains unverified.
 - **`GameState_Game_C` and `GameState_Tutorial_C` carry the
   hookable UFunctions for match events.** `MatchPhaseChanged`,
   `MatchSummary`, `SpawnGoalEffects`, `IntermissionPlayerDataChanged`
@@ -49,10 +47,10 @@ the *backend identity* in [`identity-and-api.md`](./identity-and-api.md).
   the persistent widgets (chat included). Its lifecycle hooks
   (`ReceiveInit`, `ReceiveShutdown`) bracket the entire game
   session, not the match.
-- **`MatchPhaseChanged` enum values are not catalogued.** The
-  UFunction fires reliably at every phase transition; what the
-  argument actually is — TBD probe target. See
-  [§"Open questions"](#open-questions).
+- **Do not restore Pawn-based match gating.** Pawn loss during
+  KOs, respawns, and round transitions does not end the match.
+  Enemy-presence visibility uses a separate same-seed gameplay
+  observation, not Pawn existence or enum ordering.
 
 ## The Core Framework class tree
 
@@ -81,11 +79,11 @@ provide the underlying functionality the Blueprints extend. See
 
 ## Phase model
 
-The game progresses through distinct phases. Each phase has a
-unique combination of GameState / PlayerController / PlayerState
-/ Pawn classes that can be queried from Lua. **No engine-side
-phase enum is exposed at this layer** — class-tuple detection is
-the substitute.
+The following class tuples are historical snapshots that help identify
+objects during investigation. They are not mutually exclusive phase
+detectors: a missing Pawn also occurs during ordinary gameplay, and
+spectators need not have a combat Pawn at all. Use match identity and
+the reflected phase separately, as described below.
 
 ### Main Menu / Lobby
 
@@ -98,7 +96,7 @@ Pawn                  → NONE
 GameInstance          → GameInstance_Base_C  (persists across ALL maps)
 ```
 
-- **Detection from Lua:** `FindFirstOf("PlayerState_Game_C")` returns nil.
+- **Historical observation:** `FindFirstOf("PlayerState_Game_C")` returned nil.
 - **Key fact:** No game-specific PlayerState or Pawn exists.
 - Player-side equivalent: see [`docs/game/lobby.md`](../game/lobby.md).
 
@@ -111,8 +109,9 @@ PlayerState           → PlayerState_Game_C
 Pawn                  → NONE  (not spawned yet)
 ```
 
-- **Detection from Lua:** `PlayerState_Game_C` exists BUT
-  `PlayerController.Pawn` is nil.
+- **Historical observation:** `PlayerState_Game_C` exists but
+  `PlayerController.Pawn` is nil. This also happens during KOs, so
+  it cannot identify character selection by itself.
 - **Key fact:** Map has loaded (e.g., `GameMapAhtenCity`) but
   the player has no Pawn. Striker model previews are widget-based
   3D actors, not the player Pawn.
@@ -127,10 +126,9 @@ PlayerState           → PlayerState_Game_C
 Pawn                  → Character class  (e.g., C_FlexibleBrawler_C, C_NimbleBlaster_C)
 ```
 
-- **Detection from Lua:** `PlayerState_Game_C` exists AND
-  `PlayerController.Pawn` is valid.
-- **Key fact:** This is the only phase where the mod chat
-  should be visible/interactive.
+- **Historical observation:** `PlayerState_Game_C` exists and
+  `PlayerController.Pawn` is valid. Pawn absence must not tear down
+  chat or revoke a same-match gameplay observation.
 - Player-side equivalent: see [`docs/game/in-match-hud.md`](../game/in-match-hud.md).
 
 ### Awakening Select (between sets)
@@ -141,8 +139,9 @@ PlayerState           → PlayerState_Game_C
 Pawn                  → Still valid (character persists)
 ```
 
-- **Detection from Lua:** Same as active gameplay — chat
-  remains visible.
+- **Match continuity:** retain the nonzero match seed and any
+  same-seed gameplay observation. Do not reclassify this as pregame
+  because local player objects change or a draft UI is visible.
 - **Note on terminology:** the original KB section called this
   "between rounds." The player-side canonical doc
   ([`docs/game/awakenings.md`](../game/awakenings.md)) and
@@ -162,12 +161,11 @@ PlayerState           → PlayerState_Game_C
 Pawn                  → Character class
 ```
 
-- **Detection from Lua:** Same `PlayerState_Game_C` + valid Pawn
-  predicate as online active gameplay; the same predicate works
-  here.
+- **Match detection:** the current seed reader falls back to
+  `GameState_Tutorial_C`; it does not require a Pawn.
 - **Key fact:** GameState class differs (`GameState_Tutorial_C`)
-  but PlayerState/Pawn are the standard `_Game_C` classes —
-  enabling the chat-visibility logic to work in both contexts.
+  but PlayerState/Pawn use the standard `_Game_C` classes. Their
+  presence is descriptive, not the chat room-membership gate.
 - Player-side equivalent: see [`docs/game/match-lifecycle.md` → practice](../game/match-lifecycle.md).
 
 ### Post-match (between match end and lobby return)
@@ -179,36 +177,86 @@ engine-side detection question is open (TBD probe target).
 
 ## Match detection
 
-The proven `isInMatch` predicate, copied from the working
-chat-feature implementation:
+The current chat detector reads the server-provided match seed,
+with a practice-class fallback:
 
 ```lua
 local function isInMatch()
-    local ok, obj = pcall(FindFirstOf, "PlayerState_Game_C")
-    if not ok or not obj or not obj:IsValid() then return false end
-    local pc = utils.getPlayerController()
-    if not pc or not pc:IsValid() then return false end
-    local pawn = pc.Pawn
-    return pawn ~= nil and pawn:IsValid()
+    local ok, seed = pcall(function()
+        local gs = FindFirstOf("GameState_Game_C")
+        if not gs or not gs:IsValid() then
+            gs = FindFirstOf("GameState_Tutorial_C")
+        end
+        if not gs or not gs:IsValid() then return nil end
+        return gs.CurrentMatchSeed
+    end)
+    return ok and type(seed) == "number" and seed ~= 0
 end
 ```
 
-**What it returns true for:**
+This is the room-membership signal, not an active-gameplay predicate.
+The 2026-09-05 user report of chat presence during bans/selection
+exposed why those concepts must remain separate. A seed remains
+stable through KOs, respawns, and set transitions; no Pawn check is
+needed. See [the seed-gate learning](../learnings/chat-match-detection-via-seed.md).
 
-- Active Gameplay (online + practice, since both share the
-  PlayerState_Game_C + valid Pawn shape).
-- Awakening Select (Pawn persists during the draft).
+### Reflected match phase
 
-**What it returns false for:**
+The following stored artifacts agree on the schema. Paths are relative
+to `<game>/OmegaStrikers/Binaries/Win64/`; all were generated on
+2026-04-24 and inspected on 2026-09-05:
 
-- Main Menu / Lobby (no PlayerState_Game_C).
-- Character Select (PlayerState exists, Pawn is nil).
-- Post-match results (likely false; not confirmed).
+- `Mods/shared/types/Prometheus.lua:820`: `APMGameState.CurrentMatchPhase`.
+- `Mods/shared/types/Prometheus.lua:970`: `MatchPhaseChanged(OldPhase, NewPhase)`.
+- `Mods/shared/types/Prometheus_enums.lua:683`: `EMatchPhase` values.
+- `UE4SS_ObjectDump.txt:25942` and `:64765`: the reflected property and enum.
+- `UE4SS_ObjectDump.txt:142390`: the `GameState_Game_C` Blueprint override
+  of `MatchPhaseChanged`, also with `OldPhase` and `NewPhase`.
 
-**The chat feature uses this for visibility/interactivity
-gating.** Other features should adopt the same predicate as the
-"am I in a match?" boundary unless they specifically need
-Character Select inclusion (in which case drop the Pawn check).
+| Value | `EMatchPhase` member | Value | `EMatchPhase` member |
+|---|---|---|---|
+| 0 | `None` | 12 | `ArenaOverview` |
+| 1 | `PreGame` | 13 | `PostGameSummary` |
+| 2 | `CharacterSelect` | 14 | `EndGame` |
+| 3 | `FaceOffIntro` | 15 | `LoadoutSelect` |
+| 4 | `FaceOffCountdown` | 16 | `BoostSelect` |
+| 5 | `InGame` | 17 | `TimeoutCelebration` |
+| 6 | `GoalCelebration` | 18 | `VersusScreen` |
+| 7 | `GoalScore` | 19 | `BanSelect` |
+| 8 | `IntermissionIntro` | 20 | `CharacterPreSelect` |
+| 9 | `Intermission` | 21 | `BanCelebration` |
+| 10 | `IntermissionOutro` | 22 | `IntermissionMvp` |
+| 11 | `PostGameCelebration` | 23 | `EMatchPhase_MAX` (sentinel) |
+
+**Values are not chronological.** In particular, `phase >= 5` includes
+bans and preselection. The table proves schema, not current client
+timing, enum marshaling, or which hook catches the Blueprint override.
+
+`PMGameState.MatchCharacterSelectInfo.EnemyTeamVisibility` also exists
+in the stored schema (`NotVisible=0`, `AfterEachPickPhase=1`, `Visible=2`).
+Its name suggests pick visibility; it is not established as permission
+to reveal opponent usernames.
+
+### Pregame presence boundary
+
+OSPlus keeps room membership based on the seed while independently
+restricting presence until it explicitly observes `CurrentMatchPhase == 5`
+for that seed. Unknown/unreadable phase cannot grant enemy visibility.
+Once observed, that permission persists through KOs, goals, and
+between-set drafts; it clears on seed change, map load, or match end.
+The existing throttled match checks read the field; no new unverified
+phase hook is required.
+
+Before that observation, the relay shows a player only self and confirmed
+teammates. Spectators and players with an unknown team see only self.
+Keep spectator status separate from `AssignedTeam`: a spectator can
+report a viewing-side team. See [the presence investigation](../learnings/chat-pregame-presence-privacy.md)
+and [relay architecture](../architecture/relay.md) for the filtering contract.
+
+This intentionally keeps enemies hidden through initial loading/drafts.
+A newly joined client first observed during intermission waits for the
+next `InGame` observation. Current runtime phase timing is still untested;
+the user deferred in-game tests for this change.
 
 ## Hookable UFunctions
 
@@ -222,7 +270,7 @@ signature.
 
 | UFunction | What it appears to do |
 |---|---|
-| `MatchPhaseChanged` | **Primary phase-transition hook.** Fires on phase transitions (char select → gameplay → intermission → ...). Argument-shape unprobed; the actual phase enum value is not catalogued. |
+| `MatchPhaseChanged` | Stored schema confirms `(OldPhase: EMatchPhase, NewPhase: EMatchPhase)` on both `PMGameState` and the Blueprint override. Runtime hook coverage/timing remain unverified; presence currently reads the field at the existing throttled cadence. |
 | `IntermissionPlayerDataChanged` | Between-sets player-data update. Fires during the awakening-select / set-boundary moment. |
 | `MatchSummary` | End of match. Likely the cleanest signal for "match is over, do post-match capture now." |
 | `SpawnGoalEffects` | Goal scored. Fires for the goal-effect spawn — useful as a "goal happened" signal. |
@@ -282,19 +330,17 @@ signature.
 
 ## Open questions
 
-- **`MatchPhaseChanged` enum values.** The UFunction fires
-  reliably at every transition, but the actual phase identifier
-  argument has not been catalogued. Probing the param shape
-  inside a `RegisterHook` callback would close this — high-value
-  because every feature touching match-phase logic currently
-  has to use class-tuple detection.
+- **Current runtime phase transitions.** The stored field, enum,
+  and parameter schema are catalogued above. Still verify their
+  current values and UE4SS marshaling, transition timing, and
+  whether a hook sees the Blueprint override. No such live test
+  was performed during the 2026-09-05 correction.
 - **What triggers map loads.** Is there a `MatchManager` or
   similar coordinator that drives the lobby → arena transition?
   KB flagged this; still unanswered.
-- **`GameState_Game_C` readable properties.** UFunctions are
-  enumerated above; the *property fields* (round number, score,
-  team data, match timer) have not been probed. Capturing live
-  match score would need this.
+- **Other `GameState_Game_C` property values.** The stored schema
+  includes `CurrentMatchPhase`; live score, round, team-data, and
+  timer interpretation still require targeted verification.
 - **Post-match phase class-tuple shape.** What classes are live
   during the post-match results screen? Affects any feature that
   wants to surface during/after the match-end moment but not

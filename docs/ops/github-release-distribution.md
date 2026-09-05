@@ -21,6 +21,11 @@ Every GitHub Release must upload this asset:
 
 - `OSPlus.zip`
 
+The archive must contain `version.json` at its root. Both installers copy that
+same manifest to `Mods/OSPlus/version.json` only after all required mod files
+have been installed successfully. The sidecar reads this marker when comparing
+the installed build with the relay's latest stable release.
+
 The update scripts use GitHub's stable latest-release URL:
 
 ```text
@@ -63,8 +68,15 @@ Release:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\release\publish_github_release.ps1
 ```
 
-The script reads `dist/version.json`, builds `dist/OSPlus.zip`, creates release
-tag `v<version>`, and uploads the zip.
+The script reads `dist/version.json`, builds `dist/OSPlus.zip`, verifies that
+the archive's root manifest matches the release/tag version, creates tag
+`v<version>`, and uploads the zip.
+
+Add `-NotesPath .\path\to\release-notes.md` to supply nonempty UTF-8 Markdown
+notes, including English and Portuguese sections. The script validates the file
+before publishing and preserves its text when creating the release. Without
+this option it uses the default description; reusing an existing release does
+not overwrite that release's notes.
 
 If the zip has already been built and verified:
 

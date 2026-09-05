@@ -208,12 +208,11 @@ matchmade play.)
 [glossary → "Awakening"](../glossary.md#awakening) is the canonical
 bridge — and it is mostly TBD on the engine side. What's known:
 
-- **Phase exists in the lifecycle.** Detection: `PlayerState_Game_C`
-  + valid Pawn — see
-  [`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md) → *Awakening Select*.
-  (The KB labels this "between rounds" — see
-  [contradiction note](#a-note-on-the-source-contradiction-kb-vs-player-doc)
-  above.)
+- **Phase exists in the lifecycle.** The match seed preserves
+  continuity through drafts; Pawn presence is not a reliable phase
+  detector. The stored phase enum is catalogued, but its mapping to
+  starting versus between-set drafts remains unverified. See
+  [`game-state.md`](../engine/game-state.md#reflected-match-phase).
 - **Awakening data class — TBD.** Not yet identified. Search
   candidate: `/Script/Prometheus.*` with `Awakening` in the name.
 - **Draft UI widget — TBD.** Probably under the `WBP_*Awakening*`

@@ -16,10 +16,19 @@ $UE4SS_SRC   = "$ROOT\ue4ss-bundle"
 $ZIP_OUT     = "$ROOT\dist\OSPlus.zip"
 $VERSION_SRC = "$ROOT\dist\version.json"
 
-$releaseVersion = "unknown"
-if (Test-Path $VERSION_SRC) {
-    $releaseManifest = Get-Content -Raw $VERSION_SRC | ConvertFrom-Json
-    $releaseVersion = [string]$releaseManifest.version
+if (-not (Test-Path -LiteralPath $VERSION_SRC -PathType Leaf)) {
+    throw "Release manifest not found at $VERSION_SRC"
+}
+
+try {
+    $releaseManifest = Get-Content -Raw -LiteralPath $VERSION_SRC | ConvertFrom-Json
+} catch {
+    throw "Release manifest is not valid JSON: $VERSION_SRC"
+}
+
+$releaseVersion = [string]$releaseManifest.version
+if ($releaseVersion -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
+    throw "Release manifest version must be a stable MAJOR.MINOR.PATCH value: '$releaseVersion'"
 }
 
 # Final dist requires the new OSPlus.pak. The legacy OmegaStrikersMod.pak
@@ -278,10 +287,10 @@ if (Test-Path $UE4SS_SRC) {
 }
 
 # ---------------------------------------------------------------------------
-# 6. Copy installers, updater, and README.txt
+# 6. Copy installers, updater, README.txt, and release manifest
 # ---------------------------------------------------------------------------
 
-Write-Step "[6/7] Copying installers + updater + README"
+Write-Step "[6/7] Copying installers + updater + README + version manifest"
 Copy-Item "$ROOT\dist\install.bat" "$DIST\" -Force
 Copy-Item "$ROOT\dist\install.sh"  "$DIST\" -Force
 Copy-Item "$ROOT\dist\uninstall.bat" "$DIST\" -Force
@@ -290,10 +299,11 @@ Copy-Item "$ROOT\dist\update.bat" "$DIST\" -Force
 Copy-Item "$ROOT\dist\update.ps1" "$DIST\" -Force
 Copy-Item "$ROOT\dist\update.sh"  "$DIST\" -Force
 Copy-Item "$ROOT\dist\README.txt"  "$DIST\" -Force
+Copy-Item $VERSION_SRC "$DIST\version.json" -Force
 Convert-FileToLf "$DIST\install.sh"
 Convert-FileToLf "$DIST\uninstall.sh"
 Convert-FileToLf "$DIST\update.sh"
-Write-Ok "Copied installers + updater + README.txt"
+Write-Ok "Copied installers + updater + README.txt + version.json"
 
 # ---------------------------------------------------------------------------
 # 7. Zip everything

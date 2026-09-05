@@ -581,6 +581,115 @@ cycles without re-creation.
   is what stops every map transition from layering a new widget
   on top.
 
+### Persistent screen existence is not active-screen visibility
+
+`FindFirstOf("WBP_HomeHub_PC_C")` only proves that the persistent Home Hub
+widget has been constructed. During startup and transitions it can exist
+behind the native loading screen, so object presence is not a safe
+presentation gate for additive UI.
+
+Prefer the native lifecycle events rather than polling their transient object
+graph:
+
+- `WBP_HomeHub_PC_C:OnNavigatedTo` marks a Home Hub visit;
+  `OnNavigatedAway`, `OnNavBack`, or `CloseSelf` marks its end. In the notice
+  module these are best-effort callbacks: chat already registered the shared
+  short navigation names, and UE4SS 3.0.1 retains only the first registration.
+- `OdyUIRouter:OnMenuDisplayStateChanged` exposes the native state machine:
+  `AnimatingIn` (`1`) is the safe preparation edge and `Showing` (`2`) is the
+  presentation edge. If startup missed the event, one immediate read of the
+  Home Hub's own `DisplayState` is sufficient; no settle timer is needed.
+
+For Home Hub-only UI, lifecycle state is only half of the solution: put the
+add-on inside the Home Hub's hierarchy. `WBP_HomeHub_PC_C.UIContainer` is a
+`UCanvasPanel` whose direct child `PlayPanel` uses z-order `2`. The update
+notice uses a full-stretch canvas slot at the same z-order, is added while
+collapsed, and keeps its outer widget and inner root `SelfHitTestInvisible`.
+Only the bounded `ReleaseLinkButton` accepts clicks; the full-screen wrapper
+does not capture input. The native loading transition,
+group invites, and modal overlays then remain above it by construction.
+`AddChildToCanvas` removes its old viewport parent synchronously.
+
+This paint-order solution should not be confused with cue timing. The current
+loading Blueprint's hide-finished handler sets itself `Hidden` and then calls
+the stable native `/Script/OdyUI.OdyWidget:AnimateOutComplete` function. A
+post-hook filtered to `WBP_LoadingScreen_C` is therefore a deterministic edge
+for releasing an already-armed sound/attention animation. It does not gate the
+card's visibility and does not require a delay.
+
+When startup order is late, read the constructed loading widget captured by
+the construction event rather than re-querying an arbitrary instance. If the
+Home Hub is already `Showing` and no loading-screen object exists, that absence
+is also a concrete completed-loading state. These recovery paths prevent a
+one-shot cue from remaining armed forever without introducing a poll or timer.
+
+After nesting a ModActor-created widget, duplicate discovery must use
+`GetAllWidgetsOfClass(..., TopLevelOnly=false)`; a top-level-only search no
+longer sees it.
+
+Do not continuously poll `Router_OutOfGame_C:GetTopOfStack(...)` and filter the
+result with `UObject:GetClass()`. A destroyed top widget can leave a non-nil
+Lua wrapper whose remote UObject pointer is null. On the pinned UE4SS build,
+`GetClass()` dereferences that pointer and crashes natively, outside Lua
+`pcall`. For lifecycle callback filters, call the null-guarded
+`UObject:GetFullName()` path and parse its leading class token.
+
+> See
+> [`home-hub-visibility-requires-router-and-loading-state`](../learnings/home-hub-visibility-requires-router-and-loading-state.md)
+> for the original visibility symptom and native-hierarchy correction, and
+> [`ue4ss-stale-uobject-getclass-crash`](../learnings/ue4ss-stale-uobject-getclass-crash.md)
+> for the symbolized crash that corrected the polling approach.
+
+### Bounded release links in persistent widgets
+
+UE 5.1 exposes `UKismetSystemLibrary::LaunchURL(const FString& URL)` as a
+Blueprint-callable function. It asks the platform to open its selected browser
+and returns `void`, so a completed call does not confirm that the page loaded.
+URL validation belongs before this function; it is not a GitHub allowlist.
+
+For a clickable child inside an otherwise passive overlay, every ancestor
+must permit child hit testing. `SelfHitTestInvisible` ignores the ancestor
+itself while allowing its children; `HitTestInvisible` suppresses the entire
+subtree. The update notice keeps the outer `UUserWidget` and inner root in the
+former state, with one `Visible` button filling its 300x64 card. A failed link
+setter intentionally switches the outer widget to `HitTestInvisible` so an
+older cooked widget cannot retain a stale clickable destination.
+
+`ReleaseLinkButton.OnClicked` calls the widget-owned
+`OSPlus_OpenReleasePage`, which checks its stored URL before `LaunchURL`.
+`OSPlus_SetReleaseLink` receives URL and localized inline hover hint as
+`FString` values, converts the hint to `FText` inside BP, and disables the
+button for an empty URL. The compatibility parameter is still named
+`tooltipString`, but the standard Slate tooltip is empty. Hover swaps the
+secondary line inside the bounded `VersionDisplay` overlay; the version uses
+`Hidden` while the hint shows so it still contributes to layout. A standard
+tooltip uses a separate floating window: the initial live notice tooltip
+remained above other windows after minimizing the hovered game.
+
+The existing native `OdyUIRouter:OnMenuDisplayStateChanged` hook filters
+`WBP_SettingsHub_C`: any numeric nonzero display state covers link input, and
+`NotShowing` (`0`) restores it. An unreadable state retains the prior gate.
+The notice does not rely on a second short-name Settings navigation subscriber;
+see [the UE4SS 3.0.1 registration rule](./ue4ss-version-and-gotchas.md#6-registercustomevent-retains-only-the-first-registration).
+This Settings state and native loading events temporarily clear the applied
+link and hint and set the outer widget to `HitTestInvisible`. Clearing a link also resets the
+BP-owned hover display. When the cover leaves, Lua restores the saved visible
+release without ending its Home Hub visit or replaying its consumed cue.
+
+In the pinned UE 5.1 C++ authoring API, `UButton::IsFocusable` is a public
+field; there is no `UButton::SetIsFocusable` method. Set the field when
+authoring a passive card button that should not take keyboard focus.
+
+The inline hint fits in live English and Portuguese normal/hover captures.
+The replacement also opened the exact release URL, survived browser focus loss
+and return, and showed no floating hint on the Settings screen. The native
+Settings gate is live-verified: clicking the covered card's location launched
+nothing; closing Settings restored the link, which opened the exact release
+tag while the game stayed responsive. Exact minimizing-while-hovered
+verification remains pending. See
+[`update-notice-release-link-input`](../learnings/update-notice-release-link-input.md)
+for the visible-release URL contract and current verification boundary.
+
 ## The game's own widget tree (for reference + hooking)
 
 This section is *catalog-style reference* — what widgets exist
@@ -597,11 +706,12 @@ GameInstance_Base_C
 ├── WBP_ModChat_C                 — OSPlus mod chat widget (THIS IS US)
 ├── Router_OutOfGame_C            — main UI router (out-of-game screens)
 └── WBP_HomeHub_PC_C              — the main lobby hub
+    ├── UIContainer               (UCanvasPanel)
+    │   └── PlayPanel             (WBP_PlayPanel_C) — mode + queue controls, z-order 2
     ├── GroupMemberNameplateRight  (WBP_HomeHubGroupNameplate_C)
     ├── GroupMemberNameplateLeft   (WBP_HomeHubGroupNameplate_C)
     ├── PlayerNameplateCenter     (WBP_HomeHubGroupNameplate_C)
     ├── WBP_ReactionButtonPanel_C — emote / reaction buttons
-    ├── PlayPanel                 (WBP_PlayPanel_C) — queue button
     ├── WBP_FitActorToRect_C      — 3D character model in hub
     ├── WBP_GroupInvitePanel_C    — party invite list
     ├── WBP_GameVersion_C         — version display

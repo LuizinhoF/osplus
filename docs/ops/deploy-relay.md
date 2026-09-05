@@ -1,8 +1,9 @@
 # Deploying the OSPlus Relay
 
-The relay is the WebSocket server that brokers chat and ping messages between
-players in a match. It runs on a single OCI Always-Free VM behind Caddy
-(reverse proxy + auto-TLS via Let's Encrypt).
+The relay brokers match chat, serves the profile API, and exposes the cached
+stable OSPlus release projection used by in-game update notices. It runs on a
+single OCI Always-Free VM behind Caddy (reverse proxy + auto-TLS via Let's
+Encrypt).
 
 This document covers:
 
@@ -41,6 +42,7 @@ This document covers:
 |---|---|
 | WebSocket (clients) | `wss://play-osplus.duckdns.org` |
 | Health probe        | `https://play-osplus.duckdns.org/health` |
+| Latest stable release | `https://play-osplus.duckdns.org/updates/latest` |
 | SSH                 | `ssh -i ~/.ssh/osplus_oci.key ubuntu@136.248.104.200` |
 
 ## Shipping a code change (the common case)
@@ -55,7 +57,8 @@ What this does:
 
 1. SSHes to the VM, wipes `/tmp/osplus-deploy/`.
 2. SCPs `server/index.js`, `server/package.json`, `server/package-lock.json`,
-   and the entire `server/deploy/` folder up to the VM.
+   the `api/` and `updates/` modules, and the entire `server/deploy/` folder
+   up to the VM.
 3. Runs `sudo bash /tmp/osplus-deploy/server/deploy/install-relay.sh` on the VM.
 4. The installer copies the code into `/opt/osplus/relay/`, runs
    `npm install --omit=dev`, validates the Caddyfile, reloads Caddy, and
@@ -107,6 +110,22 @@ Returns:
   "connections": 7
 }
 ```
+
+### Stable release projection
+
+```bash
+curl -i https://play-osplus.duckdns.org/updates/latest
+```
+
+The normal source is GitHub Releases. The response must describe a published
+stable `vMAJOR.MINOR.PATCH` release with an `OSPlus.zip` asset. The relay keeps
+only an in-memory cache and sends an ETag; it does not create a second release
+record.
+
+For deterministic local testing only, start a local relay with
+`OSPLUS_RELEASE_OVERRIDE_VERSION=0.4.0`. Never add that override to the
+production systemd environment: while present it deliberately bypasses
+GitHub.
 
 ### Setting an auth token (later)
 

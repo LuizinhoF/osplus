@@ -15,8 +15,9 @@ This rule is the deterministic backstop for the same list in `AGENTS.md` → Too
 |---|---|---|
 | `tools/setup/bootstrap.ps1` | Dev environment bootstrap (repak, UAssetGUI, UE path checks) | First time on a new machine, or when a tool dependency is missing |
 | `ue-assets/package_logicmod.ps1` | Pack cooked OSPlus content → `OSPlus.pak` in the game's `LogicMods/` | After every `File → Cook Content for Windows` in the UE editor |
-| `build_dist.ps1` | Assemble `dist/OSPlus.zip` (Lua + sidecar SEA + pak + UE4SS bundle + installer) | Before shipping a new release |
-| `dist/install.bat` | End-user installer (auto-elevates, auto-detects game, migrates legacy) | Distributed inside the zip; not run from the dev repo |
+| `build_dist.ps1` | Assemble `dist/OSPlus.zip` (Lua + sidecar SEA + pak + UE4SS bundle + installer + root `version.json`) and validate the stable public version | Before shipping a new release |
+| `tools/release/publish_github_release.ps1` | Build and validate the archive, publish its matching GitHub release, and upload the zip; optional `-NotesPath` reads nonempty UTF-8 Markdown notes | Publishing from clean `main` with release credentials |
+| `dist/install.bat`, `dist/install.sh` | End-user installers (auto-detect game, migrate legacy, and write `Mods/OSPlus/version.json` last) | Distributed inside the zip; not run from the dev repo |
 
 **Cooking itself is manual** in the UE editor (`File → Cook Content for Windows`). `/Game/Mods/OSPlus` must be in *Project Settings → Packaging → Additional Asset Directories to Cook* — otherwise the cook is empty. See `docs/learnings/ue-cook-additional-asset-dirs.md`.
 

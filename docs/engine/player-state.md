@@ -68,8 +68,10 @@ if ps and ps:IsValid() then
 end
 ```
 
-**Detected presence is a phase signal:** `FindFirstOf("PlayerState_Game_C") ~= nil`
-is half of the [`isInMatch()` predicate](./game-state.md#match-detection).
+**Presence is not a sufficient phase signal.** `PlayerState_Game_C`
+exists in selection as well as gameplay. Chat uses the nonzero match
+seed for membership and a separate phase observation for opponent
+presence; see [`game-state.md`](./game-state.md#match-detection).
 
 ## Hookable UFunctions
 

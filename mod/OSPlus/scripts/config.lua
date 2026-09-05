@@ -92,6 +92,7 @@ M.DATA_DIR_CANDIDATES = {
 M.EMOTE_CATALOG_FILE = "emotes\\catalog.json"
 M.LOCALIZATION_FILES = {
     "localization\\screens\\emote_loadout.json",
+    "localization\\screens\\update_notification.json",
 }
 M.INBOX_POLL_INTERVAL = 10  -- ~300ms at 30ms/tick, plenty fast for chat
 -- Sidecar shutdown: Lua touches HEARTBEAT_FILE every HEARTBEAT_INTERVAL ticks.

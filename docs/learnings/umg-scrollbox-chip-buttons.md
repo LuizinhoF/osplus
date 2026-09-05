@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-05-22 |
 | Area | ue-editor |
-| Tags | `umg, scrollbox, widget-blueprint, button, filter-chips` |
+| Tags | `umg, scrollbox, widget-blueprint, button, filter-chips, localization, overflow` |
 | Status | `confirmed` |
 
 ## Symptom
@@ -23,11 +23,34 @@ BP owns strip behavior. `WBP_OSPlusFilterChip` fires `OnChipClicked(FilterKey)` 
 
 For drag-to-scroll, follow the owned-emote grid's input split: left-click selects, right-click drag scrolls. In `WBP_OSPlusEmoteLoadout`, poll while right mouse is down, check whether the pointer is under `OSPlusTagFilterRow`, then scroll the row's parent `ScrollBox` horizontally from the mouse delta. This keeps chip selection and strip dragging separate enough that no click-suppression flag is needed in the selection path. A previous attempt to make left-click both select and drag by polling `Button_41.IsPressed()` inside each chip caused ownership and event-consumption problems; leave that path disconnected.
 
+The same bounded-label rule applies to fixed notification banners. The update
+notice initially allowed its Portuguese title to paint at its natural width,
+which let the text cross the card's right edge. Keep a readable fixed font and
+size the card for the current translations, then make the title and version
+slots fill their available width, disable wrapping, use ellipsis as a
+last-resort fallback, and clip at the text, copy-column, and outer-card levels.
+For the Home Hub update notice, a 300x64 card and 15-point title fit
+`ATUALIZAÇÃO OSPLUS` while remaining aligned with the Competitive selector.
+Avoid a `ScaleBox` for this kind of status banner: unusually long translations
+would become progressively smaller and blurrier instead of failing in a
+predictable, contained way.
+
 ## Lesson
 
-For horizontally scrollable chip rows, keep UI-reactive behavior in BP and data in Lua. A chip should be scroll-box-friendly through bounded width, explicit text overflow, precise click behavior, runtime slot padding, and an input model that does not overload one mouse button with both selection and drag. Avoid Lua mouse hooks for widget gestures; once both Lua and BP can change the same UI state, bugs stop having an obvious home. If Python's normal `WidgetBlueprint.WidgetTree` property is protected, source widget subobjects are still loadable by object path, e.g. `/Game/Mods/OSPlus/UI/WBP_OSPlusFilterChip.WBP_OSPlusFilterChip:WidgetTree.Button_41`.
+For localized labels in bounded UI, treat width and overflow as part of the
+component contract: give the text a finite width, keep it on one line, choose
+an explicit overflow policy, and clip at a hard outer boundary. For
+horizontally scrollable chip rows, also keep UI-reactive behavior in BP and
+data in Lua. A chip should be scroll-box-friendly through bounded width,
+precise click behavior, runtime slot padding, and an input model that does not
+overload one mouse button with both selection and drag. Avoid Lua mouse hooks
+for widget gestures; once both Lua and BP can change the same UI state, bugs
+stop having an obvious home. If Python's normal
+`WidgetBlueprint.WidgetTree` property is protected, source widget subobjects
+are still loadable by object path, e.g.
+`/Game/Mods/OSPlus/UI/WBP_OSPlusFilterChip.WBP_OSPlusFilterChip:WidgetTree.Button_41`.
 
 ## Related
 
-- Files: `docs/features/emote-loadout-ui-improvement.md`, UE asset `/Game/Mods/OSPlus/UI/WBP_OSPlusFilterChip`
+- Files: `docs/features/emote-loadout-ui-improvement.md`, `docs/features/update-availability-notification.md`, UE assets `/Game/Mods/OSPlus/UI/WBP_OSPlusFilterChip` and `/Game/Mods/OSPlus/UpdateAvailability/WBP_OSPlusUpdateNotice`
 - Prior learnings: `docs/learnings/ue-cook-additional-asset-dirs.md`

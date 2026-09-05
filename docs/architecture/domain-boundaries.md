@@ -93,6 +93,7 @@ the emote.
 |---|---|---|
 | `mod/OSPlus/scripts/emote_loadout.lua` | Customize emote loadout screen | Mounts `WBP_OSPlusEmoteLoadout`, pushes view data to that widget, handles that widget's equip events. |
 | `data/localization/screens/emote_loadout.json` | Emote loadout screen copy | Search hint, section labels, button labels, footer text for this one screen. |
+| `data/localization/screens/update_notification.json` | Update notification copy | The Home Hub update-card title, version-available line, and inline release-link hover hint. |
 
 **Anti-patterns.**
 

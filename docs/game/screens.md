@@ -123,10 +123,11 @@ adding a new screen.
 - **OSPlus relevance.** OSPlus chat (`WBP_ModChat_C`) and mod widgets
   attach here. The `unlockable-earning-emotes` feature targets this
   surface for the loadout-customize flow + the in-match wheel.
-- **Notes.** Children of `WBP_HomeHub_PC_C` per F3 dump:
+- **Notes.** Notable descendants of `WBP_HomeHub_PC_C` per F3 dump:
   `WBP_FitActorToRect_C` (the 3D character model),
   `WBP_ReactionButtonPanel_C` (emote/reaction loadout),
-  `WBP_PlayPanel_C` (queue button), `WBP_GroupInvitePanel_C` (party
+  `WBP_PlayPanel_C` (mode + queue controls, under `UIContainer`),
+  `WBP_GroupInvitePanel_C` (party
   invite list), `WBP_GameVersion_C`, `WBP_TournamentAnnouncement_C`.
 
 ### Striker select / draft

@@ -58,7 +58,7 @@ onwards:
 5.  Training select modal (`WBP_TrainingSelectModal_C`) — pick scenario
 6.  Arena loading (`GameMapPractice` instead of online arena)
 7.  Active practice — no opponents (or AI opponents, depending on
-    scenario), no match seed, no rank stake
+    scenario), no rank stake
 8.  Exit at will (no victory/defeat condition unless scenario imposes one)
 9.  Return to Home Hub
 ```
@@ -171,6 +171,11 @@ presence. **Use `GameState_Game_C.CurrentMatchSeed` as the canonical
 "is the match still happening" signal**, not `Pawn ~= nil` — see
 [`chat-match-detection-via-seed.md`](../learnings/chat-match-detection-via-seed.md).
 
+Match membership also includes pregame steps. It must not reveal opponents'
+names during bans/Striker selection, which the player reports are hidden by
+the game. OSPlus uses a separate gameplay observation for that permission;
+see [the engine phase boundary](../engine/game-state.md#pregame-presence-boundary).
+
 ## Core states (in-match)
 
 Orthogonal to player state — the Core (engine name "Rock") can be
@@ -210,9 +215,10 @@ Within the match-level loop, certain milestones change urgency:
 - **Match-found accept timing.** Is there an accept/decline timer? Or
   auto-accept?
 - **Engine event sequence.** What events fire in what order during
-  match-state transitions? `MatchPhaseChanged` is known
-  ([`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md) → *Key UFunctions*)
-  but the phase enum values are not documented.
+  match-state transitions? The stored phase field, enum values, and
+  `MatchPhaseChanged` signature are documented in
+  [`game-state.md`](../engine/game-state.md#reflected-match-phase);
+  current runtime timing and hook coverage still need verification.
 - **Overtime / sudden death.** Does the match-level loop have a
   formal overtime, or just escalating pressure?
 - **Disconnect / reconnect.** What happens to the lifecycle if a

@@ -12,6 +12,7 @@ M.heartbeatCounter = 0
 -- M.spawnRemotePing = nil
 M.onChatReceived     = nil  -- set by main.lua to chat.addMessage
 M.onPresenceReceived = nil  -- set by main.lua to chat.setPresence
+M.onUpdateAvailable  = nil  -- set by main.lua to update_notification
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -66,13 +67,15 @@ function M.writePingToOutbox(pingType, posVec)
 end
 ]]
 
-function M.writeRoomChange(roomCode, username, team, isSpectator)
+function M.writeRoomChange(roomCode, username, team, isSpectator, revealOpponents, presenceRevision)
     local msg = json.encode({
         type      = "room_change",
         room      = roomCode,
         username  = username,
         team      = team,
         spectator = isSpectator == true,
+        revealOpponents = revealOpponents == true,
+        presenceRevision = presenceRevision,
         ts        = os.time(),
     })
     local f = io.open(cfg.OUTBOX_FILE, "a")
@@ -92,6 +95,32 @@ function M.writeRoomLeave()
         f:write(msg .. "\n")
         f:close()
     end
+end
+
+local UPDATE_CHECK_REASONS = {
+    queue_entered = true,
+    match_completed = true,
+}
+
+function M.writeUpdateCheck(reason)
+    if type(reason) ~= "string" or not UPDATE_CHECK_REASONS[reason] then
+        log.log("[IPC] Refused invalid update_check reason")
+        return false
+    end
+
+    local msg = json.encode({
+        type   = "update_check",
+        reason = reason,
+        ts     = os.time(),
+    })
+    local f = io.open(cfg.OUTBOX_FILE, "a")
+    if not f then
+        log.log("[IPC] Could not open outbox for update_check")
+        return false
+    end
+    f:write(msg .. "\n")
+    f:close()
+    return true
 end
 
 -- Profile upsert (Lua -> sidecar -> relay's PUT /api/profiles/{pid}).
@@ -117,6 +146,39 @@ end
 -- ---------------------------------------------------------------------------
 -- Inbox (sidecar -> Lua)
 -- ---------------------------------------------------------------------------
+
+local function cleanFlatString(value, maxLength)
+    if type(value) ~= "string" then return nil end
+    local cleaned = value:match("^%s*(.-)%s*$")
+    if cleaned == "" or #cleaned > maxLength then return nil end
+    if cleaned:find("[\r\n%z]") then return nil end
+    return cleaned
+end
+
+local function cleanVersion(value)
+    local version = cleanFlatString(value, 64)
+    if not version then return nil end
+    local body = version
+    if body:sub(1, 1) == "v" then body = body:sub(2) end
+    if not body:match("^%d+%.%d+%.%d+$") then return nil end
+    return body
+end
+
+local function cleanOptionalVersion(value)
+    if value == nil then return true, nil end
+    local cleaned = cleanVersion(value)
+    return cleaned ~= nil, cleaned
+end
+
+local function cleanOptionalUrl(value)
+    if value == nil then return true, nil end
+    local cleaned = cleanFlatString(value, 2048)
+    if not cleaned then return false, nil end
+    if cleaned:sub(1, 7) ~= "http://" and cleaned:sub(1, 8) ~= "https://" then
+        return false, nil
+    end
+    return true, cleaned
+end
 
 function M.readInbox()
     local f = io.open(cfg.INBOX_FILE, "r")
@@ -159,7 +221,22 @@ function M.readInbox()
             end
             log.log("[IPC] Presence update: " .. tostring(#list) .. " member(s)")
             if M.onPresenceReceived then
-                M.onPresenceReceived(list)
+                M.onPresenceReceived(list, msg.room, msg.presenceRevision, msg.revealOpponents)
+            end
+        elseif msg and msg.type == "update_available" then
+            local latestVersion = cleanVersion(msg.latestVersion)
+            local installedOk, installedVersion = cleanOptionalVersion(msg.installedVersion)
+            local releaseOk, releaseUrl = cleanOptionalUrl(msg.releaseUrl)
+            local assetOk, assetUrl = cleanOptionalUrl(msg.assetUrl)
+            local timestampOk = msg.ts == nil or type(msg.ts) == "number"
+
+            if latestVersion and installedOk and releaseOk and assetOk and timestampOk then
+                log.log("[IPC] Update available: " .. latestVersion)
+                if M.onUpdateAvailable then
+                    M.onUpdateAvailable(latestVersion, installedVersion, releaseUrl, assetUrl)
+                end
+            else
+                log.log("[IPC] Ignored malformed update_available message")
             end
         end
     end

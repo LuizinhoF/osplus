@@ -49,9 +49,9 @@ Always check this before writing any script. If a workflow seems missing, ask be
 - `tools/setup/bootstrap.ps1` — first-time dev env setup. Idempotent.
 - **Cooking is manual in the UE Editor**: `File → Cook Content for Windows`. `/Game/Mods/OSPlus` must be in *Project Settings → Packaging → Additional Asset Directories to Cook* or the cook is empty.
 - `ue-assets/package_logicmod.ps1` — packs cooked content into `OSPlus.pak` in `LogicMods/`. Run after every cook.
-- `build_dist.ps1` — assembles `dist/OSPlus.zip`. Refuses to build without `OSPlus.pak`.
-- `tools/release/publish_github_release.ps1` — builds `dist/OSPlus.zip`, creates GitHub tag/release `v<dist/version.json version>`, and uploads `OSPlus.zip`. Requires `GH_TOKEN` or `GITHUB_TOKEN`.
-- `dist/install.bat`, `dist/install.sh` — end-user installers. Distributed inside the zip.
+- `build_dist.ps1` — assembles `dist/OSPlus.zip`. Refuses to build without `OSPlus.pak` or a strict stable `dist/version.json`, and places that manifest at the archive root.
+- `tools/release/publish_github_release.ps1` — builds `dist/OSPlus.zip`, verifies the archived version, creates GitHub tag/release `v<dist/version.json version>`, and uploads `OSPlus.zip`; optional `-NotesPath` supplies a nonempty UTF-8 Markdown release description. Requires `GH_TOKEN` or `GITHUB_TOKEN`.
+- `dist/install.bat`, `dist/install.sh` — end-user installers. Distributed inside the zip; copy the archive manifest to `Mods/OSPlus/version.json` only after required installation steps succeed.
 - `dist/update.bat`, `dist/update.sh` — end-user updaters. Download the latest `OSPlus.zip` from GitHub Releases and rerun the installer.
 - `dist/uninstall.bat`, `dist/uninstall.sh` — end-user uninstallers. Remove OSPlus and ask before removing shared UE4SS/local data.
 

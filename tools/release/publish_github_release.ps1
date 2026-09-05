@@ -1,10 +1,12 @@
+[CmdletBinding()]
 param(
     [string]$Repo = "LuizinhoF/osplus",
     [string]$ManifestPath = "$PSScriptRoot\..\..\dist\version.json",
     [switch]$SkipBuild,
     [switch]$Draft,
     [switch]$Prerelease,
-    [switch]$AllowNonMain
+    [switch]$AllowNonMain,
+    [string]$NotesPath
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +26,35 @@ if (-not $version) {
 
 if (-not $assetName) {
     throw "dist/version.json is missing release_asset."
+}
+
+$releaseBody = @"
+OSPlus $version
+
+Assets:
+- $assetName
+
+Install/update instructions are in README.md and docs/ops/github-release-distribution.md.
+"@
+
+if ($PSBoundParameters.ContainsKey("NotesPath")) {
+    if ([string]::IsNullOrWhiteSpace($NotesPath)) {
+        throw "NotesPath must point to a nonempty UTF-8 Markdown file."
+    }
+    $notesFile = Get-Item -LiteralPath $NotesPath
+    if ($notesFile.PSProvider.Name -ne "FileSystem" -or $notesFile.PSIsContainer) {
+        throw "Release notes must be a file: $NotesPath"
+    }
+    # Read bytes with strict UTF-8 decoding: Windows PowerShell's default text
+    # encoding can corrupt Portuguese, and BOM auto-detection can accept UTF-16.
+    $notesEncoding = [System.Text.UTF8Encoding]::new($false, $true)
+    $releaseBody = $notesEncoding.GetString([System.IO.File]::ReadAllBytes($notesFile.FullName))
+    if ($releaseBody.Length -gt 0 -and $releaseBody[0] -eq [char]0xFEFF) {
+        $releaseBody = $releaseBody.Substring(1)
+    }
+    if ([string]::IsNullOrWhiteSpace($releaseBody)) {
+        throw "Release notes must not be empty: $NotesPath"
+    }
 }
 
 $token = $env:GH_TOKEN
@@ -55,21 +86,35 @@ if (-not (Test-Path $zipPath)) {
     throw "Release zip not found: $zipPath"
 }
 
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+try {
+    $versionEntry = $archive.GetEntry("version.json")
+    if (-not $versionEntry) {
+        throw "Release zip is missing version.json at its root."
+    }
+
+    $reader = [System.IO.StreamReader]::new($versionEntry.Open())
+    try {
+        $archivedManifest = $reader.ReadToEnd() | ConvertFrom-Json
+    } finally {
+        $reader.Dispose()
+    }
+
+    $archivedVersion = [string]$archivedManifest.version
+    if ($archivedVersion -ne $version) {
+        throw "Release zip version '$archivedVersion' does not match manifest/tag version '$version'."
+    }
+} finally {
+    $archive.Dispose()
+}
+
 $headers = @{
     "Authorization" = "Bearer $token"
     "Accept" = "application/vnd.github+json"
     "X-GitHub-Api-Version" = "2022-11-28"
     "User-Agent" = "osplus-release-script"
 }
-
-$releaseBody = @"
-OSPlus $version
-
-Assets:
-- $assetName
-
-Install/update instructions are in README.md and docs/ops/github-release-distribution.md.
-"@
 
 $body = @{
     tag_name = $tagName
@@ -79,11 +124,12 @@ $body = @{
     draft = [bool]$Draft
     prerelease = [bool]$Prerelease
 } | ConvertTo-Json
+$bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
 
 $releaseUrl = "https://api.github.com/repos/$Repo/releases"
 Write-Step "Creating GitHub release $tagName"
 try {
-    $release = Invoke-RestMethod -Uri $releaseUrl -Method Post -Headers $headers -ContentType "application/json" -Body $body
+    $release = Invoke-RestMethod -Uri $releaseUrl -Method Post -Headers $headers -ContentType "application/json; charset=utf-8" -Body $bodyBytes
 } catch {
     $message = $_.Exception.Message
     if ($_.Exception.Response -and $_.Exception.Response.StatusCode.value__ -eq 422) {

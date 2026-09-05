@@ -34,7 +34,9 @@ The lobby's job is to answer these with minimum click count.
 
 Per F3 widget dump of `WBP_HomeHub_PC_C` (in
 [`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md) → *UI Widget Tree*), the
-home hub has these direct children:
+Home Hub contains these notable widgets. `PlayPanel` is specifically nested
+under the native `UIContainer` canvas; the table is a player-facing inventory,
+not a claim that every row is a direct child:
 
 | Child widget | Player-facing role |
 |---|---|

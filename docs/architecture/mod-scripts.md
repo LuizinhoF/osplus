@@ -36,6 +36,7 @@ flowchart LR
             chat["<b>chat</b><br/>Find chat box.<br/>Send + receive messages.<br/>Track who's in the room."]
             identity["<b>identity</b><br/>Resolve your ID,<br/>display name, Steam ID.<br/>(Once per session.)"]
             profile["<b>profile</b><br/>Send 'this account exists'<br/>to the server, once."]
+            update_notice["<b>update_notification</b><br/>Request lifecycle checks.<br/>Show newer releases in Home Hub."]
         end
 
         subgraph plumbing["Plumbing (no user-facing behavior)"]
@@ -62,10 +63,12 @@ flowchart LR
 
     main --> chat
     main --> profile
+    main --> update_notice
     profile --> identity
 
     chat --> ipc
     profile --> ipc
+    update_notice --> ipc
 
     ipc -- writes outbox file --> sidecar
     sidecar -- writes inbox file --> ipc
@@ -80,9 +83,10 @@ flowchart LR
 | Script | Role | One-line summary |
 |---|---|---|
 | `main.lua` | Entry point | Loads dependencies, wires cross-feature callbacks, calls each feature's `init()`, launches the sidecar, runs the per-frame tick loop, and owns the engine-global lifecycle multiplexer (map-load fan-out). |
-| `chat.lua` | Feature: in-match chat | Finds the on-screen chat widget; owns Enter/Esc and Tab/Shift+Tab controls, compact-feed timing, focused-height resizing, audience selection, native settings-screen suppression, and the `OnRep_MatchState` hook; formats messages; derives the match-wide room; maps player teams into relay routing teams; detects spectators separately from `AssignedTeam`; blocks players from targeting the opposing team directly; consumes `identity.lua` for local sender/presence names; and tracks presence. |
+| `chat.lua` | Feature: in-match chat | Finds the on-screen chat widget; owns Enter/Esc and Tab/Shift+Tab controls, compact-feed timing, focused-height resizing, audience selection, native settings-screen suppression, and the existing `OnRep_MatchState` plus seed fallback; formats messages; derives the match-wide room; maps player teams into relay routing teams; detects spectators separately from `AssignedTeam`; blocks players from targeting the opposing team directly; consumes `identity.lua` for local sender/presence names; permits opponent presence only after same-seed `InGame` evidence and rejects stale audience snapshots; and publishes its already-established match-ended edge to other features. |
 | `identity.lua` | Feature: identity resolution | Resolves the local player's Prometheus ID (one-shot via `RegisterHook` on `GetIdentityState`), display name (`PMPlayerUIData.Profile.Username`), and Steam ID. Caches everything; subsequent calls are pure cache reads. |
 | `profile.lua` | Feature: account upsert | Subscribes to `identity.onPrometheusIdResolved`, waits for the friendly display name to land, emits one `profile_upsert` IPC message to the sidecar. Then `M.tick` short-circuits forever — see Per-tick discipline below. |
+| `update_notification.lua` | Feature: update availability | Requests update checks on confirmed queue entry and the shared match-ended edge, accepts sidecar-provided newer-release facts, and shows each release at most once per game session. It reparents the collapsed notice into the native Home Hub `UIContainer`, prepares it on router `AnimatingIn`, presents localized copy on `Showing`, and reads the Home Hub's own `DisplayState` once after map load if the startup event was missed. Native hierarchy—not a timer—controls when the card can be seen; loading-screen state/construction recovery plus the stable hide-completion hook releases its sound/attention cue only after the transition. There is no continuous reflected poll. |
 
 ### Plumbing
 
@@ -124,6 +128,10 @@ that feature's engine wiring again.
 - `chat.init()` registers Enter/Esc keybinds + `RegisterHook` on
   `OnRep_MatchState`.
 - `profile.init()` subscribes to `identity.onPrometheusIdResolved`.
+- `update_notification.init()` registers Home Hub navigation, matchmaking, and
+  loading-screen state events. `main.lua` wires chat's already-established
+  match-ended callback to the update feature's check request rather than
+  creating a second match-state polling loop.
 - `identity` registers its `RegisterHook` on `GetIdentityState` at
   module load (a slightly different shape because it has no `init()` —
   the registration must happen at `require` time to win the cold-start

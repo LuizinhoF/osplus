@@ -36,6 +36,11 @@ for the broader screen inventory).
   deliberately moved away from. (See [`awakenings.md` → "OSPlus framing rules"](./awakenings.md#osplus-framing-rules).)
 - **Time-pressured.** A countdown gates the phase; defaults apply
   if the player doesn't choose.
+- **Opponent names stay hidden during bans and Striker selection.**
+  This is the player's reported game behavior (2026-09-05), not a
+  new runtime observation by the agent. OSPlus presence must preserve
+  that privacy even if match chat is already connected. Enemy-pick
+  visibility is a separate, mode-dependent question.
 
 ## What the player wants to know here
 
@@ -130,11 +135,12 @@ low cognitive load (compared to in-match):
 
 - **Phase widget.** `WBP_StrikerSelect_ChoosePhases_C` — confirmed
   in [`screens.md` → "Per-screen detail"](./screens.md#per-screen-detail).
-- **Phase detection.** Likely a `GameState_Game_C` phase value;
-  per-phase enum membership not catalogued in this docset. **TBD**;
-  follow [`match-lifecycle.md` → "State machine"](./match-lifecycle.md#state-machine)
-  into [`KNOWLEDGEBASE.md`](../../KNOWLEDGEBASE.md) → *Game
-  Lifecycle & Phase Detection* when migrated to `docs/engine/`.
+- **Phase detection.** The stored game schema exposes a phase
+  field and explicit ban/selection members. See
+  [`game-state.md` → "Reflected match phase"](../engine/game-state.md#reflected-match-phase).
+  Their current runtime timing remains untested. Match membership
+  alone does not mean opponents' names may be revealed; see
+  [the presence investigation](../learnings/chat-pregame-presence-privacy.md).
 - **Per-pick UFunctions / events.** The "I picked X Striker" event
   almost certainly fires on a confirm-pick handler;
   `WBP_StrikerSelect_ChoosePhases_C` is the place to look. Not yet

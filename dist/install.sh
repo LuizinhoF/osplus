@@ -112,8 +112,10 @@ DATA_DIR="$MOD_DIR/data"
 PAK_ROOT="$GAME_PATH/OmegaStrikers/Content/Paks"
 PAK_DIR="$PAK_ROOT/LogicMods"
 UE4SS_SRC="$THIS_DIR/ue4ss-files"
+VERSION_SRC="$THIS_DIR/version.json"
 
 [[ -d "$BIN_DIR" ]] || die "Game Binaries/Win64 folder not found at: $BIN_DIR"
+[[ -f "$VERSION_SRC" ]] || die "Release version marker missing from installer: $VERSION_SRC"
 
 ok "Found Omega Strikers at:"
 echo "     $GAME_PATH"
@@ -144,13 +146,13 @@ echo "Installing mod files..."
 rm -rf "$SCRIPTS_DIR" "$DATA_DIR/emotes" "$DATA_DIR/localization/screens"
 mkdir -p "$SCRIPTS_DIR" "$SIDECAR_DIR" "$DATA_DIR" "$DATA_DIR/emotes" "$DATA_DIR/localization/screens" "$PAK_DIR"
 
-echo "  [1/5] Copying Lua scripts..."
+echo "  [1/6] Copying Lua scripts..."
 cp -f "$THIS_DIR"/mod/scripts/*.lua "$SCRIPTS_DIR/"
 
-echo "  [2/5] Copying runtime data..."
+echo "  [2/6] Copying runtime data..."
 cp -R "$THIS_DIR/mod/data/." "$DATA_DIR/"
 
-echo "  [3/5] Copying sidecar..."
+echo "  [3/6] Copying sidecar..."
 pkill -f 'OSPlus\.exe|OmegaStrikersChat\.exe' >/dev/null 2>&1 || true
 cp -f "$THIS_DIR/mod/sidecar/OSPlus.exe" "$SIDECAR_DIR/"
 cp -f "$THIS_DIR/mod/sidecar/launch_hidden.vbs" "$SIDECAR_DIR/"
@@ -159,16 +161,19 @@ if [[ ! -f "$SIDECAR_DIR/config.json" ]]; then
     cp -f "$THIS_DIR/mod/sidecar/config.json" "$SIDECAR_DIR/"
 fi
 
-echo "  [4/5] Copying Blueprint pak..."
+echo "  [4/6] Copying Blueprint pak..."
 cp -f "$THIS_DIR/mod/OSPlus.pak" "$PAK_DIR/"
 
-echo "  [5/5] Enabling mod in mods.txt..."
+echo "  [5/6] Enabling mod in mods.txt..."
 MODS_TXT="$MODS_DIR/mods.txt"
 touch "$MODS_TXT"
 grep -v -E '^[[:space:]]*(OSPlus|OmegaStrikersTest)[[:space:]]*:' "$MODS_TXT" > "$MODS_TXT.tmp" || true
 mv "$MODS_TXT.tmp" "$MODS_TXT"
 printf 'OSPlus : 1\n' >> "$MODS_TXT"
 ok "OSPlus enabled"
+
+echo "  [6/6] Recording installed version..."
+cp -f "$VERSION_SRC" "$MOD_DIR/version.json"
 
 echo
 echo "======================================"

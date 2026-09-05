@@ -13,9 +13,16 @@ M.widget  = nil
 M.visible = false
 M.inMatch = false
 M.currentRoom = nil
+M.currentSeed = nil
 M.currentTeam = nil
 M.currentSpectator = false
 M.currentUsername = nil
+M.currentRevealOpponents = false
+-- Monotonic for this Lua session, including map resets. Echoed by the relay
+-- so queued snapshots from an earlier room/team cannot restore hidden names.
+M.presenceRevision = 0
+local presenceSeed = nil
+local opponentsRevealed = false
 M.roomDelayTicks = 0
 M.messages = {}
 M.feedTicks = 0
@@ -31,6 +38,7 @@ M.presence = {}
 M.onChatSent = nil
 M.onRoomChange = nil
 M.onRoomLeave = nil
+M.onMatchEnded = nil
 
 -- ---------------------------------------------------------------------------
 -- Rich text formatting
@@ -369,9 +377,18 @@ local function rebuildPresence()
     end)
 end
 
-function M.setPresence(members)
+function M.setPresence(members, room, revision, revealOpponents)
+    -- Missing metadata (including an old relay) fails closed. Names alone
+    -- cannot be safely classified as teammates in Lua.
+    if not M.currentRoom or room ~= M.currentRoom
+        or type(revision) ~= "number" or revision ~= M.presenceRevision
+        or type(revealOpponents) ~= "boolean"
+        or revealOpponents ~= M.currentRevealOpponents then
+        return false
+    end
     M.presence = members or {}
     rebuildPresence()
+    return true
 end
 
 local notificationSound = nil
@@ -483,19 +500,27 @@ end
 -- nil, causing the chat to vanish mid-match. The seed doesn't blip.
 -- ---------------------------------------------------------------------------
 
-local function readMatchSeed()
-    local ok, seed = pcall(function()
+local function readMatchState()
+    local ok, seed, phase = pcall(function()
         local gs = FindFirstOf("GameState_Game_C")
         if not gs or not gs:IsValid() then
             gs = FindFirstOf("GameState_Tutorial_C")
         end
         if not gs or not gs:IsValid() then return nil end
-        return gs.CurrentMatchSeed
+        local matchSeed = gs.CurrentMatchSeed
+        -- The field/EMatchPhase.InGame=5 are present in the stored game dump.
+        -- A failed phase read must not break the established seed room gate.
+        local phaseOk, matchPhase = pcall(function() return gs.CurrentMatchPhase end)
+        return matchSeed, phaseOk and matchPhase or nil
     end)
     if ok and seed and type(seed) == "number" and seed ~= 0 then
-        return seed
+        return seed, type(phase) == "number" and phase or nil
     end
     return nil
+end
+
+local function readMatchSeed()
+    return (readMatchState())
 end
 
 local function isInMatch()
@@ -844,12 +869,34 @@ local function parseChatAudience(text)
 end
 
 local function tryJoinRoom()
-    local code = M.deriveRoomCode()
+    local seed, phase = readMatchState()
+    local code = seed and seedToCode(seed) or nil
+    if seed ~= presenceSeed then
+        presenceSeed = seed
+        opponentsRevealed = false
+        M.currentRevealOpponents = false
+    end
+    -- EMatchPhase is NOT ordered: bans are 19 and preselection is 20.
+    -- Unlock only on explicit gameplay evidence for this seed, then retain
+    -- it through KOs, goals and between-set drafts. Never gate on Pawn.
+    if seed and phase == 5 then opponentsRevealed = true end
     local state = readLocalPlayerChatState()
     local team = state.team
     local rawTeam = state.rawTeam
     local isSpectator = state.isSpectator == true
     local friendlyName = identity.resolveDisplayName()
+    local username = friendlyName or M.currentUsername or identity.getBestLocalName()
+    if seed == M.currentSeed and code == M.currentRoom and team == M.currentTeam
+        and isSpectator == M.currentSpectator and username == M.currentUsername
+        and opponentsRevealed == M.currentRevealOpponents then return end
+    -- Invalidate before identity retries too: a delayed display-name read must
+    -- not leave a previous team/room's names visible while waiting to rejoin.
+    -- Mark the cached join invalid even if the metadata later reverts; the
+    -- new revision still needs a relay round-trip before it can accept names.
+    M.currentSeed = nil
+    M.presenceRevision = M.presenceRevision + 1
+    M.presence = {}
+    rebuildPresence()
     -- Resolve the name on every attempt. identity.lua caches only the
     -- authoritative UPMPlayerUIData value, so a non-nil result is safe to put
     -- in ws._username on the relay side.
@@ -875,8 +922,6 @@ local function tryJoinRoom()
         log.log("[CHAT] Could not derive room after " .. ROOM_MAX_RETRIES .. " retries; giving up")
         return
     end
-    local username = friendlyName or M.currentUsername or identity.getBestLocalName()
-    if code == M.currentRoom and team == M.currentTeam and isSpectator == M.currentSpectator and username == M.currentUsername then return end
     if missing and not M.currentRoom then
         -- Friendly name never resolved within the budget. Fall back so chat
         -- still works locally; presence uses a neutral Player-#### / "Me"
@@ -884,23 +929,33 @@ local function tryJoinRoom()
         log.log("[CHAT] Friendly name never resolved within " .. ROOM_MAX_RETRIES .. " retries; joining with fallback")
     end
     M.currentRoom = code
+    M.currentSeed = seed
     M.currentTeam = team
     M.currentSpectator = isSpectator
     M.currentUsername = username
+    M.currentRevealOpponents = opponentsRevealed
     local roleLabel = isSpectator and "spectator" or "player"
     log.log("[CHAT] Joining room: " .. code .. " as " .. username
         .. " (" .. roleLabel .. ", relay team: " .. teamLabel(team)
         .. ", raw team: " .. tostring(rawTeam) .. ", "
-        .. spectatorSignalSummary(state) .. ")")
+        .. spectatorSignalSummary(state) .. ", presence: "
+        .. (opponentsRevealed and "match" or "teammates")
+        .. ", phase: " .. tostring(phase) .. ")")
     if M.onRoomChange then
-        pcall(function() M.onRoomChange(code, username, team, isSpectator) end)
+        pcall(function()
+            M.onRoomChange(code, username, team, isSpectator, opponentsRevealed, M.presenceRevision)
+        end)
     end
 end
 
 local function leaveRoom()
+    presenceSeed = nil
+    opponentsRevealed = false
+    M.currentRevealOpponents = false
     if not M.currentRoom then return end
     log.log("[CHAT] Leaving room: " .. M.currentRoom)
     M.currentRoom = nil
+    M.currentSeed = nil
     M.currentTeam = nil
     M.currentSpectator = false
     M.currentUsername = nil
@@ -931,6 +986,9 @@ local function endMatch(reason)
     M.hideWidget()
     leaveRoom()
     matchProbeTimer = MATCH_PROBE_TICKS
+    if M.onMatchEnded then
+        pcall(M.onMatchEnded, reason)
+    end
 end
 
 -- Called when match state changes (via OnRep_MatchState hook).
@@ -1168,13 +1226,14 @@ end
 -- ---------------------------------------------------------------------------
 
 function M.reset()
-    leaveRoom()
+    local matchEndedByMapLoad = M.inMatch
     -- The previous map's widget is being destroyed by the engine right now.
     -- Touching it (SetVisibility, CloseInput, anything) can crash natively
     -- because pcall does NOT catch C++ access violations on freed UObjects.
     -- Just drop our reference; ensureWidget() will find a fresh widget
     -- on the new map after BPModLoader respawns ModActor.
     M.widget = nil
+    leaveRoom()
     M.visible = false
     M.inMatch = false
     M.currentRoom = nil
@@ -1199,6 +1258,9 @@ function M.reset()
     notificationLoadFailed = false
     resizeMouseReadFailed = false
     resetResizeDrag(false)
+    if matchEndedByMapLoad and M.onMatchEnded then
+        pcall(M.onMatchEnded, "map loaded")
+    end
 end
 
 -- ---------------------------------------------------------------------------

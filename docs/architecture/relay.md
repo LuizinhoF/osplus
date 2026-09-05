@@ -38,7 +38,7 @@ this won).
 ```mermaid
 flowchart LR
     subgraph game["GAME (player's machine)"]
-        lua["<b>Lua mod (UE4SS)</b><br/>chat, profile, identity"]
+        lua["<b>Lua mod (UE4SS)</b><br/>chat, profile, identity,<br/>update notification"]
     end
 
     subgraph local["LOCAL — same machine"]
@@ -47,7 +47,7 @@ flowchart LR
 
     subgraph cloud["CLOUD — OCI VM 136.248.104.200"]
         caddy["<b>Caddy</b><br/>reverse proxy + auto-TLS<br/>play-osplus.duckdns.org"]
-        relay["<b>relay</b> (Node.js)<br/>WS chat fanout +<br/>REST profile API<br/>bound 127.0.0.1:3000"]
+        relay["<b>relay</b> (Node.js)<br/>WS chat fanout + REST profile API +<br/>public release projection<br/>bound 127.0.0.1:3000"]
         sqlite["<b>SQLite</b><br/>data/osplus.sqlite3 (profiles + auth)<br/>data/osplus_captures.sqlite3 (future)"]
     end
 
@@ -57,6 +57,7 @@ flowchart LR
 
     sidecar <-- "WebSocket<br/>(chat fanout)" --> caddy
     sidecar -- "HTTPS POST /api/*<br/>(profile upserts)" --> caddy
+    sidecar -- "HTTPS GET /updates/latest<br/>(stable release state)" --> caddy
     caddy <-- 127.0.0.1:3000 --> relay
     relay <--> sqlite
 ```
@@ -71,7 +72,7 @@ two protocols, three hosts**:
 | **Lua mod** | Inside `OmegaStrikers.exe` (UE4SS-injected) | Game-side feature logic. Cannot open sockets — UE4SS Lua has no networking. |
 | **Sidecar** | Same machine as the game (`%LOCALAPPDATA%\OSPlus\sidecar.exe`) | The bridge. File IPC on the local side, WebSocket + HTTPS on the network side. Auto-launched by the mod (via UE4SS `os.execute`) at game start. On Linux/Steam Deck, the game runs under Proton; OSPlus launches the same Windows sidecar directly inside that compatibility layer so `%LOCALAPPDATA%` stays shared with Lua. |
 | **Caddy** | OCI VM `136.248.104.200` | Reverse proxy. Owns TLS termination for `play-osplus.duckdns.org`. Routes everything to `127.0.0.1:3000`. |
-| **Relay (Node.js)** | OCI VM, behind Caddy, listening on `127.0.0.1:3000` | The fanout + persistence layer. Two responsibilities under one process per [ADR 0002](../decisions/0002-profile-storage.md): WS chat broadcast + REST profile API. |
+| **Relay (Node.js)** | OCI VM, behind Caddy, listening on `127.0.0.1:3000` | WS chat broadcast, REST profile persistence, and the non-persistent public projection of the latest stable GitHub release. |
 
 **Why the sidecar exists at all.** UE4SS's Lua runtime has no
 sockets, no native HTTP, no async I/O beyond file system access.
@@ -86,8 +87,8 @@ flat JSONL files plus a single heartbeat file.
 
 | File | Writer | Reader | Purpose |
 |---|---|---|---|
-| `outbox.jsonl` | Lua mod | Sidecar | Outgoing messages (chat sends, room joins/leaves, profile upserts). One JSON object per line. Sidecar tracks read offset. |
-| `inbox.jsonl` | Sidecar | Lua mod | Incoming messages (chat from other players, room presence updates, errors). One JSON object per line. Lua polls every ~90 ms (3 ticks at 30 ms). |
+| `outbox.jsonl` | Lua mod | Sidecar | Outgoing messages (chat sends, room joins/leaves, profile upserts, lifecycle update checks). One JSON object per line. Sidecar tracks read offset. |
+| `inbox.jsonl` | Sidecar | Lua mod | Incoming messages (chat from other players, room presence updates, update availability, errors). One JSON object per line. Lua polls every ~90 ms (3 ticks at 30 ms). |
 | `heartbeat.txt` | Lua mod | Sidecar | Lua's "I'm alive" beacon. Touched every 5 s. Sidecar **exits** if no heartbeat for 20 s (with a 30 s startup grace) — this is how the sidecar knows the game closed. |
 | `sidecar.log` | Sidecar | (operator) | Sidecar's persistent log. On Windows the sidecar usually runs hidden via the wscript.exe shim; on Proton it is launched directly. Either way stdout is unreliable for users, so we mirror everything to this file. Truncated at each start. |
 
@@ -97,8 +98,11 @@ deliberately flat-only). Examples:
 
 ```json
 {"type":"chat","text":"gg","audience":"team","targetTeam":0,"ts":1712345678}
-{"type":"room_change","room":"AAX45ABA","username":"Ispicas","team":0,"spectator":false}
+{"type":"room_change","room":"AAX45ABA","username":"Ispicas","team":0,"spectator":false,"revealOpponents":false,"presenceRevision":1}
+{"type":"presence","room":"AAX45ABA","members":"Ispicas\nTeammate","revealOpponents":false,"presenceRevision":1}
 {"type":"profile_upsert","prometheus_id":"6333a58673a37dc7cb11a7a7","display_name":"Ispicas"}
+{"type":"update_check","reason":"match_completed","ts":1712345678}
+{"type":"update_available","installedVersion":"0.3.0","latestVersion":"0.4.0","releaseUrl":"https://github.com/LuizinhoF/osplus/releases/tag/v0.4.0","assetUrl":"https://github.com/LuizinhoF/osplus/releases/download/v0.4.0/OSPlus.zip","ts":1712345678}
 ```
 
 **Why files, not a local socket.** File IPC adds ~30–50 ms
@@ -159,6 +163,29 @@ pay a correlation-ID tax for no gain.
   still carry a team-like viewing-side value. The relay rejects
   team-targeted messages unless the sender is on that team or has
   `spectator:true`.
+- **Presence is recipient-specific, not the room roster.** `room_change`
+  and `join` also carry `revealOpponents` (only boolean `true` enables it)
+  and `presenceRevision` (positive safe integer, invalid/missing becomes 0).
+  Lua defaults to restricted and enables opponents only after observing
+  `CurrentMatchPhase == EMatchPhase.InGame` (5) for that match seed. This
+  permission survives goals/KOs/intermissions but resets on seed/map/room exit.
+  The existing throttled room checks read phase; no new phase hook is assumed.
+  Until enabled, the relay includes self plus confirmed same-team players;
+  spectators and unknown-team recipients see only themselves, and are not
+  included as teammates. Once enabled, all connected room members are shown.
+  Chat message audiences and room identifiers are unchanged.
+- **Presence snapshots echo the recipient's revision and permission.** The
+  sidecar caches these with the join identity, including across reconnects.
+  Both sidecar and Lua reject snapshots with another room, revision, or
+  permission, as well as legacy untagged snapshots. Lua clears cached presence
+  before changing audience, including while waiting for identity to resolve;
+  revisions do not restart on map changes. Existing newline-separated names
+  remain flat JSON, with no extra per-member delimiter scheme.
+  A new client on an old relay therefore shows no presence list; an old client
+  on a new relay stays restricted. Deploy the relay before distributing the
+  matching Lua/sidecar build. These client-reported fields prevent accidental
+  disclosure in OSPlus; they are not authenticated game-state/anti-cheat proof.
+  See [investigation and pending in-game checks](../learnings/chat-pregame-presence-privacy.md).
 - **Hardening baseline** (relay-side):
   - 4 KB max payload (ws-level cap).
   - 5 connections per source IP.
@@ -192,20 +219,46 @@ Per [ADR 0002 → A-2](../decisions/0002-profile-storage.md#decision):
   same auth surface and a separate `data/osplus_captures.sqlite3`
   per [ADR 0002 → R-Y](../decisions/0002-profile-storage.md#decision).
 
-## The relay process — single Node, two responsibilities
+### HTTPS GET — stable update availability
 
-Lives at `server/index.js`. Two responsibilities under one
-process per [ADR 0002 → S-A](../decisions/0002-profile-storage.md#decision):
+`https://play-osplus.duckdns.org/updates/latest` is public and
+unauthenticated. GitHub Releases remains the authority; the relay validates the
+latest published stable `vMAJOR.MINOR.PATCH` release and required
+`OSPlus.zip` asset, then exposes a short-lived in-memory projection with an
+ETag. A warm projection can be served stale during a GitHub outage; a cold
+failure returns `503` and never blocks the game.
+
+The installed package places its public version marker at
+`Mods/OSPlus/version.json`. The sidecar reads that marker, derives the update
+URL from `relay_url` unless `update_url` is configured explicitly, and compares
+numeric stable versions. Startup is sidecar-owned; Lua requests checks after
+confirmed queue entry and match completion. Successful network results are
+cached for five minutes.
+
+Availability is durable state, not an edge-triggered WebSocket event. For each
+accepted lifecycle trigger, the sidecar may write the cached
+`update_available` fact again because Lua truncates its inbox during map
+loads. Lua owns game-session presentation de-duplication, so the same release
+still sounds and animates at most once. A future WebSocket message may only be
+a hint to repeat this HTTP check.
+
+## The relay process — single Node, three responsibilities
+
+Lives at `server/index.js`. The existing profile storage decision still
+governs the first two responsibilities:
 
 1. **WebSocket chat fanout** — room-scoped, ephemeral, no
    persistence. Implementation in `server/index.js` directly.
 2. **REST API** — profile rows + auth tokens, persisted to
    SQLite. Implementation in `server/api/` (the `createApi()`
    factory mounted at `/api/*`).
+3. **Public release projection** — validated, short-lived in-memory
+   GitHub Release state. Implementation in `server/updates/`, mounted at
+   `/updates/latest`; no database and no authentication.
 
-**Module boundary discipline.** `server/index.js` only ever
-calls `api.handleHttp(req, res)` — the SQLite `Database()`
-instance is owned exclusively by `server/api/`. This keeps the
+**Module boundary discipline.** `server/index.js` delegates only through
+`updates.handleHttp(req, res)` and `api.handleHttp(req, res)`; the SQLite
+`Database()` instance remains owned exclusively by `server/api/`. This keeps the
 extraction-to-separate-process path mechanical if scale ever
 forces it (per ADR 0002's escape hatch).
 
@@ -235,6 +288,7 @@ forces it (per ADR 0002's escape hatch).
 | Add a new IPC message (sidecar → Lua) | `sidecar/index.js` (writer) + `mod/OSPlus/scripts/ipc.lua` poll handler + `M.onXxxReceived` callback the feature module sets on `ipc` | Match the Lua-side `M.on*` callback pattern from `chat.lua`. |
 | Add a new WebSocket message type | `server/index.js` `VALID_TYPES` set + a handler branch in the message switch + sidecar-side message handling | Update the [naming convention table in `code-conventions.mdc`](../../.cursor/rules/code-conventions.mdc) only if you're adding a new convention. |
 | Add a new REST endpoint | `server/api/` (route + handler) + sidecar-side caller | Endpoints under `/api/` get the auth middleware automatically. |
+| Change public update metadata | `server/updates/` + `sidecar/update.js` | Keep GitHub Releases authoritative, the relay cache non-persistent, and HTTP the durable source of truth. |
 | Add a new persisted column | `server/api/` schema + a migration approach | Per [ADR 0002 → M-i](../decisions/0002-profile-storage.md#decision), the v1 strategy is "drop and recreate" — no migration framework yet. Revisit when the second schema-changing feature lands. |
 | Change relay deployment | `server/deploy/install-relay.sh` (runs on the VM) + ship via [`server/deploy/ship.ps1`](../../server/deploy/ship.ps1) | Always read [`deploy-relay.md`](../ops/deploy-relay.md) first. |
 

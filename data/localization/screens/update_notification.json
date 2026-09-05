@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "default_locale": "en",
+  "screen": "update_notification",
+  "strings": {
+    "update_notification.title": {
+      "en": "OSPLUS UPDATE",
+      "pt-BR": "ATUALIZAÇÃO OSPLUS"
+    },
+    "update_notification.version_available": {
+      "en": "v{version} available",
+      "pt-BR": "v{version} disponível"
+    },
+    "update_notification.view_release": {
+      "en": "View release on GitHub",
+      "pt-BR": "Ver lançamento no GitHub"
+    }
+  }
+}

@@ -183,16 +183,19 @@ Audited 2026-07-24 against `mod/OSPlus/scripts/chat.lua` and the rebuilt `WBP_Mo
 | `M.widget` | operational | Cached UE object reference. Single owner. |
 | `M.inMatch` | operational | Cached polling result. |
 | `M.currentRoom` | domain | Match-wide WebSocket room code. |
+| `M.currentSeed` | domain | Raw seed for the cached valid join, compared separately from the encoded room. Cleared while a changed context awaits rejoin, including identity retries. |
 | `M.currentTeam` | domain | Local relay routing team (`0` for game `TeamOne`, `1` for game `TeamTwo`; `nil` for spectator or unknown). Spectator status is tracked separately; `nil` team alone is not a caster permission signal. |
 | `M.currentSpectator` | domain | Explicit local spectator flag derived from PlayerState spectator signals. Used for relay policy, because spectators may still carry an `AssignedTeam` viewing-side value. |
 | `M.currentUsername` | domain | Last username sent to the relay for room membership; sourced from `identity.lua`, and changed names trigger a same-room rejoin. |
 | `M.roomDelayTicks`, `roomRetries`, `matchProbeTimer`, `matchExitTimer` | operational | Timer state. |
 | `M.messages` | domain | Array of `{sender, text, audience, targetTeam, time}`. Painful in BP. |
-| `M.presence` | domain | Array of usernames in the current room (relay-pushed). Cached so widget reattach can re-render without waiting for the next server broadcast. |
+| `M.currentRevealOpponents`, `presenceSeed`, `opponentsRevealed` | domain | Requested presence audience plus same-seed gameplay evidence. Defaults restricted; explicit `InGame=5` permits opponents until seed/map/room exit. Unknown phases cannot grant permission. |
+| `M.presenceRevision` | operational | Monotonic Lua-session snapshot revision, echoed by relay. Invalidates delayed lists across room/team/audience changes and map resets. |
+| `M.presence` | domain | Array of currently permitted usernames, not the full room roster. Relay filters by team before gameplay; Lua accepts only matching room/revision/audience and caches that list for widget reattach. |
 | `M.feedTicks`, `M.feedVisible` | operational / derived display | Own the 10-second passive-feed lifetime and mirror the resulting background visibility into UMG. |
 | `M.selectedChannel`, `M.channelRole`, `M.channelTouched` | domain / UI choice | Own the match-scoped audience selection, role-specific valid choices, and sticky-selection behavior. |
 | `M.overlayFlags` | operational | Tracks the native `WBP_SettingsHub_C` navigation lifecycle so chat is suppressed while the Escape/settings screen is open. |
-| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username, team, isSpectator)` since v51. |
+| `M.onChatSent`, `M.onRoomChange`, `M.onRoomLeave` | operational | IPC callbacks. `onRoomChange(room, username, team, isSpectator, revealOpponents, presenceRevision)`. Presence returns through `setPresence(members, room, revision, revealOpponents)`; the Blueprint still only receives formatted text. |
 
 `chat.lua` deliberately owns no player-name cache. Local display-name ownership
 stays in `identity.lua`, whose session identity source does not depend on a
@@ -276,6 +279,69 @@ This is the cleanest possible cross-context shared variable in the codebase. **U
 | 4 | Keep local player identity in `identity.lua`; do not add a chat-level name cache | Resolved 2026-07-24 |
 
 Items 1 and 2 remain cleanup tasks; they do not change the runtime ownership contract above.
+
+---
+
+## Update availability notification contract
+
+`update_notification.lua` owns the release fact received from IPC, the pending
+notice, Home Hub display/attachment state, the decision to request a check when
+chat publishes its existing match-ended edge, and the set of versions already
+presented during this game session. Blueprint does not compare versions or
+decide whether a notice is eligible.
+
+The cooked `WBP_OSPlusUpdateNotice` owns card visibility, rendered text, its
+one-shot entrance animation, its one quiet sound, and the release-link button's
+active target, hover state, enabled state, and inline hover hint. Lua pushes
+five commands:
+
+- `OSPlus_SetLocalizedText(titleString, versionLineString)` — convert ordinary
+  Lua strings to BP-owned text and write both text blocks. Lua must not call
+  UMG `SetText` directly on UE4SS 3.0.1.
+- `OSPlus_SetReleaseLink(releaseUrlString, tooltipString)` — populate the
+  validated destination and convert the localized inline hint into BP text.
+  The `tooltipString` name is retained for compatibility; BP does not create
+  a standard tooltip popup. An empty URL clears the target and hint, disables
+  the button, and resets the hover display. Lua only permits the
+  exact HTTPS OSPlus release tag matching the displayed stable version, and
+  retains that visible release fact for language refresh/restoration.
+- `OSPlus_ShowUpdateNotice(latestVersion)` — make the already-populated card
+  visible. The version argument stays in the contract for compatibility but
+  the function does not format English copy.
+- `OSPlus_PlayUpdateNoticeCue()` — restart the one-shot entrance animation and
+  play the quiet sound after the native loading screen has finished hiding, or
+  immediately if it is already gone.
+- `OSPlus_HideUpdateNotice()` — collapse the card when the Home Hub visit ends.
+
+There is no update-widget BP-to-Lua state for this feature. Lua never polls its
+animation state. The bounded button handles `OnClicked` in Blueprint and calls
+`OSPlus_OpenReleasePage`, which guards an empty target before using the engine's
+`LaunchURL`. BP handles `OnHovered`/`OnUnhovered` through
+`OSPlus_SetReleaseHover`, swapping the secondary line inside `VersionDisplay`.
+The version remains `Hidden` while the hint shows so its layout space remains.
+The localization key is still `update_notification.view_release`.
+
+This interaction does not emit IPC or install the update. The widget never
+sees relay, cache, installed-version, or lifecycle-trigger details. Lua uses
+native loading events and its existing
+`OdyUIRouter:OnMenuDisplayStateChanged` hook to suspend link input and clear the applied
+hint while those overlays cover the Home Hub, then restores the saved visible
+release without ending the visit or replaying the consumed cue. Loading
+hide-completion also releases the cue at the right moment. Lua owns
+reparenting the collapsed widget into
+`WBP_HomeHub_PC_C.UIContainer`; Blueprint remains responsible only for the
+card's internal rendering, sound, animation, and click interaction after that
+native attachment. The outer full-screen widget is `SelfHitTestInvisible` when
+link input is allowed, so descendant buttons can receive input without blocking
+neighboring controls. It becomes `HitTestInvisible` while native overlays cover
+the hub or when the link setter fails.
+
+For `WBP_SettingsHub_C`, a numeric nonzero router state enables the input
+cover, `NotShowing` (`0`) clears it, and unreadable state preserves it. Settings
+does not depend on a second `RegisterCustomEvent` navigation subscription:
+chat initializes first, and UE4SS 3.0.1 retains only the first callback per
+short event name. The notice's native router hook is also its primary Home Hub
+state source; remaining Home Hub custom navigation callbacks are best effort.
 
 ---
 
